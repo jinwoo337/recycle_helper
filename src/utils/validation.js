@@ -7,7 +7,7 @@ function errorFor(input, form) {
   return '';
 }
 
-export function bindForm(form) {
+export function bindForm(form, onValid) {
   if (!form) return;
   const inputs = [...form.querySelectorAll('input')];
   const status = form.querySelector('.form-status');
@@ -23,12 +23,24 @@ export function bindForm(form) {
     const confirmation = form.elements.namedItem('password-confirm');
     if (input.id === 'password' && confirmation?.hasAttribute('aria-invalid')) validate(confirmation);
   }));
-  form.addEventListener('submit', event => {
+  let pending = false;
+  form.addEventListener('submit', async event => {
     event.preventDefault();
+    if (pending) return;
     const valid = inputs.map(validate).every(Boolean);
     if (!valid) {
       status.textContent = '입력 내용을 다시 확인해 주세요.';
       inputs.find(input => input.getAttribute('aria-invalid') === 'true').focus();
+      return;
+    }
+    if (onValid) {
+      const button = form.querySelector('button[type="submit"]');
+      pending = true;
+      button.disabled = true;
+      status.textContent = '확인 중이에요…';
+      try { await onValid(form, status); }
+      catch (error) { status.textContent = error.message || '처리하지 못했어요. 다시 시도해 주세요.'; }
+      finally { pending = false; button.disabled = false; }
       return;
     }
     status.textContent = '입력 형식 확인이 완료됐어요. 실제 인증 기능은 준비 중이며, 입력 내용은 저장되지 않았어요.';

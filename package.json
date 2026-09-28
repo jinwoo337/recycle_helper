@@ -1,0 +1,8 @@
+{
+  "name": "recycle-helper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node scripts/serve.js" },
+  "engines": { "node": ">=18" }
+}
