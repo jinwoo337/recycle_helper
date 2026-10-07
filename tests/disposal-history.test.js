@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { getDisposalHistory, saveDisposalRecord } from '../src/services/disposal-history.js';
+import { saveRecentItem } from '../src/services/recent-items.js';
+import { judgeDisposal } from '../src/domain/disposal/rules.js';
+import { login, logout } from '../src/services/auth.js';
+
+test('입력과 결과 보존, 같은 이름의 다른 상태, 계정 구분, v1 보존과 저장 실패', async () => {
+  const stored = new Map(); const session = new Map();
+  globalThis.localStorage = { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) };
+  globalThis.sessionStorage = { getItem: key => session.get(key) ?? null, setItem: (key, value) => session.set(key, value), removeItem: key => session.delete(key) };
+  saveRecentItem('옛 물품');
+  assert.equal((await getDisposalHistory())[0].legacy, true);
+  const input = { itemName: '도시락 용기', material: '플라스틱', type: 'container', contaminated: 'no', combined: 'no' };
+  const record = await saveDisposalRecord(input, judgeDisposal(input));
+  input.itemName = '수정'; assert.equal(record.input.itemName, '도시락 용기');
+  const loaded = await getDisposalHistory();
+  assert.deepEqual(loaded[0], record); assert.equal(loaded[1].legacy, true);
+  assert.ok(stored.has('recycle-helper.recent-items.v1.guest'));
+  const dirty = { ...record.input, contaminated: 'yes', washed: 'yes', removable: 'no' };
+  await saveDisposalRecord(dirty, judgeDisposal(dirty));
+  assert.equal((await getDisposalHistory())[0].result.status, 'general');
+  assert.equal((await getDisposalHistory())[1].result.status, 'recycle');
+  const reloaded = await import('../src/services/disposal-history.js?reload');
+  assert.deepEqual(await reloaded.getDisposalHistory(), await getDisposalHistory());
+  await login('demo@example.com', 'recycle1234'); assert.deepEqual(await getDisposalHistory(), []);
+  await saveDisposalRecord(dirty, judgeDisposal(dirty)); assert.equal((await getDisposalHistory()).length, 1);
+  logout(); assert.equal((await getDisposalHistory()).length, 3);
+  for (let index = 0; index < 9; index++) await saveDisposalRecord(dirty, judgeDisposal(dirty));
+  assert.equal((await getDisposalHistory()).length, 8);
+  stored.set('recycle-helper.disposal-history.v2.guest', '[null, {}, {"schemaVersion":2}]');
+  assert.equal((await getDisposalHistory())[0].legacy, true);
+  stored.set('recycle-helper.disposal-history.v2.guest', '{broken');
+  assert.equal((await getDisposalHistory())[0].legacy, true);
+  localStorage.setItem = () => { throw Error('blocked'); };
+  await assert.rejects(saveDisposalRecord(dirty, judgeDisposal(dirty)), /저장하지 못/);
+});

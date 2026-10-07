@@ -36,4 +36,17 @@
 .item-summary{margin-top:28px;scroll-margin-top:24px}
 .item-summary dl{margin-bottom:24px}.item-summary dl>div{display:grid;grid-template-columns:160px 1fr;gap:16px;border-bottom:1px solid var(--line);padding:12px 0;font-size:14px}
 .item-summary dt{color:var(--muted)}.item-summary dd{margin:0;overflow-wrap:anywhere}
+.component-card{margin:18px 0;padding:20px 16px;background:#f6f8f2;border:1px solid var(--line);border-radius:12px}
+.component-card h3{font-size:15px;margin-bottom:18px}.remove-component{border:0;background:transparent;color:var(--muted);font-size:12px;text-decoration:underline;padding:8px 0}
+.recent-list li button{border:0;background:transparent;text-align:left;min-width:0;width:100%;padding:3px;color:inherit}
+.recent-list li button strong{display:block;font-size:13px;font-weight:500}.recent-list small{display:block;font-size:11px;color:var(--muted);margin-top:3px;overflow-wrap:anywhere}
+.recent-list li:has(button:hover){background:#e8f0e3}
+.result-verdict{background:#edf5e9;border-radius:12px;padding:24px;margin:22px 0}.result-verdict.needs-check{background:#fff4dc;color:#775216}
+.result-badge{font-size:12px;font-weight:700}.result-verdict h3{font-size:24px;margin:10px 0 0;overflow-wrap:anywhere}
+.result-sections{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px}.result-sections section+section{border:0;margin:0;padding:0}
+.item-summary h3{font-size:17px}.item-summary ul{font-size:14px;padding-left:20px;margin-bottom:16px}.item-summary li+li{margin-top:8px}
+.result-parts{display:grid;gap:12px;margin-bottom:24px}.result-parts article{border:1px solid var(--line);border-radius:12px;padding:20px}.result-parts h4{margin:0 0 10px;font-size:15px}.part-method{font-weight:600;color:var(--green);font-size:15px}
+.input-details{margin:24px 0}.input-details summary{cursor:pointer;font-size:14px;font-weight:600}.input-details dl{margin-top:12px}.input-details summary:focus-visible{outline:3px solid #bd831c;outline-offset:4px}
+.item-summary .input-hint a{text-decoration:underline}.item-summary .demo-notice{margin-top:24px}.item-summary #edit-item{margin-top:20px}
+@media(max-width:700px){.result-sections{grid-template-columns:1fr;gap:12px}.result-verdict{padding:20px}.result-verdict h3{font-size:20px}.result-parts article{padding:16px}}
 @media(max-width:700px){.item-grid{grid-template-columns:1fr}.item-heading h1{font-size:27px}.item-card{padding:23px 19px}.item-page{padding-top:24px}.item-summary dl>div{grid-template-columns:110px 1fr;gap:12px;font-size:13px}}
