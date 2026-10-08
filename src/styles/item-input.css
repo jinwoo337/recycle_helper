@@ -41,6 +41,13 @@
 .recent-list li button{border:0;background:transparent;text-align:left;min-width:0;width:100%;padding:3px;color:inherit}
 .recent-list li button strong{display:block;font-size:13px;font-weight:500}.recent-list small{display:block;font-size:11px;color:var(--muted);margin-top:3px;overflow-wrap:anywhere}
 .recent-list li:has(button:hover){background:#e8f0e3}
+.history-toolbar{display:flex;justify-content:flex-end;margin-top:12px}
+.auto-fill-choice{display:flex;align-items:center;gap:9px;font-size:14px;cursor:pointer;color:var(--green);font-weight:600}
+.auto-fill-choice input{width:17px;height:17px;accent-color:var(--green);margin:0}.auto-fill-status{margin-bottom:20px}
+.history-action{border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--muted);font-size:12px;padding:7px 10px}
+.recent-list li .recent-delete{width:auto;flex:none;font-size:11px;color:#92543c;padding:8px 4px;text-align:center}
+.history-delete-confirm{margin-top:14px;padding:14px;background:#fff4dc;border-radius:10px}
+.history-delete-confirm p{font-size:12px;margin-bottom:12px;color:#775216}
 .result-verdict{background:#edf5e9;border-radius:12px;padding:24px;margin:22px 0}.result-verdict.needs-check{background:#fff4dc;color:#775216}
 .result-badge{font-size:12px;font-weight:700}.result-verdict h3{font-size:24px;margin:10px 0 0;overflow-wrap:anywhere}
 .result-sections{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px}.result-sections section+section{border:0;margin:0;padding:0}

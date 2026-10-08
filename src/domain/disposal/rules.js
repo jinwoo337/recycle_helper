@@ -1,5 +1,5 @@
 // DOM·저장소에 의존하지 않는 규칙. 입력값을 확인한 뒤에만 재활용을 안내합니다.
-export const RULE_VERSION = '2026-10-08.v1';
+export const RULE_VERSION = '2026-10-08.v2';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '기타', '모르겠어요'];
 export const TYPES = {
@@ -18,6 +18,10 @@ export function supportsState(part = {}) {
     '비닐': ['packaging'], '스티로폼': ['packaging'] })[part.material]?.includes(part.type) || false;
 }
 
+export function needsWashQuestion(part = {}) {
+  return supportsState(part) && !(part.material === '종이' && part.type === 'paper');
+}
+
 // 숨겨진 답변을 제거해 화면과 판별이 같은 조건을 사용하게 합니다.
 export function normalizePart(part = {}) {
   const clean = { material: part.material || '', type: part.type || '' };
@@ -25,7 +29,7 @@ export function normalizePart(part = {}) {
   clean.contaminated = part.contaminated || '';
   if (clean.contaminated === 'yes') {
     clean.removable = part.removable || '';
-    if (clean.material !== '종이') clean.washed = part.washed || '';
+    if (needsWashQuestion(clean)) clean.washed = part.washed || '';
   }
   return clean;
 }
@@ -43,8 +47,20 @@ function judgePart(raw, itemName = '') {
     return outcome('check', '추가 확인 필요', '세부 종류를 알아야 배출 방법을 정할 수 있어요.', ['제품의 용도와 재질 표시를 확인해 주세요.']);
   }
   // 이름은 예외를 놓치지 않기 위한 보조 신호로만 사용합니다.
-  if (/배터리|건전지|형광등|전자|약품|농약|부탄|살충제|페인트|락카|스프레이/.test(itemName)) {
+  const electronic = /전자제품|전기제품|휴대폰|충전기/.test(itemName)
+    && !(p.material === '스티로폼' && p.type === 'packaging' && /완충재/.test(itemName));
+  if (electronic || /배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이/.test(itemName) || (p.material === '금속·캔' && p.type === 'hazard')) {
     return outcome('check', '추가 확인 필요', '별도 수거 또는 안전한 처리가 필요한 물품일 수 있어요.', ['내용물을 임의로 붓거나 용기에 구멍을 내지 말고 지자체의 품목별 안내를 확인해 주세요.']);
+  }
+  const compactName = itemName.replace(/\s+/g, '');
+  const nameConflict = (p.material === '종이' && p.type === 'paper' && /영수증|감열지|사진용지|종이호일|사용한휴지/.test(compactName))
+    || (p.material === '종이' && p.type === 'cup' && /양면코팅/.test(compactName))
+    || (p.material === '유리' && p.type === 'bottle' && /깨진|내열|거울|판유리|크리스탈|도자기/.test(compactName))
+    || (p.material === '플라스틱' && p.type === 'container' && /칫솔|CD|DVD/.test(compactName))
+    || (p.material === '금속·캔' && p.type === 'food-can' && /호일/.test(compactName))
+    || (p.material === '페트병' && p.type === 'clear-drink' && /유색|갈색|녹색|세제|식용유/.test(compactName));
+  if (nameConflict) {
+    return outcome('check', '추가 확인 필요', '물건 이름에 일반 수거 제외 품목의 단서가 있어 선택한 종류를 확인해야 해요.', ['실제 재질과 세부 종류를 다시 확인해 주세요. 이름만으로 배출 방법을 확정하지 않아요.']);
   }
   if (p.material === '종이' && ['excluded', 'coated'].includes(p.type)) {
     return outcome('general', '종량제봉투로 배출', '감열지·사용한 휴지 또는 분리되지 않는 코팅 종이는 일반 종이류로 재활용하기 어려워요.', ['재활용 종이와 섞지 말고 지역 종량제 배출 기준을 따라 주세요.']);
@@ -60,7 +76,7 @@ function judgePart(raw, itemName = '') {
   if (p.contaminated === 'yes' && !['yes', 'no'].includes(p.removable)) {
     return outcome('check', '추가 확인 필요', '남은 오염을 제거할 수 있는지 확인이 필요해요.', ['종이는 오염 부분을 떼어낼 수 있는지, 용기류는 이물질을 제거할 수 있는지 확인해 주세요.']);
   }
-  if (p.contaminated === 'yes' && p.material !== '종이' && !['yes', 'no'].includes(p.washed)) {
+  if (p.contaminated === 'yes' && needsWashQuestion(p) && !['yes', 'no'].includes(p.washed)) {
     return outcome('check', '추가 확인 필요', '세척 상태가 입력되지 않았어요.', ['세척 여부를 입력하고 다시 판별해 주세요.']);
   }
   if (p.contaminated === 'yes' && p.removable === 'no') {
@@ -88,7 +104,7 @@ function judgePart(raw, itemName = '') {
   const result = outcome('recycle', method, reason, [step]);
   if (p.contaminated === 'yes') {
     result.method = `오염 제거 후 ${method}`;
-    result.steps.unshift(p.material === '종이' ? '오염된 부분을 떼어내고 깨끗한 종이만 분리배출해 주세요.' : '남은 오염을 제거하고 깨끗해졌는지 확인해 주세요. 제거되지 않으면 다시 판별해 주세요.');
+    result.steps.unshift(p.material === '종이' && p.type === 'paper' ? '오염된 부분을 떼어내고 깨끗한 종이만 분리배출해 주세요.' : '남은 오염을 제거하고 깨끗해졌는지 확인해 주세요. 제거되지 않으면 다시 판별해 주세요.');
     result.reasons.push(p.washed === 'yes' ? '세척했더라도 현재 오염이 남아 있어 추가 처리가 필요해요.' : '현재 오염이 남아 있어 제거가 완료된 경우에만 재활용을 안내해요.');
   } else result.reasons.push('현재 음식물이나 이물질이 없다고 입력했어요.');
   return result;
@@ -99,26 +115,33 @@ export function judgeDisposal(input = {}) {
   const parts = [{ label: '본체', material: input.material || '미확인', ...structuredClone(result) }];
   if (supportsState(input)) {
     if (!['yes', 'no'].includes(input.combined)) {
-      Object.assign(result, outcome('check', '추가 확인 필요', '다른 재질의 결합 여부가 확인되지 않았어요.', ['라벨·뚜껑·테이프 등 다른 재질을 확인해 주세요.']));
+      if (result.status !== 'check') result.steps = [];
+      result.status = 'check'; result.method = '추가 확인 필요';
+      result.reasons.push('다른 재질의 결합 여부가 확인되지 않았어요.');
+      result.steps.push('라벨·뚜껑·테이프 등 다른 재질을 확인해 주세요.');
     } else if (input.combined === 'yes' && input.separable !== 'yes') {
-      Object.assign(result, outcome('check', '추가 확인 필요', '분리되지 않거나 분리 가능 여부가 불확실한 복합재질이에요.', ['분리배출 표시와 지역의 복합재질 수거 기준을 확인해 주세요.']));
+      if (result.status !== 'check') result.steps = [];
+      result.status = 'check'; result.method = '추가 확인 필요';
+      result.reasons.push('분리되지 않거나 분리 가능 여부가 불확실한 복합재질이에요.');
+      result.steps.push('분리배출 표시와 지역의 복합재질 수거 기준을 확인해 주세요.');
     } else if (input.combined === 'yes') {
-      result.steps.unshift('다른 재질의 부속품을 본체에서 분리해 주세요.');
+      if (result.status !== 'check') result.steps.unshift('다른 재질의 부속품을 본체에서 분리해 주세요.');
       const components = Array.isArray(input.components) ? input.components : [];
       components.forEach((component, index) => parts.push({ label: `부속품 ${index + 1}`, material: component.material || '미확인', ...judgePart(component) }));
       if (!components.length || parts.some(part => part.status === 'check')) {
         result.status = 'check'; result.method = '일부 재질 추가 확인 필요';
-        result.reasons.push('모든 부속품의 배출 방법을 확정할 수 없어 재질별 안내를 확인해야 해요.');
+        result.reasons.push('본체 또는 부속품의 정보를 더 확인해야 해요. 재질별 안내를 확인해 주세요.');
+        if (!components.length) result.steps.push('분리한 부속품의 재질과 상태를 입력해 주세요.');
       } else {
-        result.status = parts.some(part => part.status === 'general') ? 'mixed' : 'recycle';
-        result.method = '본체와 부속품을 각각 분리배출';
+        result.status = parts.every(part => part.status === 'general') ? 'general' : parts.some(part => part.status === 'general') ? 'mixed' : 'recycle';
+        result.method = result.status === 'general' ? '본체와 부속품 모두 종량제봉투로 배출' : '본체와 부속품을 각각 분리배출';
         result.reasons.push('분리 가능한 부속품은 본체와 별도로 재질·오염 상태에 따라 판단했어요.');
       }
     }
   }
   // 결합 불명/분리 불가이면 본체 역시 단독 배출을 확정하지 않습니다.
   if (supportsState(input) && (input.combined !== 'no' && !(input.combined === 'yes' && input.separable === 'yes'))) {
-    parts[0] = { label: '본체와 결합 재질', material: input.material || '미확인', ...result };
+    parts[0] = { label: '본체와 결합 재질', material: input.material || '미확인', ...structuredClone(result) };
   }
   return { ...result, parts, ruleVersion: RULE_VERSION, sourceUrl: RULE_SOURCE, checkedAt: '2026-10-08',
     notice: '전국 공통 기준을 참고한 안내예요. 수거함·배출일·세부 품목은 거주 지역과 관리사무소 안내를 확인해 주세요.' };

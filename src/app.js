@@ -5,14 +5,17 @@ import { signupPage, submitSignup } from './pages/signup/signup.js';
 import { bindForm } from './utils/validation.js';
 import { getCurrentMember, logout } from './services/auth.js';
 import { itemInputPage, bindItemInput } from './pages/item-input/item-input.js';
+import { historyPage, bindHistory } from './pages/history/history.js';
 
 const routes = {
   '/': { page: 'main', title: '홈', render: mainPage },
   '/login': { page: 'login', title: '로그인', render: loginPage },
   '/signup': { page: 'signup', title: '회원가입', render: signupPage },
   '/item-input': { page: 'item-input', title: '물건 및 상태 입력', render: itemInputPage },
+  '/history': { page: 'history', title: '기록 및 통계', render: historyPage },
 };
 
+let disposePage;
 function render(moveFocus = false) {
   const route = routes[location.hash.slice(1) || '/'];
   if (!route) { location.replace('#/'); return; }
@@ -21,8 +24,10 @@ function render(moveFocus = false) {
     location.replace('#/'); return;
   }
   document.title = `${route.title} | 맞춤형 분리배출 도우미`;
+  disposePage?.(); disposePage = undefined;
   document.getElementById('app').innerHTML = layout(route.render(member), route.page, member);
   if (route.page === 'item-input') bindItemInput();
+  else if (route.page === 'history') disposePage = bindHistory();
   else bindForm(document.querySelector('form'), route.page === 'login' ? submitLogin : submitSignup);
   if (route.page === 'login') {
     try {

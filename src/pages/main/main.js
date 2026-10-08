@@ -10,6 +10,6 @@ export function mainPage(member) {
     <article class="step"><span class="step-number">02</span><h3>상태를 확인해요</h3><p>오염과 세척 여부, 다른 재질과<br>분리할 수 있는지 확인해요.</p></article>
     <article class="step"><span class="step-number">03</span><h3>방법을 알아봐요</h3><p>배출 방법부터 필요한 처리 과정,<br>판단 이유까지 안내해요.</p></article>
   </div></div></section>
-  <section class="container account-banner"><div><p class="eyebrow">MY RECYCLING</p><h2>${member ? escapeHtml(member.nickname) + '님, 반가워요!' : '나의 분리배출을 차곡차곡'}</h2><p>${member ? '테스트 로그인 상태예요. 기록과 통계 기능은 준비 중이에요.' : '기록과 통계 기능도 준비하고 있어요.'}</p></div>${member ? '<span class="member-label">테스트 로그인 완료</span>' : '<a class="button secondary" href="#/signup">회원가입 화면 살펴보기 <span aria-hidden="true">→</span></a>'}</section>`;
+  <section class="container account-banner"><div><p class="eyebrow">MY RECYCLING</p><h2>${member ? escapeHtml(member.nickname) + '님, 반가워요!' : '나의 분리배출을 차곡차곡'}</h2><p>판별한 물품을 다시 살펴보고, 유형별 통계를 확인해 보세요.</p></div><a class="button secondary" href="#/history">기록 및 통계 보기 <span aria-hidden="true">→</span></a></section>`;
 }
 

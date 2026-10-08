@@ -2,7 +2,7 @@ import { getCurrentMember } from './auth.js';
 
 const MAX_ITEMS = 8;
 
-function storageKey() {
+export function storageKey() {
   return `recycle-helper.recent-items.v1.${getCurrentMember()?.id || 'guest'}`;
 }
 

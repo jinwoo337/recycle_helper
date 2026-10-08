@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { judgeDisposal, normalizePart } from '../src/domain/disposal/rules.js';
+import { judgeDisposal, normalizePart, needsWashQuestion } from '../src/domain/disposal/rules.js';
 
 const clean = { itemName: '용기', material: '플라스틱', type: 'container', contaminated: 'no', combined: 'no' };
 test('주요 7개 재질의 깨끗한 수거 대상', () => {
@@ -13,6 +13,44 @@ test('주요 7개 재질의 깨끗한 수거 대상', () => {
     assert.equal(result.status, 'recycle'); assert.ok(result.method.includes(method));
     assert.ok(result.steps.length); assert.ok(result.reasons.length);
   }
+});
+
+test('종이팩·종이컵의 오염은 자르기가 아니라 세척으로 안내한다', () => {
+  for (const type of ['carton', 'cup']) {
+    const input = { ...clean, material: '종이', type, contaminated: 'yes', washed: 'yes', removable: 'yes' };
+    assert.equal(needsWashQuestion(input), true);
+    assert.equal(normalizePart(input).washed, 'yes');
+    const result = judgeDisposal(input);
+    assert.equal(result.status, 'recycle');
+    assert.ok(result.steps.some(step => step.includes('헹')));
+    assert.ok(!result.steps.some(step => step.includes('떼어내고 깨끗한 종이')));
+    assert.ok(result.reasons.some(reason => reason.includes('세척했더라도')));
+  }
+  assert.equal(needsWashQuestion({ material: '종이', type: 'paper' }), false);
+});
+test('위험 품목 안내를 결합 질문이 덮어쓰지 않고 일반 완충재는 오인하지 않는다', () => {
+  const hazardous = judgeDisposal({ ...clean, itemName: '페인트 용기', combined: 'unknown' });
+  assert.equal(hazardous.status, 'check');
+  assert.ok(hazardous.steps.some(step => step.includes('구멍')));
+  const can = judgeDisposal({ ...clean, material: '금속·캔', type: 'hazard', itemName: '용기' });
+  assert.equal(can.status, 'check'); assert.ok(can.steps.some(step => step.includes('구멍')));
+  assert.equal(judgeDisposal({ ...clean, itemName: '전자제품 포장 완충재', material: '스티로폼', type: 'packaging' }).status, 'recycle');
+  const combined = judgeDisposal({ ...clean, material: '종이', type: 'carton', combined: 'yes', separable: 'no' });
+  assert.equal(combined.status, 'check');
+  assert.ok(!combined.steps.some(step => step.includes('수거함에 넣')));
+});
+test('이름과 선택한 종류가 충돌하는 제외 품목은 재확인을 요청한다', () => {
+  for (const [itemName, material, type] of [['감열 영수증', '종이', 'paper'], ['깨진 유리병', '유리', 'bottle'],
+    ['내열유리 용기', '유리', 'bottle'], ['알루미늄 호일', '금속·캔', 'food-can'], ['칫솔', '플라스틱', 'container'], ['식용유 페트병', '페트병', 'clear-drink']]) {
+    assert.equal(judgeDisposal({ ...clean, itemName, material, type }).status, 'check');
+  }
+});
+test('모든 재질이 일반 배출이면 재활용 혼합 안내로 표시하지 않는다', () => {
+  const result = judgeDisposal({ ...clean, contaminated: 'yes', washed: 'no', removable: 'no', combined: 'yes', separable: 'yes',
+    components: [{ material: '종이', type: 'coated' }] });
+  assert.equal(result.status, 'general');
+  assert.match(result.method, /모두 종량제봉투/);
+  assert.ok(result.parts.every(part => part.status === 'general'));
 });
 test('같은 물건도 남은 오염과 제거 가능 여부에 따라 달라진다', () => {
   const dirty = { ...clean, contaminated: 'yes', washed: 'yes' };
