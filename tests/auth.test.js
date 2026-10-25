@@ -1,58 +1,76 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { signup, login, logout, getCurrentMember } from '../src/services/auth.js';
+import { initializeAuth, signup, login, logout, getCurrentMember, onMemberChange } from '../src/services/auth.js';
+import { fakeAuthClient } from './helpers/auth-client.js';
 
-test('가입한 계정으로 로그인, 중복 거절, 재로드 및 저장 실패', async () => {
-  const values = new Map();
-  globalThis.localStorage = {
-    getItem: key => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, value),
+test('세션 복원, 로그인 입력 전달, 실패와 로그아웃 실패 시 기존 세션 유지', async () => {
+  const user = { id: 'real-id', email: 'member@example.com', user_metadata: { nickname: '<닉네임>' } };
+  const client = fakeAuthClient(user);
+  await initializeAuth(client);
+  assert.deepEqual(getCurrentMember(), { id: 'real-id', email: user.email, nickname: '<닉네임>' });
+  client.auth.signInWithPassword = async args => {
+    assert.deepEqual(args, { email: 'member@example.com', password: ' exact-password ' });
+    return { error: { code: 'invalid_credentials' } };
   };
-  const member = await signup('나의닉네임', ' NEW@example.com ', 'test-password');
-  assert.equal(member.email, 'new@example.com');
-  assert.equal(JSON.stringify([...values.values()]).includes('test-password'), false);
-  assert.equal(await login('new@example.com', 'wrong-password'), null);
-  assert.deepEqual(await login('NEW@example.com', 'test-password'), member);
-  assert.deepEqual(getCurrentMember(), member);
-  await assert.rejects(signup('다른닉네임', 'new@example.com', 'other-password'), /이미 가입/);
-  await assert.rejects(signup('다른닉네임', 'demo@example.com', 'other-password'), /이미 가입/);
-  logout();
-  const reloaded = await import('../src/services/auth.js?signup-refresh');
-  assert.deepEqual(await reloaded.login('new@example.com', 'test-password'), member);
-  reloaded.logout();
-  localStorage.setItem = () => { throw new Error('storage blocked'); };
-  await assert.rejects(signup('저장실패', 'blocked@example.com', 'test-password'), /저장하지 못/);
-  assert.equal(await login('blocked@example.com', 'test-password'), null);
-  delete globalThis.localStorage;
-});
-
-test('테스트 회원 일치, 불일치, 로그인 유지 및 로그아웃', async () => {
-  const values = new Map();
-  globalThis.sessionStorage = {
-    getItem: key => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, value),
-    removeItem: key => values.delete(key),
-  };
-  assert.equal(getCurrentMember(), null);
-  assert.equal(await login('unknown@example.com', 'recycle1234'), null);
-  assert.equal(await login('demo@example.com', 'wrong-password'), null);
-  assert.equal(await login('demo@example.com', 'recycle1234 '), null);
-  assert.equal(getCurrentMember(), null);
-  const member = await login(' DEMO@example.com ', 'recycle1234');
-  assert.equal(member.nickname, '새싹');
-  assert.equal('password' in member, false);
-  assert.deepEqual([...values.values()], ['demo-member']);
-  const refreshed = await import('../src/services/auth.js?refresh');
-  assert.deepEqual(refreshed.getCurrentMember(), member);
-  logout();
-  assert.equal(getCurrentMember(), null);
-  assert.equal(refreshed.getCurrentMember(), null);
-  values.set('recycle-helper.demo-member', 'unknown');
-  assert.equal(getCurrentMember(), null);
-  delete globalThis.sessionStorage;
-  assert.equal((await login('demo@example.com', 'recycle1234')).id, 'demo-member');
-  assert.equal(getCurrentMember().id, 'demo-member');
-  logout();
+  await assert.rejects(login(' MEMBER@example.com ', ' exact-password '), /일치하지/);
+  assert.equal(getCurrentMember().id, 'real-id');
+  client.auth.signOut = async () => ({ error: { status: 503 } });
+  await assert.rejects(logout(), /네트워크/);
+  assert.equal(getCurrentMember().id, 'real-id');
+  client.auth.signOut = async () => ({ error: null });
+  await logout();
   assert.equal(getCurrentMember(), null);
 });
 
+test('가입 입력 검증, 닉네임·복귀 URL 전달, 이메일 인증 대기와 즉시 로그인', async () => {
+  globalThis.location = { origin: 'http://127.0.0.1:5173', pathname: '/' };
+  const client = fakeAuthClient();
+  await initializeAuth(client);
+  let request;
+  const user = { id: 'new-id', email: 'new@example.com', user_metadata: { nickname: '새싹' } };
+  client.auth.signUp = async args => { request = args; return { data: { user, session: null }, error: null }; };
+  await assert.rejects(signup('a', 'bad', 'short'), /입력 조건/);
+  const waiting = await signup(' 새싹 ', ' NEW@example.com ', 'test-password');
+  assert.equal(waiting.requiresEmailConfirmation, true);
+  assert.equal(getCurrentMember(), null);
+  assert.deepEqual(request, { email: 'new@example.com', password: 'test-password', options: {
+    data: { nickname: '새싹' }, emailRedirectTo: 'http://127.0.0.1:5173/',
+  } });
+  client.auth.signUp = async () => ({ data: { user, session: { user } }, error: null });
+  assert.equal((await signup('새싹', user.email, 'test-password')).requiresEmailConfirmation, false);
+  assert.equal(getCurrentMember().id, 'new-id');
+  await logout();
+  delete globalThis.location;
+});
+
+test('다른 탭의 로그아웃 반영, 토큰 갱신 시 불필요한 화면 갱신 방지', async () => {
+  const client = fakeAuthClient();
+  await initializeAuth(client);
+  await new Promise(resolve => setTimeout(resolve, 5));
+  let changes = 0;
+  const off = onMemberChange(() => changes++);
+  await login('member@example.com', 'password');
+  client.emit('TOKEN_REFRESHED', { id: 'test-member-id', email: 'member@example.com', user_metadata: { nickname: '테스트 회원' } });
+  await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(changes, 1);
+  client.emit('SIGNED_OUT', null);
+  assert.equal(getCurrentMember(), null);
+  await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(changes, 2);
+  off();
+});
+
+test('미인증·요청 제한·회원가입 실패와 세션 복원 실패를 전달한다', async () => {
+  const client = fakeAuthClient();
+  await initializeAuth(client);
+  client.auth.signInWithPassword = async () => ({ error: { code: 'email_not_confirmed' } });
+  await assert.rejects(login('a@example.com', 'password'), /이메일 인증/);
+  client.auth.signInWithPassword = async () => ({ error: { status: 429 } });
+  await assert.rejects(login('a@example.com', 'password'), /요청이 많/);
+  globalThis.location = { origin: 'http://127.0.0.1:5173', pathname: '/' };
+  client.auth.signUp = async () => ({ error: { code: 'over_email_send_rate_limit' } });
+  await assert.rejects(signup('새싹', 'a@example.com', 'password'), /인증 메일 요청/);
+  delete globalThis.location;
+  client.auth.getSession = async () => ({ error: { status: 503 } });
+  await assert.rejects(initializeAuth(client), /네트워크/);
+});

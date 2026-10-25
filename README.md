@@ -14,7 +14,21 @@ npm start
 
 브라우저에서 http://127.0.0.1:5173 으로 접속합니다. 종료는 터미널에서 Ctrl+C를 누릅니다. JavaScript 모듈을 사용하므로 HTML 파일을 직접 여는 대신 HTTP 서버로 실행해야 합니다. VS Code Live Server로 루트의 `index.html`을 열어도 됩니다.
 
-## 2회차 구현 범위
+## 4회차: Supabase 실제 인증 (현재)
+
+이메일·비밀번호 회원가입, 이메일 인증 후 복귀, 로그인·로그아웃, 새로고침 시 세션 복원과 자동 갱신을 Supabase Auth로 처리합니다. 닉네임은 사용자 메타데이터에 저장합니다. 이전 브라우저 테스트 계정은 사용할 수 없으며 새로 가입해야 합니다. 아래 2·3회차의 테스트 인증 설명은 개발 이력입니다.
+
+연결 정보는 `src/services/supabase.js`의 Project URL과 Publishable key입니다. 공개 키는 브라우저용이며 DB 비밀번호·Secret·service_role 키를 넣으면 안 됩니다. 별도 빌드 없이 고정 버전 `@supabase/supabase-js@2.118.0`을 jsDelivr ES 모듈로 불러오므로 인터넷 연결이 필요합니다. `.env` 파일은 자동으로 읽지 않습니다.
+
+**Supabase 대시보드에서 Authentication → URL Configuration의 Site URL을 `https://recyclehelper.vercel.app`으로, Redirect URLs에 `https://recyclehelper.vercel.app/`을 등록하세요.** 로컬 개발용으로 `http://127.0.0.1:5173/`도 Redirect URLs에 추가할 수 있습니다. Email 로그인과 신규 가입을 허용하고 이메일 인증을 활성화합니다. SMTP 기본 발송 제한으로 일반 이메일에 발송되지 않으면 Custom SMTP를 설정해야 합니다.
+
+가입 후 인증 메일은 가입했던 브라우저와 같은 주소에서 여세요. PKCE 검증 정보가 해당 브라우저 저장소에 있으므로 다른 기기에서 인증한 경우 원래 화면으로 돌아와 로그인해야 합니다. 로그인 세션은 Supabase SDK가 브라우저에 보관하며 로그아웃은 현재 브라우저의 세션을 해제합니다.
+
+분리배출 기록은 여전히 브라우저 localStorage에 회원 ID별로 저장되며 서버에 동기화하지 않습니다. 이는 서버 접근 권한 보호 기능이 아닙니다. 기존 테스트 회원의 계정·기록은 자동 이전하거나 삭제하지 않습니다. 기록 DB 연동 시에는 테이블과 RLS 정책을 별도로 추가해야 합니다.
+
+대시보드 설정과 수동 검증 순서는 [Supabase 연결 안내](docs/supabase-setup.md)를 참고하세요.
+
+## 2회차 구현 범위 (개발 이력)
 
 - 메인: 서비스 소개, 이용 단계, 준비 중인 기능 안내.
 - 로그인: 입력 검증 후 테스트 회원의 이메일·비밀번호와 비교하여 성공 시 메인 화면으로 이동, 실패 시 오류 안내.

@@ -2,11 +2,10 @@ import { field, authShell } from '../../components/auth.js';
 import { signup } from '../../services/auth.js';
 
 export async function submitSignup(form, status) {
-  await signup(form.elements.namedItem('nickname').value, form.elements.namedItem('email').value, form.elements.namedItem('password').value);
+  const result = await signup(form.elements.namedItem('nickname').value, form.elements.namedItem('email').value, form.elements.namedItem('password').value);
   form.reset();
-  location.hash = '/login';
-  // 화면 전환 뒤에도 가입 완료 안내를 전달합니다.
-  try { sessionStorage.setItem('recycle-helper.signup-complete', 'true'); } catch { /* 가입은 완료됨 */ }
+  if (!result.requiresEmailConfirmation) { location.hash = '/'; return; }
+  status.textContent = '가입 요청을 처리했어요. 인증 메일이 도착했다면 가입한 브라우저에서 열어 인증을 완료한 뒤 로그인해 주세요. 이미 가입한 이메일이면 로그인해 주세요.';
 }
 
 export function signupPage() {

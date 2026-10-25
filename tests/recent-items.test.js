@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getRecentItems, saveRecentItem } from '../src/services/recent-items.js';
-import { login, logout } from '../src/services/auth.js';
+import { before } from 'node:test';
+import { fakeAuthClient } from './helpers/auth-client.js';
+import { login, logout, initializeAuth } from '../src/services/auth.js';
+before(async () => { await initializeAuth(fakeAuthClient()); });
 
 test('최근 이름은 브라우저에 저장되고 계정별로 구분된다', async () => {
   const stored = new Map();
@@ -24,11 +27,11 @@ test('최근 이름은 브라우저에 저장되고 계정별로 구분된다', 
   assert.equal(getRecentItems().length, 8);
   assert.equal(getRecentItems()[0], '물건 9');
   assert.deepEqual((await import('../src/services/recent-items.js?refresh')).getRecentItems(), getRecentItems());
-  await login('demo@example.com', 'recycle1234');
+  await login('member@example.com', 'test-password');
   assert.deepEqual(getRecentItems(), []);
   saveRecentItem('유리병');
   assert.deepEqual(getRecentItems(), ['유리병']);
-  logout();
+  await logout();
   assert.equal(getRecentItems()[0], '물건 9');
   localStorage.setItem = () => { throw new Error('blocked'); };
   assert.throws(() => saveRecentItem('종이컵'), /저장하지 못/);

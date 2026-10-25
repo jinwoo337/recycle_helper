@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { getDisposalHistory, getAllDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisposalHistory } from '../src/services/disposal-history.js';
 import { saveRecentItem } from '../src/services/recent-items.js';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
-import { login, logout } from '../src/services/auth.js';
+import { before } from 'node:test';
+import { fakeAuthClient } from './helpers/auth-client.js';
+import { login, logout, initializeAuth } from '../src/services/auth.js';
+before(async () => { await initializeAuth(fakeAuthClient()); });
 import { getDisposalStatistics } from '../src/domain/disposal/statistics.js';
 
 test('입력과 결과 보존, 같은 이름의 다른 상태, 계정 구분, v1 보존과 저장 실패', async () => {
@@ -24,9 +27,9 @@ test('입력과 결과 보존, 같은 이름의 다른 상태, 계정 구분, v1
   assert.equal((await getDisposalHistory())[1].result.status, 'recycle');
   const reloaded = await import('../src/services/disposal-history.js?reload');
   assert.deepEqual(await reloaded.getDisposalHistory(), await getDisposalHistory());
-  await login('demo@example.com', 'recycle1234'); assert.deepEqual(await getDisposalHistory(), []);
+  await login('member@example.com', 'test-password'); assert.deepEqual(await getDisposalHistory(), []);
   await saveDisposalRecord(dirty, judgeDisposal(dirty)); assert.equal((await getDisposalHistory()).length, 1);
-  logout(); assert.equal((await getDisposalHistory()).length, 3);
+  await logout(); assert.equal((await getDisposalHistory()).length, 3);
   for (let index = 0; index < 9; index++) await saveDisposalRecord(dirty, judgeDisposal(dirty));
   assert.equal((await getDisposalHistory()).length, 8);
   assert.equal((await getAllDisposalHistory()).filter(record => !record.legacy).length, 11);
@@ -42,7 +45,7 @@ test('최근 8개를 넘는 전체 기록 보관·오래된 기록 삭제·통�
   const stored = new Map();
   globalThis.localStorage = { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) };
   globalThis.sessionStorage = { getItem: () => null, removeItem: () => {} };
-  logout();
+  await logout();
   globalThis.window = new EventTarget(); let notifications = 0;
   window.addEventListener('disposal-history-changed', () => { notifications++; });
   try {
@@ -68,7 +71,7 @@ test('개별·전체 삭제는 현재 계정에만 적용하고 이전 이름 �
   const stored = new Map(); const session = new Map();
   globalThis.localStorage = { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) };
   globalThis.sessionStorage = { getItem: key => session.get(key) ?? null, setItem: (key, value) => session.set(key, value), removeItem: key => session.delete(key) };
-  logout();
+  await logout();
   const input = { itemName: '생수병', material: '페트병', type: 'clear-drink', contaminated: 'no', combined: 'no' };
   saveRecentItem('생수병'); saveRecentItem('옛 상자');
   const first = await saveDisposalRecord(input, judgeDisposal(input));
@@ -81,10 +84,10 @@ test('개별·전체 삭제는 현재 계정에만 적용하고 이전 이름 �
   const legacy = (await getDisposalHistory())[0];
   await deleteDisposalRecord(legacy); assert.deepEqual(await getDisposalHistory(), []);
   saveRecentItem('비회원 이름'); await saveDisposalRecord(input, judgeDisposal(input));
-  await login('demo@example.com', 'recycle1234');
+  await login('member@example.com', 'test-password');
   saveRecentItem('회원 이름'); await saveDisposalRecord(input, judgeDisposal(input));
   await clearDisposalHistory(); assert.deepEqual(await getDisposalHistory(), []);
-  logout(); assert.equal((await getDisposalHistory()).length, 2);
+  await logout(); assert.equal((await getDisposalHistory()).length, 2);
   await clearDisposalHistory(); assert.deepEqual(await getDisposalHistory(), []);
   assert.deepEqual(await (await import('../src/services/disposal-history.js?after-delete')).getDisposalHistory(), []);
   await clearDisposalHistory(); assert.deepEqual(await getDisposalHistory(), []);
@@ -94,7 +97,7 @@ test('두 번째 저장소의 삭제 쓰기가 실패하면 이전 기록을 복
   const stored = new Map();
   globalThis.localStorage = { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) };
   globalThis.sessionStorage = { getItem: () => null, removeItem: () => {} };
-  logout(); saveRecentItem('옛 물품');
+  await logout(); saveRecentItem('옛 물품');
   const input = { itemName: '용기', material: '플라스틱', type: 'container', contaminated: 'no', combined: 'no' };
   const record = await saveDisposalRecord(input, judgeDisposal(input));
   const before = await getDisposalHistory();

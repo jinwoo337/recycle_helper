@@ -3,7 +3,7 @@ import { mainPage } from './pages/main/main.js';
 import { loginPage, submitLogin } from './pages/login/login.js';
 import { signupPage, submitSignup } from './pages/signup/signup.js';
 import { bindForm } from './utils/validation.js';
-import { getCurrentMember, logout } from './services/auth.js';
+import { getCurrentMember, logout, initializeAuth, onMemberChange } from './services/auth.js';
 import { itemInputPage, bindItemInput } from './pages/item-input/item-input.js';
 import { historyPage, bindHistory } from './pages/history/history.js';
 
@@ -29,26 +29,53 @@ function render(moveFocus = false) {
   if (route.page === 'item-input') bindItemInput();
   else if (route.page === 'history') disposePage = bindHistory();
   else bindForm(document.querySelector('form'), route.page === 'login' ? submitLogin : submitSignup);
-  if (route.page === 'login') {
-    try {
-      if (sessionStorage.getItem('recycle-helper.signup-complete')) {
-        document.querySelector('.form-status').textContent = '회원가입이 완료됐어요. 가입한 이메일과 비밀번호로 로그인해 주세요.';
-        sessionStorage.removeItem('recycle-helper.signup-complete');
-      }
-    } catch { /* 저장소가 차단된 경우 안내만 생략 */ }
-  }
-  document.getElementById('logout-button')?.addEventListener('click', () => {
-    logout();
-    render(true);
+  document.getElementById('logout-button')?.addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try { await logout(); render(true); }
+    catch (error) { showAuthNotice(error.message); }
+    finally { button.disabled = false; }
   });
   if (moveFocus) {
     document.getElementById('main-content').focus({ preventScroll: true });
     window.scrollTo(0, 0);
   }
 }
-window.addEventListener('hashchange', () => render(true));
+let ready = false;
+window.addEventListener('hashchange', () => { if (ready) render(true); });
 document.querySelector('.skip-link').addEventListener('click', event => {
   event.preventDefault();
   document.getElementById('main-content').focus();
 });
+function showAuthNotice(message) {
+  let notice = document.getElementById('auth-notice');
+  if (!notice) {
+    notice = document.createElement('p');
+    notice.id = 'auth-notice';
+    notice.className = 'container demo-notice';
+    notice.setAttribute('role', 'alert');
+    document.getElementById('app').before(notice);
+  }
+  notice.textContent = message;
+}
+
+document.getElementById('app').textContent = '로그인 상태를 확인하고 있어요…';
+const callbackUrl = new URL(location.href);
+const callbackHash = new URLSearchParams(callbackUrl.hash.slice(1));
+const callbackError = callbackUrl.searchParams.has('error') || callbackHash.has('error');
+try {
+  await initializeAuth();
+  if (callbackError) showAuthNotice('인증 링크가 만료되었거나 유효하지 않아요. 이메일 인증 상태를 확인하고 로그인해 주세요.');
+  else if (callbackUrl.searchParams.has('code')) {
+    showAuthNotice(getCurrentMember() ? '이메일 인증이 완료됐어요.' : '이메일 인증 상태를 확인한 뒤 로그인해 주세요.');
+  }
+} catch (error) { showAuthNotice(error.message); }
+// 인증 코드나 오류 값을 주소창에 남기지 않고 해시 라우터를 복원합니다.
+if (callbackUrl.searchParams.has('code') || callbackError) {
+  ['code', 'error', 'error_code', 'error_description'].forEach(key => callbackUrl.searchParams.delete(key));
+  if (!callbackUrl.hash.startsWith('#/')) callbackUrl.hash = getCurrentMember() ? '#/' : '#/login';
+  history.replaceState(null, '', callbackUrl);
+}
+ready = true;
+onMemberChange(() => render());
 render();
