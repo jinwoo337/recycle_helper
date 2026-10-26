@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getDisposalHistory, getAllDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisposalHistory } from '../src/services/disposal-history.js';
+import * as historyStore from '../src/services/disposal-history.js';
+const local = historyStore.localHistoryRepository;
+const getDisposalHistory = () => historyStore.getDisposalHistory(local);
+const getAllDisposalHistory = () => historyStore.getAllDisposalHistory(local);
+const saveDisposalRecord = (input, result) => historyStore.saveDisposalRecord(input, result, local);
+const deleteDisposalRecord = record => historyStore.deleteDisposalRecord(record, local);
+const clearDisposalHistory = () => historyStore.clearDisposalHistory(local);
 import { saveRecentItem } from '../src/services/recent-items.js';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { before } from 'node:test';

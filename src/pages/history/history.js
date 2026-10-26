@@ -1,6 +1,7 @@
 import { escapeHtml } from '../../utils/html.js';
-import { getAllDisposalHistory, deleteDisposalRecord } from '../../services/disposal-history.js';
-import { getDisposalStatistics, searchDisposalHistory } from '../../domain/disposal/statistics.js';
+import { getAllDisposalHistory, deleteDisposalRecord, loadDisposalStatistics } from '../../services/disposal-history.js';
+import { searchDisposalHistory } from '../../domain/disposal/statistics.js';
+import { getCurrentMember } from '../../services/auth.js';
 import { resultMarkup } from '../item-input/item-input.js';
 
 export function historyPage() {
@@ -30,8 +31,7 @@ export function bindHistory() {
   const pageSize = 10;
   let records = [], page = 1, selectedId = null, pending = null, deleting = false, loadVersion = 0;
 
-  function drawStatistics() {
-    const stats = getDisposalStatistics(records);
+  function drawStatistics(stats) {
     document.getElementById('statistics-total').innerHTML = `${stats.total}<span>개</span>`;
     document.getElementById('statistics-chart').innerHTML = stats.categories.map(category => `<div class="chart-row"><span class="chart-label">${category.label}</span><div class="chart-track" aria-hidden="true"><span style="width:${category.ratio}%;background:${category.color}"></span></div><span class="chart-value">${category.count}개 <small>(${category.ratio.toFixed(1)}%)</small></span></div>`).join('');
     document.getElementById('legacy-statistics-note').textContent = stats.legacyCount ? `이전 이름 기록 ${stats.legacyCount}개는 판별 결과가 없어 통계에서 제외했어요.` : '';
@@ -57,11 +57,23 @@ export function bindHistory() {
   }
   async function refresh() {
     const version = ++loadVersion;
-    const loaded = await getAllDisposalHistory();
-    if (!root.isConnected || version !== loadVersion) return;
-    records = loaded; drawStatistics(); drawRecords();
-    const selected = records.find(record => record.id === selectedId);
-    if (selected) showDetail(selected, false); else { selectedId = null; detail.hidden = true; }
+    root.setAttribute('aria-busy', 'true');
+    status.textContent = '기록과 통계를 불러오고 있어요…';
+    try {
+      const [loaded, stats] = await Promise.all([getAllDisposalHistory(), loadDisposalStatistics()]);
+      if (!root.isConnected || version !== loadVersion) return false;
+      records = loaded; drawStatistics(stats); drawRecords();
+      const selected = records.find(record => record.id === selectedId);
+      if (selected) showDetail(selected, false); else { selectedId = null; detail.hidden = true; }
+      status.textContent = getCurrentMember() ? '계정에 저장된 기록과 통계예요.' : '비회원 기록은 이 브라우저에 저장돼요. 로그인하면 계정별로 저장하고 다른 기기에서도 볼 수 있어요.';
+      return true;
+    } catch (error) {
+      if (root.isConnected && version === loadVersion) {
+        status.textContent = error.message;
+        document.getElementById('statistics-total').textContent = '—';
+      }
+      return false;
+    } finally { if (root.isConnected && version === loadVersion) root.removeAttribute('aria-busy'); }
   }
   search.addEventListener('input', () => { page = 1; drawRecords(); });
   document.getElementById('history-records').addEventListener('click', event => {
@@ -84,13 +96,16 @@ export function bindHistory() {
     try {
       await deleteDisposalRecord(pending);
       if (!root.isConnected) return;
-      pending = null; confirmation.hidden = true; await refresh(); status.textContent = '기록을 삭제하고 통계를 업데이트했어요.'; search.focus();
+      pending = null; confirmation.hidden = true;
+      if (await refresh()) status.textContent = '기록을 삭제하고 통계를 업데이트했어요.';
+      search.focus();
     } catch (error) { if (root.isConnected) status.textContent = error.message; }
     finally { deleting = false; confirmation.querySelectorAll('button').forEach(button => { button.disabled = false; }); }
   });
   const storageChanged = event => { if (event.key === null || event.key?.startsWith('recycle-helper.')) refresh(); };
   window.addEventListener('disposal-history-changed', refresh);
   window.addEventListener('storage', storageChanged);
+  window.addEventListener('focus', refresh);
   refresh();
-  return () => { loadVersion++; window.removeEventListener('disposal-history-changed', refresh); window.removeEventListener('storage', storageChanged); };
+  return () => { loadVersion++; window.removeEventListener('disposal-history-changed', refresh); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', refresh); };
 }

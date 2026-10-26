@@ -7,7 +7,7 @@ const categories = [
   ['check', '추가 확인', '#d0ac5e'],
 ];
 
-function categoryOf(record) {
+export function categoryOf(record) {
   const { input, result } = record;
   if (result.status === 'check') return 'check';
   if (result.status === 'general') return 'general';
@@ -15,6 +15,13 @@ function categoryOf(record) {
   if (input.material === '페트병') return input.type === 'clear-drink' ? 'pet' : 'plastic';
   if (input.material === '종이') return input.type === 'carton' ? 'carton' : 'paper';
   return ({ '플라스틱': 'plastic', '유리': 'glass', '금속·캔': 'can', '비닐': 'vinyl', '스티로폼': 'foam' })[input.material] || 'check';
+}
+
+export function statisticsFromCounts(counts, legacyCount = 0) {
+  const total = Object.values(counts).reduce((sum, count) => sum + Number(count), 0);
+  return { total, legacyCount, categories: categories.map(([id, label, color]) => ({
+    id, label, color, count: Number(counts[id] || 0), ratio: total ? Number(counts[id] || 0) / total * 100 : 0,
+  })) };
 }
 
 export function getDisposalStatistics(records) {

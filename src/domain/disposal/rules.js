@@ -1,5 +1,7 @@
 // DOM·저장소에 의존하지 않는 규칙. 입력값을 확인한 뒤에만 재활용을 안내합니다.
-export const RULE_VERSION = '2026-10-08.v2';
+import { lookupItem, normalizeItemName } from './item-suggestions.js';
+
+export const RULE_VERSION = '2026-10-08.v3';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '기타', '모르겠어요'];
 export const TYPES = {
@@ -24,6 +26,7 @@ export function needsWashQuestion(part = {}) {
 
 // 숨겨진 답변을 제거해 화면과 판별이 같은 조건을 사용하게 합니다.
 export function normalizePart(part = {}) {
+  if (!part || typeof part !== 'object' || Array.isArray(part)) part = {};
   const clean = { material: part.material || '', type: part.type || '' };
   if (!supportsState(clean)) return clean;
   clean.contaminated = part.contaminated || '';
@@ -111,6 +114,22 @@ function judgePart(raw, itemName = '') {
 }
 
 export function judgeDisposal(input = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) input = {};
+  const name = normalizeItemName(input.itemName);
+  const known = lookupItem(name);
+  const dangerous = /전자제품|전기제품|휴대폰|충전기|배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이|전자담배|이어폰|멀티탭|전기완구|전동/.test(name)
+    && !(name === '전자제품포장완충재' && input.material === '스티로폼' && input.type === 'packaging');
+  const allowedTypes = name === '종이컵' ? ['cup', 'coated'] : null;
+  const conflict = known?.material && (input.material !== known.material || (known.type && input.type !== known.type) || (allowedTypes && !allowedTypes.includes(input.type)));
+  // 이름·재질 충돌이나 미등록 품목을 확인하기 전에는 재질별 배출도 확정하지 않습니다.
+  if (dangerous || !known || conflict) {
+    const guarded = dangerous
+      ? outcome('check', '추가 확인 필요', '별도 수거 또는 안전한 처리가 필요한 물품일 수 있어요.', ['내용물을 임의로 붓거나 용기에 구멍을 내지 말고 지자체의 품목별 안내를 확인해 주세요.'])
+      : conflict
+        ? outcome('check', '추가 확인 필요', '물품 이름과 선택한 재질 또는 세부 종류가 서로 맞지 않아요.', ['물품 이름, 실제 재질 표시와 세부 종류를 다시 확인해 주세요.'])
+        : outcome('check', '추가 확인 필요', name ? '등록되지 않은 물품 이름이어서 일반 수거 대상인지 확인할 수 없어요.' : '물품 이름이 확인되지 않았어요.', ['추천에서 실제 물품과 일치하는 이름을 선택하거나, 품목별 지역 안내를 확인해 주세요. 비슷한 이름을 임의로 선택하지 마세요.']);
+    return finish(guarded, [{ label: '물품 전체', material: input.material || '미확인', ...structuredClone(guarded) }]);
+  }
   const result = judgePart(input, input.itemName || '');
   const parts = [{ label: '본체', material: input.material || '미확인', ...structuredClone(result) }];
   if (supportsState(input)) {
@@ -127,7 +146,7 @@ export function judgeDisposal(input = {}) {
     } else if (input.combined === 'yes') {
       if (result.status !== 'check') result.steps.unshift('다른 재질의 부속품을 본체에서 분리해 주세요.');
       const components = Array.isArray(input.components) ? input.components : [];
-      components.forEach((component, index) => parts.push({ label: `부속품 ${index + 1}`, material: component.material || '미확인', ...judgePart(component) }));
+      components.forEach((component, index) => parts.push({ label: `부속품 ${index + 1}`, material: component?.material || '미확인', ...judgePart(component) }));
       if (!components.length || parts.some(part => part.status === 'check')) {
         result.status = 'check'; result.method = '일부 재질 추가 확인 필요';
         result.reasons.push('본체 또는 부속품의 정보를 더 확인해야 해요. 재질별 안내를 확인해 주세요.');
@@ -143,6 +162,10 @@ export function judgeDisposal(input = {}) {
   if (supportsState(input) && (input.combined !== 'no' && !(input.combined === 'yes' && input.separable === 'yes'))) {
     parts[0] = { label: '본체와 결합 재질', material: input.material || '미확인', ...structuredClone(result) };
   }
+  return finish(result, parts);
+}
+
+function finish(result, parts) {
   return { ...result, parts, ruleVersion: RULE_VERSION, sourceUrl: RULE_SOURCE, checkedAt: '2026-10-08',
     notice: '전국 공통 기준을 참고한 안내예요. 수거함·배출일·세부 품목은 거주 지역과 관리사무소 안내를 확인해 주세요.' };
 }

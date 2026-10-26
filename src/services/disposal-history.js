@@ -1,9 +1,13 @@
 import { getCurrentMember } from './auth.js';
 import { getRecentItems, storageKey as recentItemsKey } from './recent-items.js';
+import { getSupabase } from './supabase.js';
+import { createCloudHistoryRepository } from './cloud-history.js';
+import { getDisposalStatistics } from '../domain/disposal/statistics.js';
 
 const MAX_RECORDS = 8;
 function notifyHistoryChanged() {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('disposal-history-changed'));
+  try { localStorage.setItem('recycle-helper.history-updated', crypto.randomUUID()); } catch { /* 다른 탭 알림만 생략 */ }
 }
 const key = () => `recycle-helper.disposal-history.v2.${getCurrentMember()?.id || 'guest'}`;
 const strings = value => Array.isArray(value) && value.every(item => typeof item === 'string');
@@ -12,7 +16,7 @@ const validOutcome = value => value && ['recycle', 'general', 'check', 'mixed'].
 const partKeys = ['material', 'type', 'contaminated', 'washed', 'removable', 'combined', 'separable'];
 const validPart = part => part && typeof part === 'object' && !Array.isArray(part)
   && partKeys.every(key => part[key] === undefined || typeof part[key] === 'string');
-function validRecord(record) {
+export function validRecord(record) {
   return record?.schemaVersion === 2 && typeof record.id === 'string' && typeof record.itemName === 'string'
     && validPart(record.input) && record.input.itemName === record.itemName
     && (record.input.components === undefined || (Array.isArray(record.input.components)
@@ -38,7 +42,7 @@ function writeDeletion(records, names) {
   }
 }
 
-// 다음 회차에는 이 비동기 저장소 경계를 Supabase 구현으로 교체합니다.
+// 비회원과 이전 브라우저 기록용 저장소입니다. 회원은 아래 Supabase 저장소를 사용합니다.
 export const localHistoryRepository = {
   async list() {
     try {
@@ -66,32 +70,52 @@ export const localHistoryRepository = {
   },
 };
 
-export async function getAllDisposalHistory(repository = localHistoryRepository) {
+const cloudRepositories = new Map();
+async function resolveRepository(repository) {
+  if (repository) return repository;
+  const owner = getCurrentMember()?.id;
+  if (!owner) return localHistoryRepository;
+  const client = await getSupabase();
+  if (!cloudRepositories.has(owner)) cloudRepositories.set(owner, createCloudHistoryRepository(client, owner, getCurrentMember, validRecord));
+  return cloudRepositories.get(owner);
+}
+
+export async function getAllDisposalHistory(repository) {
+  repository = await resolveRepository(repository);
   const records = await repository.list();
+  if (repository.cloud) return records;
   const names = new Set(records.map(record => record.itemName));
   const legacy = getRecentItems().filter(name => !names.has(name)).map(itemName =>
     ({ id: `legacy-${encodeURIComponent(itemName)}`, itemName, legacy: true }));
   return [...records, ...legacy];
 }
 
-export async function getDisposalHistory(repository = localHistoryRepository) {
+export async function getDisposalHistory(repository) {
   return (await getAllDisposalHistory(repository)).slice(0, MAX_RECORDS);
 }
 
-export async function saveDisposalRecord(input, result, repository = localHistoryRepository) {
+export async function saveDisposalRecord(input, result, repository) {
+  repository = await resolveRepository(repository);
   const record = { schemaVersion: 2, id: crypto.randomUUID(), itemName: input.itemName,
     createdAt: new Date().toISOString(), input: structuredClone(input), result: structuredClone(result) };
-  await repository.save(record);
+  const saved = await repository.save(record);
   notifyHistoryChanged();
-  return record;
+  return repository.cloud ? saved : record;
 }
 
-export async function deleteDisposalRecord(record, repository = localHistoryRepository) {
+export async function deleteDisposalRecord(record, repository) {
+  repository = await resolveRepository(repository);
   await repository.remove(record);
   notifyHistoryChanged();
 }
 
-export async function clearDisposalHistory(repository = localHistoryRepository) {
+export async function clearDisposalHistory(repository) {
+  repository = await resolveRepository(repository);
   await repository.clear();
   notifyHistoryChanged();
+}
+
+export async function loadDisposalStatistics(repository) {
+  repository = await resolveRepository(repository);
+  return repository.cloud ? repository.statistics() : getDisposalStatistics(await getAllDisposalHistory(repository));
 }

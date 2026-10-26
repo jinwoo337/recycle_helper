@@ -91,3 +91,79 @@ test('숨겨진 이전 세척·오염 답변은 판별에 사용하지 않는다
   assert.equal(part.washed, undefined); assert.equal(part.removable, undefined);
   assert.equal(judgeDisposal({ ...clean, washed: 'yes', removable: 'no', separable: 'no' }).status, 'recycle');
 });
+
+test('정확한 이름과 재질·종류의 충돌은 전체와 재질별 안내 모두 보류한다', () => {
+  for (const [itemName, material, type] of [
+    ['우유팩', '플라스틱', 'container'], ['우유팩', '종이', 'paper'],
+    ['참치캔', '유리', 'bottle'], ['과자봉지', '종이', 'paper'], ['종이컵', '종이', 'paper'],
+    ['투명생수병', '페트병', 'other-pet'], ['신문지', '종이', 'carton'], ['칫솔', '종이', 'paper'],
+  ]) {
+    const result = judgeDisposal({ ...clean, itemName, material, type, combined: 'yes', separable: 'yes',
+      components: [{ material: '비닐', type: 'packaging', contaminated: 'no' }] });
+    assert.equal(result.status, 'check', itemName);
+    assert.ok(result.parts.every(part => part.status === 'check'));
+    assert.ok(result.reasons.some(reason => reason.includes('맞지')));
+  }
+});
+
+test('다양한 실제 물품 이름의 정상·예외 안내', () => {
+  for (const [itemName, material, type, expected] of [
+    ['우유팩', '종이', 'carton', 'recycle'], ['멸균우유팩', '종이', 'carton', 'recycle'],
+    ['생수병', '페트병', 'clear-drink', 'recycle'], ['생수병', '페트병', 'other-pet', 'recycle'],
+    ['세제페트병', '페트병', 'other-pet', 'recycle'], ['종이컵', '종이', 'cup', 'recycle'],
+    ['신문지', '종이', 'paper', 'recycle'], ['유리병', '유리', 'bottle', 'recycle'],
+    ['참치캔', '금속·캔', 'food-can', 'recycle'], ['과자봉지', '비닐', 'packaging', 'recycle'],
+    ['스티로폼상자', '스티로폼', 'packaging', 'recycle'], ['플라스틱도시락용기', '플라스틱', 'container', 'recycle'],
+    ['감열영수증', '종이', 'excluded', 'general'], ['양면코팅종이컵', '종이', 'coated', 'general'],
+    ['깨진유리병', '유리', 'broken', 'check'], ['내열유리용기', '유리', 'special', 'check'],
+    ['칫솔', '플라스틱', 'other', 'check'], ['고무장갑', '비닐', 'other', 'check'],
+  ]) assert.equal(judgeDisposal({ ...clean, itemName, material, type }).status, expected, itemName);
+});
+
+test('미등록·부분 이름·복수 물품은 선택한 재질만으로 확정하지 않는다', () => {
+  for (const itemName of ['정체불명제품', '우유', '우유팩 모양 장난감', '우유팩과 생수병', '생수병 뚜껑', '', 42, null]) {
+    const result = judgeDisposal({ ...clean, itemName });
+    assert.equal(result.status, 'check', String(itemName));
+    assert.ok(result.parts.every(part => part.status === 'check'));
+  }
+  for (const invalid of [null, 42, [], '용기']) assert.equal(judgeDisposal(invalid).status, 'check');
+  assert.deepEqual(normalizePart(null), { material: '', type: '' });
+});
+
+test('띄어 쓴 위험 품목과 복합 전자제품은 부속품도 임의 수거 안내하지 않는다', () => {
+  for (const itemName of ['보조 배터리', '부 탄 가 스 용기', '전자 담배', '블루투스 이어폰', '멀티 탭', '충전기']) {
+    const result = judgeDisposal({ ...clean, itemName, combined: 'yes', separable: 'yes',
+      components: [{ material: '플라스틱', type: 'container', contaminated: 'no' }] });
+    assert.equal(result.status, 'check');
+    assert.ok(result.steps.some(step => step.includes('임의')));
+    assert.ok(result.parts.every(part => part.status === 'check'));
+  }
+  const result = judgeDisposal({ ...clean, combined: 'yes', separable: 'yes', components: [null] });
+  assert.equal(result.status, 'check'); assert.equal(result.parts[1].status, 'check');
+});
+
+test('주요 재질의 오염·세척·결합 조건 7680개 조합 검증', () => {
+  const supported = [['플라스틱', 'container'], ['페트병', 'clear-drink'], ['페트병', 'other-pet'],
+    ['종이', 'paper'], ['종이', 'carton'], ['종이', 'cup'], ['유리', 'bottle'], ['금속·캔', 'food-can'], ['비닐', 'packaging'], ['스티로폼', 'packaging']];
+  let count = 0;
+  for (const [material, type] of supported)
+    for (const contaminated of ['yes', 'no', 'unknown', ''])
+      for (const removable of ['yes', 'no', 'unknown', ''])
+        for (const washed of ['yes', 'no', ''])
+          for (const combined of ['yes', 'no', 'unknown', ''])
+            for (const separable of ['yes', 'no', 'unknown', '']) {
+              const input = { ...clean, material, type, contaminated, removable, washed, combined, separable,
+                components: [{ material: '비닐', type: 'packaging', contaminated: 'no' }] };
+              const result = judgeDisposal(input);
+              const missing = !['yes', 'no'].includes(contaminated)
+                || (contaminated === 'yes' && (!['yes', 'no'].includes(removable) || (needsWashQuestion(input) && !['yes', 'no'].includes(washed))))
+                || !['yes', 'no'].includes(combined) || (combined === 'yes' && separable !== 'yes');
+              if (missing) assert.equal(result.status, 'check', JSON.stringify(input));
+              else if (contaminated === 'yes' && removable === 'no') {
+                assert.equal(result.status, ['유리', '금속·캔'].includes(material) ? 'check' : combined === 'yes' ? 'mixed' : 'general');
+              } else assert.equal(result.status, 'recycle', JSON.stringify(input));
+              assert.ok(result.steps.length && result.reasons.length && result.parts.length);
+              count++;
+            }
+  assert.equal(count, 7680);
+});

@@ -6,6 +6,7 @@ import { bindForm } from './utils/validation.js';
 import { getCurrentMember, logout, initializeAuth, onMemberChange } from './services/auth.js';
 import { itemInputPage, bindItemInput } from './pages/item-input/item-input.js';
 import { historyPage, bindHistory } from './pages/history/history.js';
+import { initializeItemCatalog } from './services/item-catalog.js';
 
 const routes = {
   '/': { page: 'main', title: '홈', render: mainPage },
@@ -26,7 +27,7 @@ function render(moveFocus = false) {
   document.title = `${route.title} | 맞춤형 분리배출 도우미`;
   disposePage?.(); disposePage = undefined;
   document.getElementById('app').innerHTML = layout(route.render(member), route.page, member);
-  if (route.page === 'item-input') bindItemInput();
+  if (route.page === 'item-input') disposePage = bindItemInput();
   else if (route.page === 'history') disposePage = bindHistory();
   else bindForm(document.querySelector('form'), route.page === 'login' ? submitLogin : submitSignup);
   document.getElementById('logout-button')?.addEventListener('click', async event => {
@@ -76,6 +77,7 @@ if (callbackUrl.searchParams.has('code') || callbackError) {
   if (!callbackUrl.hash.startsWith('#/')) callbackUrl.hash = getCurrentMember() ? '#/' : '#/login';
   history.replaceState(null, '', callbackUrl);
 }
+await initializeItemCatalog();
 ready = true;
 onMemberChange(() => render());
 render();

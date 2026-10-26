@@ -1,11 +1,14 @@
 import { escapeHtml } from '../../utils/html.js';
 import { getDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisposalHistory } from '../../services/disposal-history.js';
 import { MATERIALS, TYPES, supportsState, needsWashQuestion, normalizePart, judgeDisposal, RULE_SOURCE, RULE_VERSION } from '../../domain/disposal/rules.js';
-import { suggestItemInfo } from '../../domain/disposal/item-suggestions.js';
+import { suggestItemInfo, searchItemNames } from '../../domain/disposal/item-suggestions.js';
+import { getCurrentMember } from '../../services/auth.js';
+import { getCatalogMessage } from '../../services/item-catalog.js';
 
 let draft = {};
 let componentCount = 1;
 let autoFillEnabled = false;
+let draftOwner;
 const yesNo = [['yes', '네'], ['no', '아니요'], ['unknown', '모르겠어요']];
 const titles = { material: '주요 재질', type: '세부 종류', contaminated: '현재 오염 여부', washed: '세척 여부', removable: '남은 오염 제거 가능 여부', combined: '다른 재질과 결합', separable: '재질 분리 가능 여부' };
 function question(name, title, options = yesNo) {
@@ -26,10 +29,11 @@ export function itemInputPage() {
   return `<section class="container item-page">
     <a class="back-link" href="#/">← 메인으로</a>
     <header class="item-heading"><p class="eyebrow">나의 물건 살펴보기</p><h1>어떤 물건을 버리려고 하나요?</h1><p>물건의 재질과 현재 상태를 알려주세요.</p></header>
+    ${getCatalogMessage() ? `<p class="input-hint" role="status">${escapeHtml(getCatalogMessage())}</p>` : ''}
     <div class="item-grid"><form id="item-form" class="item-card">
       <section aria-labelledby="item-basic"><h2 id="item-basic"><span class="section-index">01</span> 물건 정보</h2>
-        <div class="field"><label for="item-name">물건 이름</label><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" aria-describedby="item-name-hint"><p class="input-hint" id="item-name-hint">한 번에 한 가지 물건을 입력해 주세요.</p></div>
-        <label class="auto-fill-choice"><input type="checkbox" id="auto-fill-item"><span>물건 정보 자동 입력</span></label><p id="auto-fill-status" class="input-hint auto-fill-status" role="status" aria-live="polite">체크하면 우유팩·생수병 등 알려진 물품의 재질 정보를 채워요.</p>
+        <div class="item-basic-fields"><div class="field"><label for="item-name">물건 이름</label><div class="item-name-control"><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="item-name-options" aria-expanded="false" aria-describedby="item-name-hint item-name-status"><div id="item-name-options" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><p class="input-hint" id="item-name-hint">일부 이름을 입력해 추천을 선택하세요. 한 번에 한 가지 물품만 입력해 주세요.</p><p class="input-hint" id="item-name-status" role="status" aria-live="polite"></p></div>
+        <div class="auto-fill-panel"><label class="auto-fill-choice"><input type="checkbox" id="auto-fill-item"><span>물건 정보 자동 입력</span></label><p id="auto-fill-status" class="input-hint auto-fill-status" role="status" aria-live="polite">체크하면 우유팩·생수병 등 알려진 물품의 재질 정보를 채워요.</p></div></div>
         ${partFields('', '주요 재질과 현재 상태')}
       </section>
       <section id="combination-section" aria-labelledby="item-state" hidden><h2 id="item-state"><span class="section-index">02</span> 결합된 재질</h2>
@@ -43,9 +47,9 @@ export function itemInputPage() {
       <p id="item-save-status" class="item-save-status" role="status" aria-live="polite"></p>
     </form>
     <div class="item-sidebar"><aside class="recent-items" aria-labelledby="recent-items-title"><p class="eyebrow">MY RECENT ITEMS</p><h2 id="recent-items-title">최근 분리배출 목록</h2><p class="recent-explanation">최근 8개 판별 기록이에요. 물품을 누르면 당시 입력과 결과를 다시 볼 수 있어요.</p><div id="recent-items-content"></div><div id="history-delete-confirm" class="history-delete-confirm" hidden><p id="history-delete-message"></p><div class="choice-row"><button type="button" id="confirm-history-delete" class="history-action">삭제하기</button><button type="button" id="cancel-history-delete" class="history-action">취소</button></div></div><p id="history-status" class="input-hint" role="status" aria-live="polite"></p></aside>
-    <aside class="item-help"><p class="eyebrow">입력 가이드</p><h2>천천히 살펴봐도 괜찮아요</h2><p>포장의 재질 표시와 용도를 확인해 보세요. 답변에 따라 필요한 질문만 표시돼요.</p><hr><h3>세척보다 현재 상태가 중요해요</h3><p>씻었어도 오염이 남으면 추가 처리가 필요해요. 깨끗한 물건은 세척 여부를 묻지 않아요. 일반 종이는 물로 씻지 마세요.</p><p class="help-note">입력 조건과 결과는 이 브라우저에만 저장돼요. 회원별·비회원별로 구분하며 서버로 전송하지 않아요.</p></aside></div></div>
+    <aside class="item-help"><details><summary>입력 가이드와 저장 안내</summary><p>포장의 재질 표시와 용도를 확인해 보세요. 답변에 따라 필요한 질문만 표시돼요.</p><h3>세척보다 현재 상태가 중요해요</h3><p>씻었어도 오염이 남으면 추가 처리가 필요해요. 깨끗한 물건은 세척 여부를 묻지 않아요. 일반 종이는 물로 씻지 마세요.</p><p class="help-note">로그인하면 입력 조건과 판별 결과를 계정에 저장해 다른 기기에서도 확인할 수 있어요. 비회원 기록은 이 브라우저에만 저장돼요.</p></details></aside></div>
     <section id="item-summary" class="item-card item-summary" hidden tabindex="-1" aria-labelledby="summary-title"></section>
-  </section>`;
+    </div></section>`;
 }
 
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
@@ -67,12 +71,60 @@ export function resultMarkup(input, result, createdAt) {
 }
 
 export function bindItemInput() {
+  const owner = getCurrentMember()?.id || 'guest';
+  if (draftOwner !== owner) { draft = {}; componentCount = 1; draftOwner = owner; }
   const form = document.getElementById('item-form');
   const summary = document.getElementById('item-summary');
   const nameInput = form.elements.namedItem('itemName');
   const saveStatus = document.getElementById('item-save-status');
   const autoFill = document.getElementById('auto-fill-item');
   const autoFillStatus = document.getElementById('auto-fill-status');
+  const nameOptions = document.getElementById('item-name-options');
+  const nameStatus = document.getElementById('item-name-status');
+  let candidates = [];
+  let activeCandidate = -1;
+  function closeSuggestions() {
+    nameOptions.hidden = true; activeCandidate = -1;
+    nameInput.setAttribute('aria-expanded', 'false'); nameInput.removeAttribute('aria-activedescendant');
+  }
+  function showSuggestions() {
+    candidates = searchItemNames(nameInput.value);
+    activeCandidate = -1; nameInput.removeAttribute('aria-activedescendant');
+    nameOptions.innerHTML = candidates.map((name, index) => `<button type="button" role="option" tabindex="-1" aria-selected="false" id="item-option-${index}" data-candidate="${index}">${escapeHtml(name)}</button>`).join('');
+    nameOptions.hidden = !candidates.length;
+    nameInput.setAttribute('aria-expanded', String(candidates.length > 0));
+    nameStatus.textContent = candidates.length ? `${candidates.length}개 추천 · 방향키와 Enter로 선택할 수 있어요.` : nameInput.value.trim() ? '추천이 없는 이름은 품목 확인이 필요할 수 있어요.' : '';
+  }
+  function selectCandidate(index) {
+    if (!candidates[index]) return;
+    nameInput.value = candidates[index];
+    changed({ target: nameInput }); closeSuggestions();
+    nameStatus.textContent = `${nameInput.value} 선택됨. 실제 재질과 현재 상태를 확인해 주세요.`;
+    nameInput.focus(); closeSuggestions();
+  }
+  nameOptions.addEventListener('pointerdown', event => event.preventDefault());
+  nameOptions.addEventListener('click', event => {
+    const option = event.target.closest('[data-candidate]');
+    if (option) selectCandidate(Number(option.dataset.candidate));
+  });
+  nameInput.addEventListener('focus', showSuggestions);
+  nameInput.addEventListener('blur', closeSuggestions);
+  nameInput.addEventListener('keydown', event => {
+    if (event.isComposing) return;
+    if (event.key === 'Escape') { closeSuggestions(); return; }
+    if (event.key === 'Enter' && activeCandidate >= 0 && !nameOptions.hidden) {
+      event.preventDefault(); selectCandidate(activeCandidate); return;
+    }
+    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+    if (nameOptions.hidden) showSuggestions();
+    if (!candidates.length) return;
+    event.preventDefault();
+    activeCandidate = (activeCandidate + (event.key === 'ArrowDown' ? 1 : activeCandidate < 0 ? 0 : -1) + candidates.length) % candidates.length;
+    [...nameOptions.children].forEach((option, index) => option.setAttribute('aria-selected', String(index === activeCandidate)));
+    nameInput.setAttribute('aria-activedescendant', `item-option-${activeCandidate}`);
+    nameOptions.children[activeCandidate].scrollIntoView({ block: 'nearest' });
+  });
+  nameInput.addEventListener('compositionend', () => changed({ target: nameInput }));
   let history = [];
   let shownInput;
   let shownRecordId = null;
@@ -81,6 +133,7 @@ export function bindItemInput() {
   const deleteConfirm = document.getElementById('history-delete-confirm');
   const historyStatus = document.getElementById('history-status');
   let saving = false;
+  let recentVersion = 0;
   const value = name => form.elements.namedItem(name)?.value || '';
   function partValue(prefix) {
     return Object.fromEntries(['material', 'type', 'contaminated', 'washed', 'removable'].map(key => [key, value(`${prefix}${key}`)]));
@@ -147,6 +200,7 @@ export function bindItemInput() {
     document.getElementById('add-component').disabled = componentCount >= 5;
   }
   function restore(input) {
+    closeSuggestions(); nameStatus.textContent = '';
     form.reset(); componentCount = Math.max(1, input.components?.length || 0); drawComponents();
     autoFill.checked = autoFillEnabled;
     autoFillStatus.textContent = autoFillEnabled ? '자동 입력이 켜져 있어요. 물건 이름을 바꾸면 재질 정보를 다시 채워요.' : '체크하면 우유팩·생수병 등 알려진 물품의 재질 정보를 채워요.';
@@ -168,13 +222,26 @@ export function bindItemInput() {
     });
   }
   async function renderRecent() {
-    const records = await getDisposalHistory();
-    if (!form.isConnected) return;
+    const version = ++recentVersion;
+    const wasOpen = document.querySelector('.recent-disclosure')?.open || false;
+    let records;
+    try { records = await getDisposalHistory(); }
+    catch (error) {
+      if (form.isConnected && version === recentVersion) historyStatus.textContent = error.message;
+      return false;
+    }
+    if (!form.isConnected || version !== recentVersion) return false;
     history = records;
+    historyStatus.textContent = getCurrentMember() ? '현재 계정의 기록은 다른 기기에서도 확인할 수 있어요.' : '비회원 기록은 이 브라우저에 저장돼요.';
     if (!document.getElementById('all-history-link')) {
       document.getElementById('recent-items-content').insertAdjacentHTML('afterend', '<a id="all-history-link" class="all-history-link" href="#/history">전체 기록 및 통계 보기 →</a>');
     }
     document.getElementById('recent-items-content').innerHTML = history.length ? `<div class="history-toolbar"><button type="button" class="history-action" id="clear-history">전체 삭제</button></div><ol class="recent-list">${history.map((record, index) => `<li><button type="button" data-history="${index}"><strong>${escapeHtml(record.itemName)}</strong><small>${record.legacy ? '이전 이름 기록 · 다시 판별하기' : escapeHtml(record.result.method)}</small>${record.legacy ? '' : `<small>${escapeHtml(new Date(record.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))}</small>`}</button><button type="button" class="recent-delete" data-delete-history="${index}" aria-label="${index + 1}번째 ${escapeHtml(record.itemName)} 기록 삭제">삭제</button></li>`).join('')}</ol>` : '<p class="recent-empty">아직 저장한 물건이 없어요.</p>';
+    if (history.length) {
+      const content = document.getElementById('recent-items-content');
+      content.innerHTML = `<details class="recent-disclosure" ${wasOpen ? 'open' : ''}><summary>최근 ${history.length}개 기록 보기</summary>${content.innerHTML}</details>`;
+    }
+    return true;
   }
   restore(draft); renderRecent();
   function applySuggestion() {
@@ -191,6 +258,7 @@ export function bindItemInput() {
       : nameInput.value.trim() ? '자동 입력할 수 있는 이름이 아니에요. 실제 재질과 세부 종류를 직접 선택해 주세요.' : '물건 이름을 입력하면 알려진 품목의 재질 정보를 채워요.';
   }
   function changed(event) {
+    if (event.isComposing) return;
     nameInput.setCustomValidity(''); saveStatus.textContent = '';
     // 브라우저가 체크 상태를 복원해도 실제 화면의 선택과 일치시킵니다.
     autoFillEnabled = autoFill.checked;
@@ -198,7 +266,14 @@ export function bindItemInput() {
       if (!autoFillEnabled) autoFillStatus.textContent = '자동 입력을 껐어요. 재질 정보를 직접 선택하거나 수정할 수 있어요.';
     }
     if (autoFillEnabled && (event.target === autoFill || event.target === nameInput)) applySuggestion();
-    else updateConditional();
+    else {
+      if (event.target === nameInput) {
+        form.querySelectorAll('input[type="radio"]').forEach(control => { control.checked = false; });
+        form.elements.namedItem('material').value = ''; form.elements.namedItem('type').value = '';
+      }
+      updateConditional();
+    }
+    if (event.target === nameInput && document.activeElement === nameInput) showSuggestions();
     draft = collect(); summary.hidden = true;
   }
   form.addEventListener('input', changed);
@@ -243,8 +318,7 @@ export function bindItemInput() {
       if (!form.isConnected) return;
       if (request.all || shownRecordId === request.record?.id) { summary.hidden = true; shownRecordId = null; }
       pendingDeletion = null; deleteConfirm.hidden = true;
-      await renderRecent();
-      historyStatus.textContent = request.all ? '최근 분리배출 목록을 모두 삭제했어요.' : '선택한 기록을 삭제했어요.';
+      if (await renderRecent()) historyStatus.textContent = request.all ? '최근 분리배출 목록을 모두 삭제했어요.' : '선택한 기록을 삭제했어요.';
       document.getElementById('clear-history')?.focus();
     } catch (error) { if (form.isConnected) historyStatus.textContent = error.message; }
     finally { deleting = false; buttons.forEach(button => { button.disabled = false; }); }
@@ -260,8 +334,12 @@ export function bindItemInput() {
     try {
       const record = await saveDisposalRecord(input, result);
       if (shownInput === input) shownRecordId = record.id;
-      if (form.isConnected) { saveStatus.textContent = '입력 조건과 판별 결과를 최근 목록에 저장했어요.'; await renderRecent(); }
+      if (form.isConnected) { saveStatus.textContent = getCurrentMember() ? '입력 조건과 판별 결과를 계정에 저장했어요.' : '입력 조건과 판별 결과를 이 브라우저에 저장했어요.'; await renderRecent(); }
     } catch (error) { if (form.isConnected) saveStatus.textContent = error.message; }
     finally { saving = false; submit.disabled = false; }
   });
+  const storageChanged = event => { if (event.key === null || event.key?.startsWith('recycle-helper.')) renderRecent(); };
+  window.addEventListener('storage', storageChanged);
+  window.addEventListener('focus', renderRecent);
+  return () => { recentVersion++; window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', renderRecent); };
 }
