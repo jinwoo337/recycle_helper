@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
+import { bundledItemEntries } from '../src/domain/disposal/item-suggestions.js';
 
 test('PostgreSQL: 스키마·품목·사용자 격리·통계·기록 이전·삭제', async t => {
   const db = new PGlite();
@@ -31,10 +32,12 @@ test('PostgreSQL: 스키마·품목·사용자 격리·통계·기록 이전·�
     const setup = await readFile(new URL('../supabase/setup.sql', import.meta.url), 'utf8');
     await db.exec(setup);
     await db.exec(setup);
+    const improvements = await readFile(new URL('../supabase/improvements.sql', import.meta.url), 'utf8');
+    await db.exec(improvements); await db.exec(improvements);
 
     await t.test('셋업 재실행과 공개 품목 조회, 비회원 개인 데이터 접근 차단', async () => {
       const items = await asUser(null, () => query('select * from public.disposal_items'), 'anon');
-      assert.equal(items.rows.length, 21);
+      assert.equal(items.rows.length, bundledItemEntries.length);
       await assert.rejects(asUser(null, () => query('select * from public.disposal_records'), 'anon'), { code: '42501' });
       await assert.rejects(asUser(null, () => query("select public.get_disposal_statistics($1)", [owner]), 'anon'), { code: '42501' });
       await assert.rejects(asUser(owner, () => query("update public.disposal_items set material = '기타'")), { code: '42501' });
@@ -84,6 +87,33 @@ test('PostgreSQL: 스키마·품목·사용자 격리·통계·기록 이전·�
       assert.deepEqual(stats.rows[0].stats.counts, { pet: 1, general: 1, mixed: 1, check: 1 });
       const otherStats = await asUser(other, () => query('select public.get_disposal_statistics($1) as stats', [other]));
       assert.deepEqual(otherStats.rows[0].stats.counts, {});
+    });
+    await t.test('즐겨찾기·제보는 회원별로 격리되며 제보는 검토 대기만 허용한다', async () => {
+      await asUser(owner, () => query('insert into public.disposal_favorites(user_id,item_key,input) values($1,$2,$3::jsonb)', [owner, '투명생수병', JSON.stringify(input)]));
+      assert.equal((await asUser(other, () => query('select * from public.disposal_favorites'))).rows.length, 0);
+      await assert.rejects(asUser(other, () => query('insert into public.disposal_favorites(user_id,item_key,input) values($1,$2,$3::jsonb)', [owner, '타인물품', JSON.stringify(input)])), { code: '42501' });
+      assert.equal((await asUser(other, () => query('delete from public.disposal_favorites where user_id=$1 returning *', [owner]))).rows.length, 0);
+      const feedback = [owner, input.itemName, JSON.stringify(input), '지역 안내와 결과가 달라 확인을 요청합니다.'];
+      await asUser(owner, () => query("insert into public.disposal_feedback(user_id,kind,item_name,input,message) values($1,'correction',$2,$3::jsonb,$4)", feedback));
+      assert.equal((await asUser(other, () => query('select * from public.disposal_feedback'))).rows.length, 0);
+      await assert.rejects(asUser(owner, () => query("insert into public.disposal_feedback(user_id,kind,item_name,input,message,status) values($1,'correction',$2,$3::jsonb,$4,'reviewed')", feedback)), { code: '42501' });
+      await assert.rejects(asUser(owner, () => query("update public.disposal_feedback set status='reviewed'")), { code: '42501' });
+      await assert.rejects(asUser(null, () => query('select * from public.disposal_favorites'), 'anon'), { code: '42501' });
+      const ownFeedback = await asUser(owner, () => query('select status from public.disposal_feedback'));
+      assert.equal(ownFeedback.rows[0].status, 'pending');
+    });
+    await t.test('음식물 통계를 기존 기록·category 변경 없이 확장한다', async () => {
+      const foodInput = { itemName: '사과껍질', material: '음식물류', type: 'soft', foodSeparated: 'yes' };
+      await asUser(owner, () => query('insert into public.disposal_records(user_id,item_name,input,result) values($1,$2,$3::jsonb,$4::jsonb)',
+        [owner, foodInput.itemName, JSON.stringify(foodInput), JSON.stringify(judgeDisposal(foodInput))]));
+      const stats = await asUser(owner, () => query('select public.get_disposal_statistics($1) as stats', [owner]));
+      assert.equal(stats.rows[0].stats.counts.food, 1);
+      assert.equal(stats.rows[0].stats.counts.pet, 1);
+      const before = await query('select count(*) as count from public.disposal_records');
+      await db.exec(improvements);
+      const after = await query('select count(*) as count from public.disposal_records');
+      assert.equal(after.rows[0].count, before.rows[0].count);
+      assert.equal((await asUser(owner, () => query('select * from public.disposal_feedback'))).rows.length, 1);
     });
   } finally { await db.close(); }
 });

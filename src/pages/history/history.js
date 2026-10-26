@@ -1,8 +1,10 @@
 import { escapeHtml } from '../../utils/html.js';
 import { getAllDisposalHistory, deleteDisposalRecord, loadDisposalStatistics } from '../../services/disposal-history.js';
-import { searchDisposalHistory } from '../../domain/disposal/statistics.js';
+import { filterDisposalHistory, categories } from '../../domain/disposal/statistics.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { resultMarkup } from '../item-input/item-input.js';
+import { bindResultTools } from '../../components/result-tools.js';
+import { queueInput } from '../../services/input-draft.js';
 
 export function historyPage() {
   return `<section class="container history-page">
@@ -14,6 +16,8 @@ export function historyPage() {
     </section>
     <section class="item-card history-card" aria-labelledby="history-title"><div class="history-section-title"><div><p class="eyebrow">MY HISTORY</p><h2 id="history-title">전체 분리배출 기록</h2></div><span id="history-count" class="history-count"></span></div>
       <div class="field history-search"><label for="history-search">물품 이름으로 검색</label><input id="history-search" type="search" placeholder="예: 우유팩, 생수병" maxlength="80"></div>
+      <div class="history-filters"><div class="field"><label for="history-category">분리배출 유형</label><select id="history-category"><option value="">전체 유형</option>${categories.map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></div><div class="field"><label for="history-from">시작일 (한국 시간)</label><input id="history-from" type="date"></div><div class="field"><label for="history-to">종료일 (한국 시간)</label><input id="history-to" type="date"></div><div class="field"><label for="history-sort">정렬</label><select id="history-sort"><option value="newest">최신순</option><option value="oldest">오래된순</option><option value="name">물품 이름순</option></select></div></div>
+      <div class="form-actions"><button type="button" class="history-action" id="reset-history-filters">검색·필터 초기화</button><button type="button" class="history-action" id="refresh-history">기록 다시 불러오기</button></div><p class="input-hint">날짜는 한국 시간 기준이에요. 날짜·유형 필터를 적용하면 결과 없는 이전 이름 기록은 제외해요. 위 통계는 전체 기록 기준이에요.</p>
       <p id="history-page-status" class="input-hint" role="status" aria-live="polite"></p>
       <div id="history-records"></div><div id="history-pagination" class="history-pagination"></div>
       <div id="history-page-confirm" class="history-delete-confirm" hidden><p id="history-page-delete-message"></p><div class="choice-row"><button type="button" class="history-action" id="history-page-delete">삭제하기</button><button type="button" class="history-action" id="history-page-cancel">취소</button></div></div>
@@ -29,6 +33,8 @@ export function bindHistory() {
   const status = document.getElementById('history-page-status');
   const confirmation = document.getElementById('history-page-confirm');
   const pageSize = 10;
+  let disposeTools = () => {};
+  let loadFailure = '';
   let records = [], page = 1, selectedId = null, pending = null, deleting = false, loadVersion = 0;
 
   function drawStatistics(stats) {
@@ -37,7 +43,17 @@ export function bindHistory() {
     document.getElementById('legacy-statistics-note').textContent = stats.legacyCount ? `이전 이름 기록 ${stats.legacyCount}개는 판별 결과가 없어 통계에서 제외했어요.` : '';
   }
   function drawRecords() {
-    const filtered = searchDisposalHistory(records, search.value);
+    if (loadFailure) {
+      status.textContent = loadFailure;
+      document.getElementById('history-count').textContent = '조회 실패';
+      document.getElementById('history-records').textContent = '기록 다시 불러오기 버튼으로 재시도해 주세요.';
+      document.getElementById('history-pagination').textContent = '';
+      return;
+    }
+    const from = document.getElementById('history-from').value, to = document.getElementById('history-to').value;
+    const filtered = filterDisposalHistory(records, { query: search.value, category: document.getElementById('history-category').value,
+      from, to, sort: document.getElementById('history-sort').value });
+    if (from && to && from > to) status.textContent = '시작일이 종료일보다 늦어요. 날짜 범위를 확인해 주세요.';
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
     page = Math.min(page, pageCount);
     document.getElementById('history-count').textContent = `${filtered.length}개${search.value.trim() ? ' 검색됨' : ' 기록'}`;
@@ -45,12 +61,14 @@ export function bindHistory() {
     document.getElementById('history-pagination').innerHTML = pageCount > 1 ? `<button type="button" class="history-action" data-page="previous" ${page === 1 ? 'disabled' : ''}>이전</button><span>${page} / ${pageCount} 페이지</span><button type="button" class="history-action" data-page="next" ${page === pageCount ? 'disabled' : ''}>다음</button>` : '';
   }
   function showDetail(record, focus = true) {
+    if (selectedId === record.id && !detail.hidden) { if (focus) detail.focus(); return; }
+    disposeTools();
     selectedId = record.id;
     detail.innerHTML = record.legacy ? `<p class="eyebrow">이전 이름 기록</p><h2 id="summary-title">${escapeHtml(record.itemName)}</h2><p class="demo-notice">이 기록에는 물품 이름만 저장되어 있어요. 당시 조건과 판별 결과는 없어요.</p><a class="button secondary" href="#/item-input">새로 판별하기</a>` : resultMarkup(record.input, record.result, record.createdAt);
     if (!record.legacy) {
       detail.querySelector('.input-details').open = true;
-      const edit = detail.querySelector('#edit-item');
-      edit.outerHTML = '<a class="button secondary" href="#/item-input">새 물품 판별하기</a>';
+      detail.querySelector('#edit-item').addEventListener('click', () => { queueInput(record.input); location.hash = '/item-input'; });
+      disposeTools = bindResultTools(detail, record.input, record.result, { onNewItem: () => { queueInput({}); location.hash = '/item-input'; } });
     }
     detail.hidden = false;
     if (focus) { detail.focus(); detail.scrollIntoView({ behavior: 'auto', block: 'start' }); }
@@ -62,20 +80,31 @@ export function bindHistory() {
     try {
       const [loaded, stats] = await Promise.all([getAllDisposalHistory(), loadDisposalStatistics()]);
       if (!root.isConnected || version !== loadVersion) return false;
-      records = loaded; drawStatistics(stats); drawRecords();
+      loadFailure = ''; records = loaded; drawStatistics(stats);
       const selected = records.find(record => record.id === selectedId);
-      if (selected) showDetail(selected, false); else { selectedId = null; detail.hidden = true; }
+      if (selected) showDetail(selected, false); else { selectedId = null; detail.hidden = true; disposeTools(); }
       status.textContent = getCurrentMember() ? '계정에 저장된 기록과 통계예요.' : '비회원 기록은 이 브라우저에 저장돼요. 로그인하면 계정별로 저장하고 다른 기기에서도 볼 수 있어요.';
+      drawRecords();
       return true;
     } catch (error) {
       if (root.isConnected && version === loadVersion) {
-        status.textContent = error.message;
+        loadFailure = error.message; drawRecords();
+        document.getElementById('statistics-chart').textContent = '통계를 불러오지 못했어요.';
         document.getElementById('statistics-total').textContent = '—';
       }
       return false;
     } finally { if (root.isConnected && version === loadVersion) root.removeAttribute('aria-busy'); }
   }
   search.addEventListener('input', () => { page = 1; drawRecords(); });
+  root.querySelectorAll('.history-filters input,.history-filters select').forEach(control => control.addEventListener('change', () => {
+    page = 1; status.textContent = ''; drawRecords();
+  }));
+  document.getElementById('reset-history-filters').addEventListener('click', () => {
+    search.value = ''; root.querySelectorAll('.history-filters input').forEach(input => { input.value = ''; });
+    document.getElementById('history-category').value = ''; document.getElementById('history-sort').value = 'newest';
+    page = 1; status.textContent = '검색과 필터를 초기화했어요.'; drawRecords(); search.focus();
+  });
+  document.getElementById('refresh-history').addEventListener('click', refresh);
   document.getElementById('history-records').addEventListener('click', event => {
     const open = event.target.closest('[data-open-record]');
     if (open) { const record = records.find(record => record.id === open.dataset.openRecord); if (record) showDetail(record); }
@@ -102,10 +131,10 @@ export function bindHistory() {
     } catch (error) { if (root.isConnected) status.textContent = error.message; }
     finally { deleting = false; confirmation.querySelectorAll('button').forEach(button => { button.disabled = false; }); }
   });
-  const storageChanged = event => { if (event.key === null || event.key?.startsWith('recycle-helper.')) refresh(); };
+  const storageChanged = event => { if (event.key === null || event.key === 'recycle-helper.history-updated') refresh(); };
   window.addEventListener('disposal-history-changed', refresh);
   window.addEventListener('storage', storageChanged);
   window.addEventListener('focus', refresh);
   refresh();
-  return () => { loadVersion++; window.removeEventListener('disposal-history-changed', refresh); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', refresh); };
+  return () => { loadVersion++; disposeTools(); window.removeEventListener('disposal-history-changed', refresh); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', refresh); };
 }

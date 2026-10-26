@@ -1,5 +1,5 @@
 import { layout } from './layouts/layout.js';
-import { mainPage } from './pages/main/main.js';
+import { mainPage, bindMain } from './pages/main/main.js';
 import { loginPage, submitLogin } from './pages/login/login.js';
 import { signupPage, submitSignup } from './pages/signup/signup.js';
 import { bindForm } from './utils/validation.js';
@@ -27,7 +27,8 @@ function render(moveFocus = false) {
   document.title = `${route.title} | 맞춤형 분리배출 도우미`;
   disposePage?.(); disposePage = undefined;
   document.getElementById('app').innerHTML = layout(route.render(member), route.page, member);
-  if (route.page === 'item-input') disposePage = bindItemInput();
+  if (route.page === 'main') bindMain();
+  else if (route.page === 'item-input') disposePage = bindItemInput();
   else if (route.page === 'history') disposePage = bindHistory();
   else bindForm(document.querySelector('form'), route.page === 'login' ? submitLogin : submitSignup);
   document.getElementById('logout-button')?.addEventListener('click', async event => {
@@ -46,7 +47,7 @@ let ready = false;
 window.addEventListener('hashchange', () => { if (ready) render(true); });
 document.querySelector('.skip-link').addEventListener('click', event => {
   event.preventDefault();
-  document.getElementById('main-content').focus();
+  document.getElementById('main-content')?.focus();
 });
 function showAuthNotice(message) {
   let notice = document.getElementById('auth-notice');
@@ -58,6 +59,8 @@ function showAuthNotice(message) {
     document.getElementById('app').before(notice);
   }
   notice.textContent = message;
+  const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'history-action auth-notice-retry';
+  retry.textContent = '새로고침'; retry.addEventListener('click', () => location.reload()); notice.append(retry);
 }
 
 document.getElementById('app').textContent = '로그인 상태를 확인하고 있어요…';
@@ -77,7 +80,8 @@ if (callbackUrl.searchParams.has('code') || callbackError) {
   if (!callbackUrl.hash.startsWith('#/')) callbackUrl.hash = getCurrentMember() ? '#/' : '#/login';
   history.replaceState(null, '', callbackUrl);
 }
-await initializeItemCatalog();
 ready = true;
 onMemberChange(() => render());
 render();
+// 품목 조회가 지연돼도 메인·로그인·기록 화면을 먼저 사용할 수 있습니다.
+initializeItemCatalog();

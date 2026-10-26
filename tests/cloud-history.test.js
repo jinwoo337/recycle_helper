@@ -18,14 +18,18 @@ function fakeDatabase(initial = []) {
   return { rows, calls, setError(value) { error = value; },
     from(table) {
       const filters = [];
+      let cursor;
       let inserted;
       const query = {
         select() { return query; }, eq(key, value) { filters.push([key, value]); return query; },
         order() { return query; }, insert(value) { inserted = value; return query; },
+        or(value) { const match = value.match(/created_at\.lt\.(.*?),and\(created_at\.eq\..*?,id\.lt\.(.*?)\)/); cursor = { date: match[1], id: match[2] }; return query; },
         async range(start, end) {
           calls.push({ table, filters, start, end });
           return { data: (table === 'disposal_records' ? rows : legacy)
-            .filter(record => filters.every(([key, value]) => record[key] === value)).slice(start, end + 1), error };
+            .filter(record => filters.every(([key, value]) => record[key] === value))
+            .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '') || (b.id || '').localeCompare(a.id || ''))
+            .filter(record => !cursor || record.created_at < cursor.date || (record.created_at === cursor.date && record.id < cursor.id)).slice(start, end + 1), error };
         },
         async single() { calls.push({ table, inserted }); if (!error) rows.push(structuredClone(inserted)); return { data: inserted, error }; },
       };

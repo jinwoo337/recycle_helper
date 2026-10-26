@@ -21,5 +21,7 @@ const server = http.createServer(async (request, response) => {
     response.writeHead(404).end('Not found');
   }
 });
-server.listen(5173, '127.0.0.1', () => console.log('http://127.0.0.1:5173'));
+const port = Number(process.env.PORT || 5173);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT는 1~65535 사이의 정수여야 합니다.');
+server.listen(port, '127.0.0.1', () => console.log(`http://127.0.0.1:${port}`));
 server.on('error', error => { console.error(error.message); process.exitCode = 1; });

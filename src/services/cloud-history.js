@@ -27,8 +27,9 @@ export function createCloudHistoryRepository(client, owner, getMember, validate)
         return Array.isArray(data) ? data.filter(valid) : [];
       } catch { return []; }
     }
-    const records = stored(`recycle-helper.disposal-history.v2.${owner}`, validate);
-    const names = stored(`recycle-helper.recent-items.v1.${owner}`, name => typeof name === 'string' && name.trim());
+    const records = stored(`recycle-helper.disposal-history.v2.${owner}`, record => validate(record) &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(record.id) && record.itemName.trim().length > 0 && record.itemName.length <= 80);
+    const names = stored(`recycle-helper.recent-items.v1.${owner}`, name => typeof name === 'string' && name.trim() && name.length <= 80);
     if (!records.length && !names.length) return;
     // 서버의 import receipts가 재시도·다른 탭·삭제 후 재접속 시 중복 및 복원을 막습니다.
     await request(() => client.rpc('import_disposal_history', { p_owner: owner,
@@ -43,11 +44,22 @@ export function createCloudHistoryRepository(client, owner, getMember, validate)
     cloud: true,
     async list() {
       await ready();
-      const records = await readAllPages(() => {
+      const records = [];
+      let cursor;
+      for (;;) {
         checkOwner();
-        return client.from('disposal_records').select(fields).eq('user_id', owner)
+        let query = client.from('disposal_records').select(fields).eq('user_id', owner)
           .order('created_at', { ascending: false }).order('id', { ascending: false });
-      });
+        if (cursor) query = query.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);
+        const { data, error } = await query.range(0, 199);
+        checkOwner();
+        if (error) throw databaseError(error, '기록을 불러오');
+        if (!Array.isArray(data) || !data.every(row => validate(fromRow(row)))) throw new Error('저장된 기록의 형식을 확인하지 못했어요.');
+        if (data.length && cursor && data.at(-1).id === cursor.id) throw new Error('기록 페이지를 불러오지 못했어요. 다시 시도해 주세요.');
+        records.push(...data);
+        if (data.length < 200) break;
+        cursor = data.at(-1);
+      }
       const legacy = await readAllPages(() => client.from('disposal_legacy_names')
         .select('item_name').eq('user_id', owner).order('item_name'));
       checkOwner();

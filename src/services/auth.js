@@ -3,6 +3,7 @@ import { getSupabase } from './supabase.js';
 let auth;
 let currentMember = null;
 let subscription;
+let initialized = false;
 const listeners = new Set();
 
 function publicMember(user) {
@@ -38,6 +39,7 @@ export function authError(error) {
 }
 
 export async function initializeAuth(client) {
+  initialized = false;
   const selected = client || await getSupabase();
   const { data, error } = await selected.auth.getSession();
   if (error) throw authError(error);
@@ -45,10 +47,13 @@ export async function initializeAuth(client) {
   auth = selected.auth;
   updateMember(data.session?.user);
   ({ data: { subscription } } = auth.onAuthStateChange((_event, session) => updateMember(session?.user)));
+  initialized = true;
 }
 
+export function isAuthReady() { return initialized; }
+
 async function requireAuth() {
-  if (!auth) await initializeAuth();
+  if (!auth || !initialized) await initializeAuth();
   return auth;
 }
 

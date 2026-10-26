@@ -1,10 +1,12 @@
 // DOM·저장소에 의존하지 않는 규칙. 입력값을 확인한 뒤에만 재활용을 안내합니다.
 import { lookupItem, normalizeItemName } from './item-suggestions.js';
+import { judgeFood, FOOD_SOURCE } from './food.js';
 
-export const RULE_VERSION = '2026-10-08.v3';
+export const RULE_VERSION = '2026-10-26.v4';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
-export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '기타', '모르겠어요'];
+export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
+  '음식물류': [['soft', '밥·면·확인된 부드러운 과일 껍질'], ['excluded', '단단한 뼈·껍데기·씨앗 등 수거 제외 품목'], ['unknown', '종류를 모르겠어요']],
   '플라스틱': [['container', '일반 용기·트레이'], ['other', '그 밖의 플라스틱 제품'], ['unknown', '모르겠어요']],
   '페트병': [['clear-drink', '무색 투명한 생수·음료 페트병'], ['other-pet', '유색 페트병 / 식용유·세제 등 다른 용도'], ['unknown', '모르겠어요']],
   '종이': [['paper', '일반 종이·상자·책'], ['carton', '종이팩 (우유팩·두유팩 등)'], ['cup', '일반 종이컵 (양면 코팅 제외)'], ['excluded', '감열 영수증·사진·종이호일·사용한 휴지'], ['coated', '분리되지 않는 코팅 종이·양면 코팅 종이컵'], ['unknown', '모르겠어요']],
@@ -28,6 +30,7 @@ export function needsWashQuestion(part = {}) {
 export function normalizePart(part = {}) {
   if (!part || typeof part !== 'object' || Array.isArray(part)) part = {};
   const clean = { material: part.material || '', type: part.type || '' };
+  if (clean.material === '음식물류' && clean.type === 'soft') return { ...clean, foodSeparated: part.foodSeparated || '' };
   if (!supportsState(clean)) return clean;
   clean.contaminated = part.contaminated || '';
   if (clean.contaminated === 'yes') {
@@ -43,6 +46,7 @@ function outcome(status, method, reason, steps = []) {
 
 function judgePart(raw, itemName = '') {
   const p = normalizePart(raw);
+  if (p.material === '음식물류') return judgeFood(p);
   if (!MATERIALS.includes(p.material) || !TYPES[p.material]) {
     return outcome('check', '추가 확인 필요', '지원하지 않거나 확인되지 않은 재질이에요.', ['포장의 재질 표시와 지역 수거 기준을 확인해 주세요.']);
   }
@@ -166,6 +170,8 @@ export function judgeDisposal(input = {}) {
 }
 
 function finish(result, parts) {
-  return { ...result, parts, ruleVersion: RULE_VERSION, sourceUrl: RULE_SOURCE, checkedAt: '2026-10-08',
-    notice: '전국 공통 기준을 참고한 안내예요. 수거함·배출일·세부 품목은 거주 지역과 관리사무소 안내를 확인해 주세요.' };
+  return { ...result, parts, ruleVersion: RULE_VERSION,
+    sourceUrls: parts.some(part => part.material === '음식물류') ? [RULE_SOURCE, FOOD_SOURCE] : [RULE_SOURCE],
+    sourceUrl: parts.some(part => part.material === '음식물류') ? FOOD_SOURCE : RULE_SOURCE, checkedAt: '2026-10-26',
+    notice: '공개된 분리배출 지침을 참고한 안내예요. 지역별 수거 대상·수거함·배출일이 다를 수 있으므로 거주지 안내를 확인해 주세요.' };
 }

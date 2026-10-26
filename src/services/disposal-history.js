@@ -1,4 +1,4 @@
-import { getCurrentMember } from './auth.js';
+import { getCurrentMember, isAuthReady } from './auth.js';
 import { getRecentItems, storageKey as recentItemsKey } from './recent-items.js';
 import { getSupabase } from './supabase.js';
 import { createCloudHistoryRepository } from './cloud-history.js';
@@ -13,7 +13,7 @@ const key = () => `recycle-helper.disposal-history.v2.${getCurrentMember()?.id |
 const strings = value => Array.isArray(value) && value.every(item => typeof item === 'string');
 const validOutcome = value => value && ['recycle', 'general', 'check', 'mixed'].includes(value.status)
   && typeof value.method === 'string' && strings(value.steps) && strings(value.reasons);
-const partKeys = ['material', 'type', 'contaminated', 'washed', 'removable', 'combined', 'separable'];
+const partKeys = ['material', 'type', 'contaminated', 'washed', 'removable', 'combined', 'separable', 'foodSeparated'];
 const validPart = part => part && typeof part === 'object' && !Array.isArray(part)
   && partKeys.every(key => part[key] === undefined || typeof part[key] === 'string');
 export function validRecord(record) {
@@ -43,6 +43,16 @@ function writeDeletion(records, names) {
 }
 
 // 비회원과 이전 브라우저 기록용 저장소입니다. 회원은 아래 Supabase 저장소를 사용합니다.
+let localWrite = Promise.resolve();
+function mutateLocal(action) {
+  const ownerKey = key();
+  const task = localWrite.then(() => {
+    if (key() !== ownerKey) throw new Error('로그인 계정이 변경됐어요. 현재 계정에서 다시 시도해 주세요.');
+    return action();
+  });
+  localWrite = task.catch(() => {});
+  return task;
+}
 export const localHistoryRepository = {
   async list() {
     try {
@@ -52,27 +62,35 @@ export const localHistoryRepository = {
   },
   async save(record) {
     if (!validRecord(record)) throw new Error('판별 기록의 형식을 확인해 주세요.');
-    const ownerKey = key();
-    const records = [record, ...await this.list()];
-    try { localStorage.setItem(ownerKey, JSON.stringify(records)); }
-    catch { throw new Error('결과는 확인할 수 있지만 기록을 저장하지 못했어요. 브라우저 저장소를 확인해 주세요.'); }
-    return records;
+    return mutateLocal(async () => {
+      const ownerKey = key();
+      const records = [record, ...await this.list()];
+      if (key() !== ownerKey) throw new Error('로그인 계정이 변경됐어요. 현재 계정에서 다시 시도해 주세요.');
+      try { localStorage.setItem(ownerKey, JSON.stringify(records)); }
+      catch { throw new Error('결과는 확인할 수 있지만 기록을 저장하지 못했어요. 브라우저 저장소를 확인해 주세요.'); }
+      return records;
+    });
   },
   async remove(record) {
-    try {
+    return mutateLocal(async () => { try {
+      const ownerKey = key();
       const records = (await this.list()).filter(item => item.id !== record.id);
+      if (key() !== ownerKey) throw new Error('로그인 계정이 변경됐어요.');
       writeDeletion(records, getRecentItems().filter(name => name !== record.itemName));
-    } catch { throw new Error('기록을 삭제하지 못했어요. 브라우저 저장소를 확인해 주세요.'); }
+    } catch { throw new Error('기록을 삭제하지 못했어요. 브라우저 저장소를 확인해 주세요.'); } });
   },
   async clear() {
-    try { writeDeletion([], []); }
-    catch { throw new Error('기록을 삭제하지 못했어요. 브라우저 저장소를 확인해 주세요.'); }
+    return mutateLocal(() => {
+      try { writeDeletion([], []); }
+      catch { throw new Error('기록을 삭제하지 못했어요. 브라우저 저장소를 확인해 주세요.'); }
+    });
   },
 };
 
 const cloudRepositories = new Map();
 async function resolveRepository(repository) {
   if (repository) return repository;
+  if (!isAuthReady()) throw new Error('로그인 상태를 확인하지 못했어요. 연결을 확인하고 새로고침해 주세요.');
   const owner = getCurrentMember()?.id;
   if (!owner) return localHistoryRepository;
   const client = await getSupabase();

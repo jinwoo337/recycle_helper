@@ -4,7 +4,7 @@
 
 1. [SQL Editor](https://supabase.com/dashboard/project/phutcroispzgqqtrpgjn/sql/new)를 엽니다.
 2. `supabase/setup.sql` 전체를 붙여넣고 Run을 누릅니다.
-3. Success를 확인합니다. Table Editor에서 아래 4개 테이블이 생성되고 `disposal_items`에 21개 품목 묶음이 있어야 합니다.
+3. Success를 확인합니다. Table Editor에서 아래 6개 테이블이 생성되고 `disposal_items`에 25개 품목 묶음이 있어야 합니다.
 4. 앱을 배포하고 새로고침한 뒤 로그인해 판별·기록·통계를 확인합니다.
 
 프로젝트 URL과 Publishable key만으로는 테이블·함수·RLS를 만들 수 없습니다. 이 최초 설정은 프로젝트 소유자가 SQL Editor에서 실행해야 합니다. 관리자 비밀번호나 Secret 키를 프런트엔드에 추가할 필요는 없습니다.
@@ -15,6 +15,10 @@
 | disposal_records | 회원별 입력 JSON, 부속품, 판별 결과 JSON, 시각, 규칙 버전·통계 유형 | 본인 기록만 조회·추가·삭제 |
 | disposal_legacy_names | 결과가 없는 이전 이름 기록 | 본인 데이터만 조회·추가·삭제 |
 | disposal_import_receipts | 이전 완료 기록의 식별자 | 본인 데이터만 조회·추가, 앱에서 삭제 불가 |
+| disposal_favorites | 이름·조건을 보관하는 즐겨찾기 | 본인만 조회·추가·수정·삭제 |
+| disposal_feedback | 오류 제보·미등록 품목 제안과 당시 입력/결과 | 본인만 조회·검토 대기로 추가, 검토 상태 변경은 관리자만 |
+
+이미 기존 4개 테이블을 설치했다면 `supabase/improvements.sql`만 추가 실행합니다. 기존 결과나 생성된 category 컬럼을 덮어쓰지 않고 음식물류 통계 함수를 확장하며 품목 4개 묶음을 추가합니다. `schema.sql`은 기본 테이블 원본이며 전체 새 설치에는 생성된 `setup.sql`을 사용하세요.
 
 SQL은 한 트랜잭션으로 실행됩니다. 다시 실행해도 회원·기록을 삭제하지 않고 이미 있는 품목의 관리자 수정도 덮어쓰지 않습니다. 품목을 추가하거나 수정하려면 Table Editor에서 `aliases`, `material`, `item_type`, `note`, `active`를 관리합니다. 재질과 세부 종류는 앱의 `src/domain/disposal/rules.js`가 지원하는 값이어야 합니다. 품목 로드 실패 시 마지막으로 확인한 안전한 품목 사전을 사용하고 화면에 안내합니다.
 

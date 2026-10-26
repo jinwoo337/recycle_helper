@@ -22,6 +22,10 @@ export const bundledItemEntries = [
   [['고무장갑', '장판'], '비닐', 'other'],
   // 재질이 여러 가지인 이름도 추천하되 재질은 자동으로 확정하지 않습니다.
   [['용기', '도시락용기', '반찬통', '배달용기', '컵', '병', '포장재', '뚜껑', '라벨', '테이프', '장난감', '건전지', '배터리', '형광등', '보조배터리', '전자담배', '블루투스이어폰', '멀티탭', '충전기', '휴대폰'], '', ''],
+  [['밥', '남은밥', '국수', '면'], '음식물류', 'soft', '포장재·뼈 등 이물질을 제거하고 지역 음식물 수거 방식을 확인해 주세요.'],
+  [['사과껍질', '바나나껍질', '수박껍질'], '음식물류', 'soft', '단단한 씨앗과 포장재를 분리하고 지역 안내를 확인해 주세요.'],
+  [['달걀껍데기', '달걀껍질', '계란껍질', '계란껍데기', '조개껍데기', '닭뼈', '생선뼈', '복숭아씨'], '음식물류', 'excluded'],
+  [['음식물', '과일껍질', '채소찌꺼기'], '음식물류', '', '단단한 껍데기·뼈·씨앗 포함 여부를 확인한 뒤 종류를 선택해 주세요.'],
 ];
 
 let entries = bundledItemEntries;
@@ -36,7 +40,11 @@ export function setItemCatalog(rows) {
   entries = rows.map(row => [row.aliases, row.material, row.item_type, row.note]);
 }
 
-export const normalizeItemName = name => typeof name === 'string' ? name.normalize('NFKC').trim().replace(/\s+/g, '').toLowerCase() : '';
+const aliases = { '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔' };
+export const normalizeItemName = name => {
+  const value = typeof name === 'string' ? name.normalize('NFKC').trim().replace(/\s+/g, '').toLowerCase() : '';
+  return aliases[value] || value;
+};
 
 export function lookupItem(name) {
   const normalized = normalizeItemName(name);
@@ -50,7 +58,9 @@ export function lookupItem(name) {
 export function searchItemNames(query, limit = 6) {
   const normalized = normalizeItemName(query);
   if (!normalized || !Number.isInteger(limit) || limit < 1) return [];
-  return entries.flatMap(([names]) => names).filter(name => normalizeItemName(name).includes(normalized))
+  const names = entries.flatMap(([names]) => names);
+  const extra = Object.keys(aliases).filter(alias => names.some(name => normalizeItemName(name) === aliases[alias]));
+  return [...new Set([...names, ...extra])].filter(name => normalizeItemName(name).includes(normalized) || name.includes(query.trim().toLowerCase()))
     .sort((a, b) => Number(!normalizeItemName(a).startsWith(normalized)) - Number(!normalizeItemName(b).startsWith(normalized)) || a.length - b.length)
     .slice(0, Math.min(limit, 10));
 }
