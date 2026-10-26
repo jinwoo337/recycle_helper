@@ -21,7 +21,8 @@ const routes = {
 
 let disposePage;
 function render(moveFocus = false) {
-  const route = routes[location.hash.slice(1) || '/'];
+  const path = location.hash.slice(1) || '/';
+  const route = Object.hasOwn(routes, path) ? routes[path] : null;
   if (!route) { location.replace('#/'); return; }
   const member = getCurrentMember();
   if (member && (route.page === 'login' || route.page === 'signup')) {
