@@ -120,3 +120,6 @@ recycling-helper/
 
 ## 두 가지 로그인 방법
 이메일·비밀번호 로그인과 Google 계정 로그인 버튼을 제공합니다. Google 로그인의 실제 사용에는 [Google OAuth 관리자 설정](docs/google-login-setup.md)이 필요합니다.
+
+## 첫 방문과 쉬운 입력
+가입 없이 이름부터 입력하고, 확인된 품목은 필요한 상태 질문만 답합니다. 가입·로그인·결과·기록 화면의 간소화 내용과 검증 범위는 [첫 방문 UX 검토](docs/first-visit-ux-review.md)를 확인해 주세요.

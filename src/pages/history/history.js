@@ -12,12 +12,12 @@ export function historyPage() {
     <header class="history-heading"><div><p class="eyebrow">MY RECYCLING</p><h1>나의 기록과 통계</h1><p>살펴본 물건과 배출 방법을 한눈에 확인해요.</p></div><a href="#/item-input" class="button primary">새 물품 판별하기 ↗</a></header>
     <section class="item-card statistics-card" aria-labelledby="statistics-title"><div class="history-section-title"><div><p class="eyebrow">작은 실천이 쌓이는 중</p><h2 id="statistics-title">분리배출 유형별 통계</h2></div><div class="total-stat"><span>총 판별한 물품</span><strong id="statistics-total">0<span>개</span></strong></div></div>
       <p class="input-hint">검색과 관계없이 저장된 전체 판별 기록을 집계해요. 같은 물품을 다시 판별하면 각각 1개로 계산하며, 실제 배출 완료를 뜻하지 않아요.</p>
-      <div id="statistics-chart" class="statistics-chart"></div><p class="input-hint">각 기록은 1개 유형에만 포함해요. 모두 재활용인 복합 물품은 본체 유형으로, 재활용·일반 배출이 섞이면 ‘재질별 배출’로 집계해요. 일반 배출·추가 확인 결과는 해당 유형으로 집계해요.</p><p id="legacy-statistics-note" class="input-hint"></p>
+      <div id="statistics-chart" class="statistics-chart"></div><details class="statistics-help"><summary>통계 집계 기준</summary><p class="input-hint">각 기록은 1개 유형에만 포함해요. 모두 재활용인 복합 물품은 본체 유형으로, 재활용·일반 배출이 섞이면 ‘재질별 배출’로 집계해요. 일반 배출·추가 확인 결과는 해당 유형으로 집계해요.</p><p id="legacy-statistics-note" class="input-hint"></p></details>
     </section>
     <section class="item-card history-card" aria-labelledby="history-title"><div class="history-section-title"><div><p class="eyebrow">MY HISTORY</p><h2 id="history-title">전체 분리배출 기록</h2></div><span id="history-count" class="history-count"></span></div>
       <div class="field history-search"><label for="history-search">물품 이름으로 검색</label><input id="history-search" type="search" placeholder="예: 우유팩, 생수병" maxlength="80"></div>
-      <div class="history-filters"><div class="field"><label for="history-category">분리배출 유형</label><select id="history-category"><option value="">전체 유형</option>${categories.map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></div><div class="field"><label for="history-from">시작일 (한국 시간)</label><input id="history-from" type="date"></div><div class="field"><label for="history-to">종료일 (한국 시간)</label><input id="history-to" type="date"></div><div class="field"><label for="history-sort">정렬</label><select id="history-sort"><option value="newest">최신순</option><option value="oldest">오래된순</option><option value="name">물품 이름순</option></select></div></div>
-      <div class="form-actions"><button type="button" class="history-action" id="reset-history-filters">검색·필터 초기화</button><button type="button" class="history-action" id="refresh-history">기록 다시 불러오기</button></div><p class="input-hint">날짜는 한국 시간 기준이에요. 날짜·유형 필터를 적용하면 결과 없는 이전 이름 기록은 제외해요. 위 통계는 전체 기록 기준이에요.</p>
+      <details class="history-filter-options"><summary>유형·기간·정렬<span id="history-filter-count"></span></summary><div class="history-filters"><div class="field"><label for="history-category">분리배출 유형</label><select id="history-category"><option value="">전체 유형</option>${categories.map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></div><div class="field"><label for="history-from">시작일 (한국 시간)</label><input id="history-from" type="date"></div><div class="field"><label for="history-to">종료일 (한국 시간)</label><input id="history-to" type="date"></div><div class="field"><label for="history-sort">정렬</label><select id="history-sort"><option value="newest">최신순</option><option value="oldest">오래된순</option><option value="name">물품 이름순</option></select></div></div>
+      <p class="input-hint">날짜는 한국 시간 기준이에요. 날짜·유형 필터를 적용하면 결과 없는 이전 이름 기록은 제외해요. 위 통계는 전체 기록 기준이에요.</p></details><div class="form-actions"><button type="button" class="history-action" id="reset-history-filters">검색·필터 초기화</button><button type="button" class="history-action" id="refresh-history">기록 다시 불러오기</button></div>
       <p id="history-page-status" class="input-hint" role="status" aria-live="polite"></p>
       <div id="history-records"></div><div id="history-pagination" class="history-pagination"></div>
       <div id="history-page-confirm" class="history-delete-confirm" hidden><p id="history-page-delete-message"></p><div class="choice-row"><button type="button" class="history-action" id="history-page-delete">삭제하기</button><button type="button" class="history-action" id="history-page-cancel">취소</button></div></div>
@@ -39,7 +39,7 @@ export function bindHistory() {
 
   function drawStatistics(stats) {
     document.getElementById('statistics-total').innerHTML = `${stats.total}<span>개</span>`;
-    document.getElementById('statistics-chart').innerHTML = stats.categories.map(category => `<div class="chart-row"><span class="chart-label">${category.label}</span><div class="chart-track" aria-hidden="true"><span style="width:${category.ratio}%;background:${category.color}"></span></div><span class="chart-value">${category.count}개 <small>(${category.ratio.toFixed(1)}%)</small></span></div>`).join('');
+    document.getElementById('statistics-chart').innerHTML = stats.total ? stats.categories.filter(category => category.count > 0).map(category => `<div class="chart-row"><span class="chart-label">${category.label}</span><div class="chart-track" aria-hidden="true"><span style="width:${category.ratio}%;background:${category.color}"></span></div><span class="chart-value">${category.count}개 <small>(${category.ratio.toFixed(1)}%)</small></span></div>`).join('') : '<p class="input-hint">판별한 물건이 생기면 유형별 통계가 표시돼요.</p>';
     document.getElementById('legacy-statistics-note').textContent = stats.legacyCount ? `이전 이름 기록 ${stats.legacyCount}개는 판별 결과가 없어 통계에서 제외했어요.` : '';
   }
   function drawRecords() {
@@ -51,6 +51,8 @@ export function bindHistory() {
       return;
     }
     const from = document.getElementById('history-from').value, to = document.getElementById('history-to').value;
+    const activeFilters = [document.getElementById('history-category').value, from, to, document.getElementById('history-sort').value !== 'newest'].filter(Boolean).length;
+    document.getElementById('history-filter-count').textContent = activeFilters ? ` · ${activeFilters}개 적용` : '';
     const filtered = filterDisposalHistory(records, { query: search.value, category: document.getElementById('history-category').value,
       from, to, sort: document.getElementById('history-sort').value });
     if (from && to && from > to) status.textContent = '시작일이 종료일보다 늦어요. 날짜 범위를 확인해 주세요.';
@@ -66,7 +68,6 @@ export function bindHistory() {
     selectedId = record.id;
     detail.innerHTML = record.legacy ? `<p class="eyebrow">이전 이름 기록</p><h2 id="summary-title">${escapeHtml(record.itemName)}</h2><p class="demo-notice">이 기록에는 물품 이름만 저장되어 있어요. 당시 조건과 판별 결과는 없어요.</p><a class="button secondary" href="#/item-input">새로 판별하기</a>` : resultMarkup(record.input, record.result, record.createdAt);
     if (!record.legacy) {
-      detail.querySelector('.input-details').open = true;
       detail.querySelector('#edit-item').addEventListener('click', () => { queueInput(record.input); location.hash = '/item-input'; });
       disposeTools = bindResultTools(detail, record.input, record.result, { onNewItem: () => { queueInput({}); location.hash = '/item-input'; } });
     }

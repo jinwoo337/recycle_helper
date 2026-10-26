@@ -4,7 +4,7 @@ import { lookupItem, normalizeItemName } from '../domain/disposal/item-suggestio
 import { resultToText } from '../domain/disposal/result-text.js';
 
 export function resultToolsMarkup(input) {
-  return `<div class="result-actions"><button type="button" class="button secondary" data-copy-result>결과 복사</button><button type="button" class="button secondary" data-favorite aria-pressed="false" disabled>즐겨찾기 확인 중…</button><button type="button" class="button secondary" data-new-item>다른 물품 검색</button></div>
+  return `<div class="result-actions"><button type="button" class="button secondary" data-copy-result>결과 복사</button><button type="button" class="button secondary" data-favorite aria-pressed="false">즐겨찾기</button><button type="button" class="button secondary" data-new-item>다른 물품 검색</button></div>
     <p class="input-hint" data-result-tools-status role="status" aria-live="polite"></p>
     <textarea class="copy-fallback" data-copy-fallback aria-label="복사할 판별 결과" readonly hidden></textarea>
     <details class="feedback-panel"><summary>결과 오류 또는 미등록 품목 제보</summary>
@@ -18,7 +18,7 @@ export function bindResultTools(root, input, result, { onNewItem } = {}) {
   const favorite = root.querySelector('[data-favorite]');
   let selected = false, disposed = false, loaded = false;
   const alive = () => !disposed && root.isConnected && root.contains(favorite);
-  async function refreshFavorite() {
+  async function refreshFavorite({ reportError = false } = {}) {
     try {
       const entries = await memberTools.listFavorites();
       if (!alive()) return;
@@ -27,12 +27,13 @@ export function bindResultTools(root, input, result, { onNewItem } = {}) {
       favorite.setAttribute('aria-pressed', String(selected));
       favorite.textContent = selected ? '즐겨찾기 해제' : '즐겨찾기 저장';
       favorite.disabled = false;
-    } catch (error) { loaded = false; if (alive()) { favorite.textContent = '즐겨찾기 다시 확인'; favorite.disabled = false; status.textContent = error.message; } }
+    } catch (error) { loaded = false; if (alive()) { favorite.textContent = '즐겨찾기'; favorite.disabled = false; if (reportError) status.textContent = error.message; } }
   }
   favorite.addEventListener('click', async () => {
     favorite.disabled = true;
-    if (!loaded) { await refreshFavorite(); return; }
-    try { await memberTools.setFavorite(input, !selected); if (alive()) { status.textContent = selected ? '즐겨찾기를 해제했어요.' : '즐겨찾기에 저장했어요.'; await refreshFavorite(); } }
+    if (!loaded) { await refreshFavorite({ reportError: true }); if (!loaded) return; }
+    const target = !selected;
+    try { await memberTools.setFavorite(input, target); if (alive()) { status.textContent = target ? '즐겨찾기에 저장했어요.' : '즐겨찾기를 해제했어요.'; await refreshFavorite(); } }
     catch (error) { if (alive()) status.textContent = error.message; }
     finally { if (alive()) favorite.disabled = false; }
   });

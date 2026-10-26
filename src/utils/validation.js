@@ -13,7 +13,7 @@ function errorFor(input, form) {
 
 export function bindForm(form, onValid) {
   if (!form) return;
-  const inputs = [...form.querySelectorAll('input, select')];
+  const controls = () => [...form.querySelectorAll('input, select')];
   const status = form.querySelector('.form-status');
   function validate(input) {
     const error = errorFor(input, form);
@@ -21,16 +21,27 @@ export function bindForm(form, onValid) {
     document.getElementById(`${input.id}-error`).textContent = error;
     return !error;
   }
-  inputs.forEach(input => input.addEventListener('input', () => {
+  form.addEventListener('input', event => {
+    const input = event.target;
+    if (!input.matches('input, select')) return;
     status.textContent = '';
     if (input.hasAttribute('aria-invalid')) validate(input);
     const confirmation = form.elements.namedItem('password-confirm');
     if (input.id === 'password' && confirmation?.hasAttribute('aria-invalid')) validate(confirmation);
-  }));
+  });
+  form.addEventListener('click', event => {
+    const button = event.target.closest('[data-toggle-password]'); if (!button) return;
+    const input = form.elements.namedItem(button.dataset.togglePassword);
+    const show = input.type === 'password'; input.type = show ? 'text' : 'password';
+    button.setAttribute('aria-pressed', String(show)); button.textContent = show ? '숨기기' : '보기';
+    const label = form.querySelector(`label[for="${input.id}"]`).textContent;
+    button.setAttribute('aria-label', `${label} ${show ? '숨기기' : '표시'}`);
+  });
   let pending = false;
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (pending || form.parentElement?.querySelector('[data-google-login]')?.getAttribute('aria-busy') === 'true') return;
+    const inputs = controls();
     const valid = inputs.map(validate).every(Boolean);
     if (!valid) {
       status.textContent = '입력 내용을 다시 확인해 주세요.';

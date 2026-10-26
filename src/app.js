@@ -60,18 +60,22 @@ document.querySelector('.skip-link').addEventListener('click', event => {
   event.preventDefault();
   document.getElementById('main-content')?.focus();
 });
-function showAuthNotice(message) {
+function showAuthNotice(message, isError = true) {
   let notice = document.getElementById('auth-notice');
   if (!notice) {
     notice = document.createElement('p');
     notice.id = 'auth-notice';
     notice.className = 'container demo-notice';
-    notice.setAttribute('role', 'alert');
     document.getElementById('app').before(notice);
   }
   notice.textContent = message;
-  const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'history-action auth-notice-retry';
-  retry.textContent = '새로고침'; retry.addEventListener('click', () => location.reload()); notice.append(retry);
+  notice.setAttribute('role', isError ? 'alert' : 'status');
+  if (isError) {
+    const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'history-action auth-notice-retry';
+    retry.textContent = '새로고침'; retry.addEventListener('click', () => location.reload()); notice.append(retry);
+  }
+  const close = document.createElement('button'); close.type = 'button'; close.className = 'history-action auth-notice-retry';
+  close.textContent = '닫기'; close.setAttribute('aria-label', '인증 안내 닫기'); close.addEventListener('click', () => notice.remove()); notice.append(close);
 }
 
 document.getElementById('app').textContent = '로그인 상태를 확인하고 있어요…';
@@ -81,7 +85,7 @@ const callbackError = callbackUrl.searchParams.has('error') || callbackHash.has(
 const googleCallback = (callbackUrl.searchParams.has('code') || callbackError) && consumeGoogleLogin();
 try {
   await initializeAuth();
-  if (callbackError || callbackUrl.searchParams.has('code')) showAuthNotice(callbackMessage({ error: callbackError, google: googleCallback, member: getCurrentMember() }));
+  if (callbackError || callbackUrl.searchParams.has('code')) showAuthNotice(callbackMessage({ error: callbackError, google: googleCallback, member: getCurrentMember() }), callbackError || !getCurrentMember());
 } catch (error) { showAuthNotice(error.message); }
 // 인증 코드나 오류 값을 주소창에 남기지 않고 해시 라우터를 복원합니다.
 if (callbackUrl.searchParams.has('code') || callbackError) {
