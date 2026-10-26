@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initializeAuth, signup, login, logout, getCurrentMember, onMemberChange } from '../src/services/auth.js';
+import { initializeAuth, signup, login, logout, getCurrentMember, onMemberChange, authError } from '../src/services/auth.js';
 import { fakeAuthClient } from './helpers/auth-client.js';
 
 test('세션 복원, 로그인 입력 전달, 실패와 로그아웃 실패 시 기존 세션 유지', async () => {
@@ -15,7 +15,7 @@ test('세션 복원, 로그인 입력 전달, 실패와 로그아웃 실패 시 
   await assert.rejects(login(' MEMBER@example.com ', ' exact-password '), /일치하지/);
   assert.equal(getCurrentMember().id, 'real-id');
   client.auth.signOut = async () => ({ error: { status: 503 } });
-  await assert.rejects(logout(), /네트워크/);
+  await assert.rejects(logout(), /인증 서버/);
   assert.equal(getCurrentMember().id, 'real-id');
   client.auth.signOut = async () => ({ error: null });
   await logout();
@@ -72,5 +72,16 @@ test('미인증·요청 제한·회원가입 실패와 세션 복원 실패를 �
   await assert.rejects(signup('새싹', 'a@example.com', 'password'), /인증 메일 요청/);
   delete globalThis.location;
   client.auth.getSession = async () => ({ error: { status: 503 } });
-  await assert.rejects(initializeAuth(client), /네트워크/);
+  await assert.rejects(initializeAuth(client), /인증 서버/);
+});
+
+test('인증 오류: 메일 설정·서버 응답·실제 연결 실패를 구분하고 개인정보 원문을 표시하지 않는다', () => {
+  assert.match(authError({ code: 'email_address_not_authorized', status: 403 }).message, /SMTP/);
+  const failure = authError({ code: 'unexpected_failure', status: 500, message: 'private@example.com SMTP secret' }).message;
+  assert.match(failure, /인증 서버/); assert.match(failure, /오류 코드: unexpected_failure/);
+  assert.doesNotMatch(failure, /네트워크|private@example|secret/);
+  assert.doesNotMatch(authError({ status: 503 }).message, /네트워크/);
+  assert.match(authError(new TypeError('Failed to fetch')).message, /네트워크/);
+  assert.doesNotMatch(authError({ status: 400, code: 'provider_policy_error' }).message, /네트워크/);
+  assert.doesNotMatch(authError({ status: 400, code: '<private>' }).message, /<private>/);
 });

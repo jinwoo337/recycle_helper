@@ -98,7 +98,7 @@ test('회원: 가입 지역 전달, 회원 정보 저장·복원, 실패 및 계
   await updateProfile('새이름', geumcheon);
   assert.equal(getCurrentMember().nickname, '새이름'); assert.deepEqual(getCurrentMember().region, geumcheon);
   client.auth.updateUser = async () => ({ error: { status: 503 } });
-  await assert.rejects(updateProfile('새이름', gimpo), /네트워크/);
+  await assert.rejects(updateProfile('새이름', gimpo), /인증 서버/);
   assert.deepEqual(getCurrentMember().region, geumcheon);
   await assert.rejects(updateProfile('a', gimpo), /닉네임/);
   client.auth.updateUser = async () => { client.emit('SIGNED_IN', { ...user, id: 'member-b' }); return { data: { user }, error: null }; };

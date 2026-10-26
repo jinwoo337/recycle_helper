@@ -32,12 +32,22 @@ export function authError(error) {
     signup_disabled: '현재 신규 회원가입이 중단되어 있어요.',
     email_address_invalid: '사용 가능한 이메일 주소를 입력해 주세요.',
     email_address_not_authorized: '현재 메일 발송 설정으로는 이 주소에 인증 메일을 보낼 수 없어요. 운영자의 SMTP 설정이 필요해요.',
+    email_provider_disabled: '현재 이메일 가입·로그인이 비활성화되어 있어요. 운영자의 인증 설정 확인이 필요해요.',
+    unexpected_failure: '인증 서버에서 오류가 발생했어요. 잠시 후 다시 시도하고, 계속되면 운영자의 인증 로그·메일 발송 설정 확인이 필요해요.',
+    request_timeout: '인증 서버의 응답이 지연되고 있어요. 잠시 후 다시 시도해 주세요.',
     over_email_send_rate_limit: '인증 메일 요청이 많아요. 잠시 후 다시 시도해 주세요.',
     over_request_rate_limit: '요청이 많아요. 잠시 후 다시 시도해 주세요.',
   };
-  return new Error(messages[error?.code] || (error?.status === 429
+  const message = messages[error?.code] || (error?.status === 429
     ? '요청이 많아요. 잠시 후 다시 시도해 주세요.'
-    : '인증 요청을 처리하지 못했어요. 네트워크 연결을 확인하고 다시 시도해 주세요.'));
+    : error?.status >= 500
+      ? '인증 서버에서 오류가 발생했어요. 잠시 후 다시 시도하고, 계속되면 운영자에게 알려주세요.'
+      : error?.status >= 400 || error?.code
+        ? '인증 요청을 처리하지 못했어요. 입력 내용 또는 서비스 인증 설정을 확인해 주세요.'
+        : '인증 서버에 연결하지 못했어요. 네트워크 연결을 확인하고 다시 시도해 주세요.');
+  // 이메일·서버 원문·개인정보는 노출하지 않고 지원 요청에 필요한 코드만 표시합니다.
+  const code = typeof error?.code === 'string' && /^[a-z0-9_]{1,80}$/.test(error.code) ? error.code : '';
+  return new Error(`${message}${code && !['invalid_credentials', 'email_not_confirmed', 'weak_password', 'user_already_exists'].includes(code) ? ` (오류 코드: ${code})` : ''}`);
 }
 
 export async function initializeAuth(client) {
