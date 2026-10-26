@@ -9,6 +9,8 @@ import { historyPage, bindHistory } from './pages/history/history.js';
 import { initializeItemCatalog } from './services/item-catalog.js';
 import { profilePage, bindProfile } from './pages/profile/profile.js';
 import { bindRegionFields } from './components/region-fields.js';
+import { bindGoogleLogin } from './components/google-login.js';
+import { consumeGoogleLogin, callbackMessage } from './utils/auth-callback.js';
 
 const routes = {
   '/': { page: 'main', title: '홈', render: mainPage },
@@ -38,6 +40,7 @@ function render(moveFocus = false) {
   else {
     if (route.page === 'signup') bindRegionFields(document.querySelector('form'));
     bindForm(document.querySelector('form'), route.page === 'login' ? submitLogin : submitSignup);
+    bindGoogleLogin();
   }
   document.getElementById('logout-button')?.addEventListener('click', async event => {
     const button = event.currentTarget;
@@ -75,17 +78,16 @@ document.getElementById('app').textContent = '로그인 상태를 확인하고 �
 const callbackUrl = new URL(location.href);
 const callbackHash = new URLSearchParams(callbackUrl.hash.slice(1));
 const callbackError = callbackUrl.searchParams.has('error') || callbackHash.has('error');
+const googleCallback = (callbackUrl.searchParams.has('code') || callbackError) && consumeGoogleLogin();
 try {
   await initializeAuth();
-  if (callbackError) showAuthNotice('인증 링크가 만료되었거나 유효하지 않아요. 이메일 인증 상태를 확인하고 로그인해 주세요.');
-  else if (callbackUrl.searchParams.has('code')) {
-    showAuthNotice(getCurrentMember() ? '이메일 인증이 완료됐어요.' : '이메일 인증 상태를 확인한 뒤 로그인해 주세요.');
-  }
+  if (callbackError || callbackUrl.searchParams.has('code')) showAuthNotice(callbackMessage({ error: callbackError, google: googleCallback, member: getCurrentMember() }));
 } catch (error) { showAuthNotice(error.message); }
 // 인증 코드나 오류 값을 주소창에 남기지 않고 해시 라우터를 복원합니다.
 if (callbackUrl.searchParams.has('code') || callbackError) {
   ['code', 'error', 'error_code', 'error_description'].forEach(key => callbackUrl.searchParams.delete(key));
-  if (!callbackUrl.hash.startsWith('#/')) callbackUrl.hash = getCurrentMember() ? '#/' : '#/login';
+  if (googleCallback && getCurrentMember() && !getCurrentMember().region && !callbackError) callbackUrl.hash = '#/profile';
+  else if (!callbackUrl.hash.startsWith('#/')) callbackUrl.hash = getCurrentMember() ? '#/' : '#/login';
   history.replaceState(null, '', callbackUrl);
 }
 ready = true;

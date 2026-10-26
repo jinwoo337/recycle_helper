@@ -30,7 +30,7 @@ export function bindForm(form, onValid) {
   let pending = false;
   form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (pending) return;
+    if (pending || form.parentElement?.querySelector('[data-google-login]')?.getAttribute('aria-busy') === 'true') return;
     const valid = inputs.map(validate).every(Boolean);
     if (!valid) {
       status.textContent = '입력 내용을 다시 확인해 주세요.';
@@ -40,11 +40,12 @@ export function bindForm(form, onValid) {
     if (onValid) {
       const button = form.querySelector('button[type="submit"]');
       pending = true;
+      form.setAttribute('aria-busy', 'true');
       button.disabled = true;
       status.textContent = '확인 중이에요…';
       try { await onValid(form, status); }
       catch (error) { status.textContent = error.message || '처리하지 못했어요. 다시 시도해 주세요.'; }
-      finally { pending = false; button.disabled = false; }
+      finally { pending = false; button.disabled = false; form.removeAttribute('aria-busy'); }
       return;
     }
     status.textContent = '입력 형식 확인이 완료됐어요. 실제 인증 기능은 준비 중이며, 입력 내용은 저장되지 않았어요.';

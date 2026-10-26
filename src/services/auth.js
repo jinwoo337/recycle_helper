@@ -1,4 +1,5 @@
-import { getSupabase } from './supabase.js';
+import { getSupabase, isGoogleLoginEnabled, SUPABASE_URL } from './supabase.js';
+import { rememberGoogleLogin, clearGoogleLogin } from '../utils/auth-callback.js';
 import { normalizeRegion } from '../domain/disposal/regions.js';
 
 let auth;
@@ -9,10 +10,10 @@ const listeners = new Set();
 
 function publicMember(user) {
   if (!user) return null;
-  const nickname = user.user_metadata?.nickname;
+  const nickname = user.user_metadata?.nickname || user.user_metadata?.full_name || user.user_metadata?.name;
   const region = normalizeRegion(user.user_metadata?.region);
   return { id: user.id, email: user.email || '', ...(region ? { region } : {}),
-    nickname: typeof nickname === 'string' && nickname.trim() ? nickname : '회원' };
+    nickname: typeof nickname === 'string' && nickname.trim() ? nickname.trim().slice(0, 20) : '회원' };
 }
 
 function updateMember(user) {
@@ -33,6 +34,8 @@ export function authError(error) {
     email_address_invalid: '사용 가능한 이메일 주소를 입력해 주세요.',
     email_address_not_authorized: '현재 메일 발송 설정으로는 이 주소에 인증 메일을 보낼 수 없어요. 운영자의 SMTP 설정이 필요해요.',
     email_provider_disabled: '현재 이메일 가입·로그인이 비활성화되어 있어요. 운영자의 인증 설정 확인이 필요해요.',
+    provider_disabled: 'Google 로그인 설정이 아직 완료되지 않았어요. 이메일 로그인을 이용하거나 잠시 후 다시 시도해 주세요.',
+    oauth_provider_not_supported: 'Google 로그인 공급자 설정을 확인해 주세요.',
     unexpected_failure: '인증 서버에서 오류가 발생했어요. 잠시 후 다시 시도하고, 계속되면 운영자의 인증 로그·메일 발송 설정 확인이 필요해요.',
     request_timeout: '인증 서버의 응답이 지연되고 있어요. 잠시 후 다시 시도해 주세요.',
     over_email_send_rate_limit: '인증 메일 요청이 많아요. 잠시 후 다시 시도해 주세요.',
@@ -106,6 +109,25 @@ export async function logout() {
   const { error } = await auth.signOut({ scope: 'local' });
   if (error) throw authError(error);
   updateMember(null);
+}
+
+export async function loginWithGoogle({ checkEnabled = isGoogleLoginEnabled } = {}) {
+  const api = await requireAuth();
+  if (!await checkEnabled()) throw new Error('Google 로그인 설정이 아직 완료되지 않았어요. 기존 이메일·비밀번호로 로그인할 수 있어요.');
+  const { data, error } = await api.signInWithOAuth({ provider: 'google', options: {
+    redirectTo: `${location.origin}${location.pathname}`,
+    skipBrowserRedirect: true,
+    queryParams: { prompt: 'select_account' },
+  } });
+  if (error) throw authError(error);
+  let url;
+  try { url = new URL(data?.url); } catch { throw new Error('Google 로그인 주소를 확인하지 못했어요. 다시 시도해 주세요.'); }
+  if (url.origin !== SUPABASE_URL || url.pathname !== '/auth/v1/authorize' || url.searchParams.get('provider') !== 'google') {
+    throw new Error('Google 로그인 주소를 확인하지 못했어요. 다시 시도해 주세요.');
+  }
+  rememberGoogleLogin();
+  try { location.assign(url.href); }
+  catch { clearGoogleLogin(); throw new Error('Google 로그인 화면을 열지 못했어요. 브라우저 설정을 확인해 주세요.'); }
 }
 
 export async function updateProfile(nickname, region) {

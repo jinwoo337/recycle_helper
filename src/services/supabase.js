@@ -4,6 +4,16 @@ export const SUPABASE_URL = 'https://phutcroispzgqqtrpgjn.supabase.co';
 export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_Nsgi1mZDLLb5lJofeJe4Ww_C6e8SnW8';
 
 let pending;
+// 공개 인증 설정만 조회합니다. Google Client Secret은 브라우저에 두지 않습니다.
+export async function isGoogleLoginEnabled() {
+  try {
+    const response = await fetchWithTimeout(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_PUBLISHABLE_KEY } });
+    if (!response.ok) throw new Error('설정 조회 실패');
+    const settings = await response.json();
+    return settings.external?.google === true;
+  } catch { throw new Error('Google 로그인 설정을 확인하지 못했어요. 네트워크 상태를 확인하고 잠시 후 다시 시도해 주세요.'); }
+}
+
 export function getSupabase() {
   if (!pending) {
     pending = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm')

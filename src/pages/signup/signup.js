@@ -1,6 +1,7 @@
 import { field, authShell } from '../../components/auth.js';
 import { signup } from '../../services/auth.js';
 import { regionFields, regionFromForm } from '../../components/region-fields.js';
+import { googleLoginMarkup } from '../../components/google-login.js';
 
 export async function submitSignup(form, status) {
   const region = regionFromForm(form);
@@ -12,6 +13,6 @@ export async function submitSignup(form, status) {
 }
 
 export function signupPage() {
-  return authShell('작은 실천의 시작', '회원가입에 필요한 정보를 입력해 보세요.', `<form id="signup-form" novalidate>${field('nickname', '닉네임', 'text', 'nickname', 'minlength="2" maxlength="20" placeholder="2~20자"')}${field('email', '이메일', 'email', 'email', 'placeholder="name@example.com" maxlength="254"')}${field('password', '비밀번호', 'password', 'new-password', 'minlength="8" placeholder="8자 이상"')}${field('password-confirm', '비밀번호 확인', 'password', 'new-password', 'placeholder="비밀번호를 한 번 더 입력해 주세요"')}${regionFields()}<button class="button primary full-width" type="submit">회원가입</button><p class="form-status" role="status" aria-live="polite"></p></form>`, '이미 계정이 있으신가요? <a href="#/login">로그인</a>');
+  return authShell('작은 실천의 시작', '이메일 또는 Google 계정으로 시작해 보세요.', `${googleLoginMarkup()}<form id="signup-form" novalidate>${field('nickname', '닉네임', 'text', 'nickname', 'minlength="2" maxlength="20" placeholder="2~20자"')}${field('email', '이메일', 'email', 'email', 'placeholder="name@example.com" maxlength="254"')}${field('password', '비밀번호', 'password', 'new-password', 'minlength="8" placeholder="8자 이상"')}${field('password-confirm', '비밀번호 확인', 'password', 'new-password', 'placeholder="비밀번호를 한 번 더 입력해 주세요"')}${regionFields()}<button class="button primary full-width" type="submit">회원가입</button><p class="form-status" role="status" aria-live="polite"></p></form>`, '이미 계정이 있으신가요? <a href="#/login">로그인</a>', '이메일 가입은 입력한 정보와 기존 인증 절차를 사용해요. Google로 처음 이용하면 로그인 후 마이페이지에서 닉네임과 지역을 설정해 주세요.');
 }
 

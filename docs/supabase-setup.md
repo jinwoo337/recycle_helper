@@ -53,3 +53,6 @@
 - [PKCE 흐름](https://supabase.com/docs/guides/auth/sessions/pkce-flow)
 - [공개 키와 비밀 키](https://supabase.com/docs/guides/getting-started/api-keys)
 - [Custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp)
+
+## Google 계정 로그인 추가
+기존 이메일 로그인과 Google 로그인을 함께 제공합니다. 실제 활성화에 필요한 Google Cloud·Supabase 관리자 설정과 검증 범위는 [Google 로그인 설정](google-login-setup.md)을 참고하세요.

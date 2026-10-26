@@ -1,5 +1,6 @@
 import { field, authShell } from '../../components/auth.js';
 import { login } from '../../services/auth.js';
+import { googleLoginMarkup } from '../../components/google-login.js';
 
 export async function submitLogin(form, status) {
   const password = form.elements.namedItem('password');
@@ -15,6 +16,6 @@ export async function submitLogin(form, status) {
 }
 
 export function loginPage() {
-  return authShell('다시 만나 반가워요', '가입한 이메일과 비밀번호로 로그인해 주세요.', `<form id="login-form" novalidate>${field('email', '이메일', 'email', 'email', 'placeholder="name@example.com" maxlength="254"')}${field('password', '비밀번호', 'password', 'current-password')}<button class="button primary full-width" type="submit">로그인</button><p class="form-status" role="status" aria-live="polite"></p></form>`, '아직 계정이 없으신가요? <a href="#/signup">회원가입</a>', '이메일 인증을 완료한 계정으로 로그인할 수 있어요. 공용 기기에서는 이용 후 로그아웃해 주세요.');
+  return authShell('다시 만나 반가워요', '이메일·비밀번호 또는 Google 계정으로 로그인해 주세요.', `${googleLoginMarkup()}<form id="login-form" novalidate>${field('email', '이메일', 'email', 'email', 'placeholder="name@example.com" maxlength="254"')}${field('password', '비밀번호', 'password', 'current-password')}<button class="button primary full-width" type="submit">로그인</button><p class="form-status" role="status" aria-live="polite"></p></form>`, '아직 계정이 없으신가요? <a href="#/signup">회원가입</a>', '이메일 로그인은 기존 가입 정보를 사용해요. Google로 처음 이용하면 계정이 생성되며, 마이페이지에서 지역을 설정할 수 있어요.');
 }
 
