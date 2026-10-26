@@ -2,3 +2,5 @@
 @media(max-width:900px){.history-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-search-row .button{width:100%}}
 @media(max-width:520px){.history-filters{grid-template-columns:1fr}.quick-search-row input{min-width:0}.result-actions .button{flex:1 1 100%}.form-actions .button{flex:1 1 100%}.history-heading .button{white-space:normal}.member-label{max-width:100%;font-size:12px}.header-inner{gap:14px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+.region-fields{border:1px solid var(--line);border-radius:12px;padding:16px;margin:20px 0;min-width:0}.region-fields legend{font-weight:700;padding:0 6px}.region-fields select,.region-fields input{width:100%;min-width:0;box-sizing:border-box;min-height:48px;border:1px solid #cfd8ce;border-radius:8px;padding:10px;font:inherit;background:white}.regional-notice{padding:16px;background:#f0f6ed;border:1px solid #b9cbbb;border-radius:10px;margin:16px 0;line-height:1.7}.regional-notice p{margin:8px 0}.regional-notice ul{padding-left:20px}.region-current a{text-decoration:underline}

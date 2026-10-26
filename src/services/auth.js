@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase.js';
+import { normalizeRegion } from '../domain/disposal/regions.js';
 
 let auth;
 let currentMember = null;
@@ -9,7 +10,8 @@ const listeners = new Set();
 function publicMember(user) {
   if (!user) return null;
   const nickname = user.user_metadata?.nickname;
-  return { id: user.id, email: user.email || '',
+  const region = normalizeRegion(user.user_metadata?.region);
+  return { id: user.id, email: user.email || '', ...(region ? { region } : {}),
     nickname: typeof nickname === 'string' && nickname.trim() ? nickname : '회원' };
 }
 
@@ -64,15 +66,16 @@ export function onMemberChange(listener) {
 
 export function getCurrentMember() { return currentMember; }
 
-export async function signup(nickname, email, password) {
+export async function signup(nickname, email, password, region) {
   nickname = nickname.trim();
   email = email.trim().toLowerCase();
   if (nickname.length < 2 || nickname.length > 20 || !/^[^\s@]+@[^\s@]+$/.test(email) || password.length < 8) {
     throw new Error('닉네임, 이메일, 비밀번호 입력 조건을 확인해 주세요.');
   }
   const api = await requireAuth();
+  if (region !== undefined && !normalizeRegion(region)) throw new Error('분리배출 지역을 확인해 주세요.');
   const { data, error } = await api.signUp({ email, password, options: {
-    data: { nickname }, emailRedirectTo: `${location.origin}${location.pathname}`,
+    data: { nickname, ...(region ? { region: normalizeRegion(region) } : {}) }, emailRedirectTo: `${location.origin}${location.pathname}`,
   } });
   if (error) throw authError(error);
   updateMember(data.session?.user);
@@ -93,4 +96,18 @@ export async function logout() {
   const { error } = await auth.signOut({ scope: 'local' });
   if (error) throw authError(error);
   updateMember(null);
+}
+
+export async function updateProfile(nickname, region) {
+  nickname = nickname.trim();
+  const normalized = normalizeRegion(region);
+  if (nickname.length < 2 || nickname.length > 20 || !normalized) throw new Error('닉네임과 분리배출 지역을 확인해 주세요.');
+  const api = await requireAuth();
+  const owner = currentMember?.id;
+  if (!owner) throw new Error('로그인한 뒤 회원 정보를 변경해 주세요.');
+  const { data, error } = await api.updateUser({ data: { nickname, region: normalized } });
+  if (error) throw authError(error);
+  if (currentMember?.id !== owner || data.user?.id !== owner) throw new Error('로그인 계정이 변경됐어요. 현재 계정에서 다시 확인해 주세요.');
+  updateMember(data.user);
+  return getCurrentMember();
 }

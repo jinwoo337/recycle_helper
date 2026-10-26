@@ -6,6 +6,7 @@ import { getCurrentMember } from '../../services/auth.js';
 import { getCatalogMessage, initializeItemCatalog } from '../../services/item-catalog.js';
 import { resultToolsMarkup, bindResultTools } from '../../components/result-tools.js';
 import { memberTools } from '../../services/member-tools.js';
+import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel } from '../../domain/disposal/regions.js';
 import { takeQueuedInput } from '../../services/input-draft.js';
 
 let draft = {};
@@ -32,6 +33,7 @@ export function itemInputPage() {
   return `<section class="container item-page">
     <a class="back-link" href="#/">← 메인으로</a>
     <header class="item-heading"><p class="eyebrow">나의 물건 살펴보기</p><h1>어떤 물건을 버리려고 하나요?</h1><p>물건의 재질과 현재 상태를 알려주세요.</p></header>
+    <p class="region-current input-hint">판별 지역: <strong>${escapeHtml(regionLabel(getCurrentMember()?.region))}</strong> · <a href="#/profile">지역 설정·변경</a><br>확인된 지역·품목만 지역 기준을 적용하며, 그 외에는 기본 안내를 표시해요.</p>
     <p id="catalog-status" class="input-hint" role="status" aria-live="polite"></p>
     <div class="item-grid"><form id="item-form" class="item-card">
       <section aria-labelledby="item-basic"><h2 id="item-basic"><span class="section-index">01</span> 물건 정보</h2>
@@ -61,7 +63,7 @@ const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>
 export function resultMarkup(input, result, createdAt) {
   const source = result.sourceUrl === 'https://geumcheon.go.kr/portal/contents.do?key=818' ? result.sourceUrl : RULE_SOURCE;
   const sources = [...new Set(Array.isArray(result.sourceUrls) ? result.sourceUrls : [source])]
-    .filter(url => [RULE_SOURCE, 'https://geumcheon.go.kr/portal/contents.do?key=818'].includes(url));
+    .filter(url => [RULE_SOURCE, ...Object.values(REGIONAL_SOURCES)].includes(url));
   const labels = { yes: '네', no: '아니요', unknown: '모르겠어요' };
   const details = part => Object.entries(titles).filter(([key]) => part[key]).map(([key, title]) => {
     const value = key === 'type' ? TYPES[part.material]?.find(([value]) => value === part.type)?.[1] || part.type : labels[part[key]] || part[key];
@@ -70,11 +72,11 @@ export function resultMarkup(input, result, createdAt) {
   return `<p class="eyebrow">${createdAt ? '저장된 판별 결과' : '나의 분리배출 안내'}</p><h2 id="summary-title">${escapeHtml(input.itemName)}</h2>
     ${createdAt ? `<p class="input-hint">${escapeHtml(new Date(createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))} · 당시 입력과 기준으로 저장된 결과예요.</p>` : ''}
     ${result.ruleVersion !== RULE_VERSION ? '<p class="demo-notice">판별 기준이 업데이트되었어요. 이전 결과를 그대로 사용하기 전에 아래의 ‘이 조건으로 다시 입력하기’를 눌러 현재 기준으로 다시 판별해 주세요.</p>' : ''}
-    <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}"><span class="result-badge">${input.material === '음식물류' && result.status === 'recycle' ? '음식물류 안내' : { recycle: '재활용 안내', general: '일반 배출 안내', check: '추가 확인 필요', mixed: '재질별 배출 안내' }[result.status]}</span><h3>${escapeHtml(result.method)}</h3></div>
+    ${result.regional ? `<aside class="regional-notice"><strong>판별 당시 지역: ${escapeHtml(result.regional.label)}</strong><p>${result.regional.coverage === 'verified' ? '해당 품목의 지역 기준 적용 · 확인일 ' + escapeHtml(result.regional.checkedAt) : '기본 안내 · 해당 지역의 품목별 기준 확인 필요'}</p>${list(result.regional.notes)}</aside>` : '<p class="demo-notice">지역 기능 도입 전의 기록이에요. 지역을 설정하고 다시 판별해 주세요.</p>'}<div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}"><span class="result-badge">${input.material === '음식물류' && result.status === 'recycle' ? '음식물류 안내' : { recycle: '재활용 안내', general: '일반 배출 안내', check: '추가 확인 필요', mixed: '재질별 배출 안내' }[result.status]}</span><h3>${escapeHtml(result.method)}</h3></div>
     <div class="result-sections"><section><h3>배출하기 전에 해야 할 일</h3><ol class="action-steps">${result.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol></section><section><h3>이렇게 판단한 이유</h3>${list(result.reasons)}</section></div>
     <h3>재질별 처리 방법</h3><div class="result-parts">${result.parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${list(part.steps)}<p class="input-hint">${escapeHtml(part.reasons.join(' '))}</p></article>`).join('')}</div>
     <details class="input-details"><summary>입력한 조건 확인하기</summary><dl><div><dt>물건 이름</dt><dd>${escapeHtml(input.itemName)}</dd></div>${details(input)}</dl>${(input.components || []).map((part, index) => `<h4>부속품 ${index + 1}</h4><dl>${details(part)}</dl>`).join('')}</details>
-    <p class="demo-notice">${escapeHtml(result.notice)}</p><p class="input-hint">기준 확인일: ${escapeHtml(result.checkedAt || '미기록')} · 규칙 ${escapeHtml(result.ruleVersion)} · ${sources.map(url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url === RULE_SOURCE ? '분리배출 지침' : '음식물류 지역 안내 예시'}</a>`).join(' · ')}</p>
+    <p class="demo-notice">${escapeHtml(result.notice)}</p><p class="input-hint">기준 확인일: ${escapeHtml(result.checkedAt || '미기록')} · 규칙 ${escapeHtml(result.ruleVersion)} · ${sources.map(url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url === RULE_SOURCE ? '분리배출 지침' : escapeHtml(regionalSourceLabel(url))}</a>`).join(' · ')}</p>
     <button class="button secondary" type="button" id="edit-item">이 조건으로 다시 입력하기</button>${resultToolsMarkup(input)}`;
 }
 
@@ -205,7 +207,7 @@ export function bindItemInput() {
   }
   function materialLabel() { return value('material'); }
   function collect() {
-    const input = { itemName: nameInput.value.trim(), ...normalizePart(partValue('')) };
+    const input = { itemName: nameInput.value.trim(), ...normalizePart(partValue('')), region: getCurrentMember()?.region || null };
     if (supportsState(input)) {
       input.combined = value('combined');
       if (input.combined === 'yes') {

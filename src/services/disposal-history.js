@@ -16,6 +16,9 @@ const validOutcome = value => value && ['recycle', 'general', 'check', 'mixed'].
 const partKeys = ['material', 'type', 'contaminated', 'washed', 'removable', 'combined', 'separable', 'foodSeparated'];
 const validPart = part => part && typeof part === 'object' && !Array.isArray(part)
   && partKeys.every(key => part[key] === undefined || typeof part[key] === 'string');
+const validRegional = regional => regional === undefined || (regional && typeof regional === 'object'
+  && ['verified', 'unverified'].includes(regional.coverage) && typeof regional.label === 'string'
+  && typeof regional.checkedAt === 'string' && strings(regional.notes) && strings(regional.sources));
 export function validRecord(record) {
   return record?.schemaVersion === 2 && typeof record.id === 'string' && typeof record.itemName === 'string'
     && validPart(record.input) && record.input.itemName === record.itemName
@@ -24,7 +27,8 @@ export function validRecord(record) {
     && typeof record.createdAt === 'string' && Number.isFinite(Date.parse(record.createdAt))
     && validOutcome(record.result) && Array.isArray(record.result.parts) && record.result.parts.every(part =>
       validOutcome(part) && typeof part.label === 'string' && typeof part.material === 'string')
-    && typeof record.result.ruleVersion === 'string' && typeof record.result.notice === 'string';
+    && typeof record.result.ruleVersion === 'string' && typeof record.result.notice === 'string'
+    && validRegional(record.result.regional);
 }
 
 // v1 이름이 다시 나타나지 않도록 두 저장소를 함께 갱신합니다.

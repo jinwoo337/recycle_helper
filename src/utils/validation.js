@@ -1,5 +1,9 @@
+import { normalizeRegion, PROVINCES } from '../domain/disposal/regions.js';
 function errorFor(input, form) {
+  if (input.disabled) return '';
   if (!input.value.trim()) return '이 항목을 입력해 주세요.';
+  if (input.id === 'province' && !PROVINCES.includes(input.value)) return '시·도를 선택해 주세요.';
+  if (input.id === 'district' && !normalizeRegion({ province: form.elements.namedItem('province').value, district: input.value })) return '관할 시·군·구 이름을 확인해 주세요. 서울·대전은 추천 목록의 자치구를 선택해 주세요.';
   if (input.type === 'email' && input.validity.typeMismatch) return '올바른 이메일 주소를 입력해 주세요.';
   if (input.id === 'nickname' && (input.value.trim().length < 2 || input.value.trim().length > 20)) return '닉네임은 2~20자로 입력해 주세요.';
   if (input.id === 'password' && form.id === 'signup-form' && input.value.length < 8) return '비밀번호는 8자 이상으로 입력해 주세요.';
@@ -9,7 +13,7 @@ function errorFor(input, form) {
 
 export function bindForm(form, onValid) {
   if (!form) return;
-  const inputs = [...form.querySelectorAll('input')];
+  const inputs = [...form.querySelectorAll('input, select')];
   const status = form.querySelector('.form-status');
   function validate(input) {
     const error = errorFor(input, form);

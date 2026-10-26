@@ -7,6 +7,8 @@ import { getCurrentMember, logout, initializeAuth, onMemberChange } from './serv
 import { itemInputPage, bindItemInput } from './pages/item-input/item-input.js';
 import { historyPage, bindHistory } from './pages/history/history.js';
 import { initializeItemCatalog } from './services/item-catalog.js';
+import { profilePage, bindProfile } from './pages/profile/profile.js';
+import { bindRegionFields } from './components/region-fields.js';
 
 const routes = {
   '/': { page: 'main', title: '홈', render: mainPage },
@@ -14,6 +16,7 @@ const routes = {
   '/signup': { page: 'signup', title: '회원가입', render: signupPage },
   '/item-input': { page: 'item-input', title: '물건 및 상태 입력', render: itemInputPage },
   '/history': { page: 'history', title: '기록 및 통계', render: historyPage },
+  '/profile': { page: 'profile', title: '마이페이지', render: profilePage },
 };
 
 let disposePage;
@@ -30,7 +33,11 @@ function render(moveFocus = false) {
   if (route.page === 'main') bindMain();
   else if (route.page === 'item-input') disposePage = bindItemInput();
   else if (route.page === 'history') disposePage = bindHistory();
-  else bindForm(document.querySelector('form'), route.page === 'login' ? submitLogin : submitSignup);
+  else if (route.page === 'profile') bindProfile();
+  else {
+    if (route.page === 'signup') bindRegionFields(document.querySelector('form'));
+    bindForm(document.querySelector('form'), route.page === 'login' ? submitLogin : submitSignup);
+  }
   document.getElementById('logout-button')?.addEventListener('click', async event => {
     const button = event.currentTarget;
     button.disabled = true;

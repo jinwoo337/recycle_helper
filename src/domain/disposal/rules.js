@@ -1,8 +1,9 @@
 // DOM·저장소에 의존하지 않는 규칙. 입력값을 확인한 뒤에만 재활용을 안내합니다.
 import { lookupItem, normalizeItemName } from './item-suggestions.js';
 import { judgeFood, FOOD_SOURCE } from './food.js';
+import { applyRegionalRules } from './regions.js';
 
-export const RULE_VERSION = '2026-10-26.v4';
+export const RULE_VERSION = '2026-10-26.v5';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -118,6 +119,11 @@ function judgePart(raw, itemName = '') {
 }
 
 export function judgeDisposal(input = {}) {
+  const safe = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  return applyRegionalRules(safe, judgeBaseDisposal(safe));
+}
+
+function judgeBaseDisposal(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) input = {};
   const name = normalizeItemName(input.itemName);
   const known = lookupItem(name);
