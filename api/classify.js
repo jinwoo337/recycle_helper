@@ -1,7 +1,9 @@
 // Vercel 서버리스 함수: 미등록 물품 이름을 Gemini로 분류합니다.
 // API 키는 Vercel 환경변수 GEMINI_API_KEY에만 두고 브라우저에 보내지 않습니다.
-import { cleanAiName, validateAiGuess, aiResponseSchema, aiInstruction } from '../src/domain/disposal/ai-classification.js';
-import { lookupItem } from '../src/domain/disposal/item-suggestions.js';
+import { cleanAiName, cleanAiAliases, validateAiGuess, aiResponseSchema, aiInstruction } from '../src/domain/disposal/ai-classification.js';
+import { lookupItem, normalizeItemName } from '../src/domain/disposal/item-suggestions.js';
+import { detectItemCategory } from '../src/domain/disposal/category-keywords.js';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '../src/services/supabase.js';
 
 // 생각(thinking)하는 모델은 응답이 늦을 수 있어 함수 실행 시간을 늘립니다.
 export const config = { maxDuration: 30 };
@@ -99,7 +101,8 @@ export async function classifyWithGemini(name, { apiKey = process.env.GEMINI_API
   const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('') || '';
   let parsed;
   try { parsed = JSON.parse(text); } catch { return null; }
-  return validateAiGuess({ ...parsed, itemName: name }, name);
+  const guess = validateAiGuess({ ...parsed, itemName: name }, name);
+  return guess && { ...guess, aliases: cleanAiAliases(parsed?.aliases, name), model };
 }
 
 const isBusy = error => BUSY_STATUSES.includes(error?.status) || ['TimeoutError', 'AbortError'].includes(error?.name);
@@ -142,6 +145,51 @@ export async function classifyWithRetry(name, { models, hedgeMs = 2_500, timeout
   }
 }
 
+// 공용 AI 추정 저장소(Supabase ai_item_guesses): 한 번 답한 물건은 모든 사용자가 AI 없이 바로 받습니다.
+// 읽기는 공개 키, 쓰기는 서버 환경변수 SUPABASE_SERVICE_ROLE_KEY로만 합니다. 키가 없거나 표가 없으면 조용히 건너뜁니다.
+const SHARED_TABLE = `${SUPABASE_URL}/rest/v1/ai_item_guesses`;
+let warnedNoKey = false;
+
+export async function readSharedGuess(name, { fetcher = fetch } = {}) {
+  const key = normalizeItemName(name);
+  if (!key) return null;
+  try {
+    const response = await fetcher(`${SHARED_TABLE}?name_key=eq.${encodeURIComponent(key)}&select=material,item_type,route,confidence,reason&limit=1`, {
+      headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Accept: 'application/json' }, signal: AbortSignal.timeout(1_500),
+    });
+    if (!response.ok) return null;
+    const [row] = await response.json();
+    return row ? validateAiGuess({ itemName: name, material: row.material, type: row.item_type, route: row.route, confidence: row.confidence, reason: row.reason }, name) : null;
+  } catch { return null; }
+}
+
+// 확신이 high·medium인 답만 저장합니다. 별칭은 등록 품목 이름이거나 낱말 인식 종류가 원래 이름과 다르면 저장하지 않습니다.
+// 이미 있는 이름은 덮어쓰지 않습니다(먼저 저장된 답 유지).
+export async function saveSharedGuess(name, guess, { fetcher = fetch, serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY } = {}) {
+  if (!serviceKey) { if (!warnedNoKey) { console.warn('shared guesses skipped: SUPABASE_SERVICE_ROLE_KEY not set'); warnedNoKey = true; } return false; }
+  if (!guess || !['high', 'medium'].includes(guess.confidence)) return false;
+  const canonical = normalizeItemName(name);
+  const category = detectItemCategory(name)?.category ?? null;
+  const names = [name, ...(guess.aliases || []).filter(alias => !lookupItem(alias) && (detectItemCategory(alias)?.category ?? null) === category)];
+  const rows = [...new Map(names.map(display => [normalizeItemName(display), {
+    name_key: normalizeItemName(display), canonical_key: canonical, display_name: display,
+    material: guess.material, item_type: guess.type || '', route: guess.route, confidence: guess.confidence,
+    reason: String(guess.reason || '').slice(0, 160), model: String(guess.model || '').slice(0, 60),
+  }])).values()].filter(row => row.name_key && row.name_key.length <= 40);
+  try {
+    const response = await fetcher(`${SHARED_TABLE}?on_conflict=name_key`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey, ...(serviceKey.startsWith('eyJ') ? { Authorization: `Bearer ${serviceKey}` } : {}),
+        'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal',
+      },
+      body: JSON.stringify(rows), signal: AbortSignal.timeout(1_500),
+    });
+    if (!response.ok) { console.error('shared guesses save failed', response.status); return false; }
+    return true;
+  } catch (error) { console.error('shared guesses save failed', error?.name); return false; }
+}
+
 function send(res, status, body, cacheSeconds = 0) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', cacheSeconds ? `public, max-age=3600, s-maxage=${cacheSeconds}` : 'no-store');
@@ -154,15 +202,24 @@ export default async function handler(req, res) {
   if (!name) { send(res, 400, { error: 'invalid_name' }); return; }
   // 등록된 품목은 기존 규칙을 쓰므로 AI를 부르지 않습니다. 단, mode=opinion이면 화면에 참고 의견으로만 보여 줄 AI 답을 받습니다.
   const opinion = (Array.isArray(req.query?.mode) ? req.query.mode[0] : req.query?.mode) === 'opinion';
-  if (lookupItem(name) && !opinion) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
-  if (!process.env.GEMINI_API_KEY) { send(res, 503, { error: 'not_configured' }); return; }
+  const known = Boolean(lookupItem(name));
+  if (known && !opinion) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
   const key = name.toLowerCase();
-  if (cache.has(key)) { send(res, 200, { guess: cache.get(key) }, 604800); return; }
+  if (cache.has(key)) { send(res, 200, cache.get(key), 604800); return; }
+  // 미등록 품목은 다른 사용자가 이미 물어본 답이 있으면 AI 없이 바로 돌려줍니다.
+  if (!known) {
+    const shared = await readSharedGuess(name);
+    if (shared) { const body = { guess: shared, cached: 'shared' }; cache.set(key, body); send(res, 200, body, 604800); return; }
+  }
+  if (!process.env.GEMINI_API_KEY) { send(res, 503, { error: 'not_configured' }); return; }
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
   if (!allowRequest(ip)) { send(res, 429, { error: 'rate_limited' }); return; }
   try {
-    const guess = await classifyWithRetry(name);
-    if (guess) cache.set(key, guess);
+    const answer = await classifyWithRetry(name);
+    const guess = answer && validateAiGuess(answer, name);
+    // 등록 품목의 참고 의견은 공용 저장소에 넣지 않습니다.
+    if (answer && !known) await saveSharedGuess(name, answer);
+    if (guess) cache.set(key, { guess });
     if (cache.size > 2000) cache.delete(cache.keys().next().value);
     send(res, 200, { guess }, guess ? 604800 : 0);
   } catch (error) {

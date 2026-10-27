@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { validateAiGuess, aiResponseSchema } from '../src/domain/disposal/ai-classification.js';
 import { requestAiGuess } from '../src/services/ai-classify.js';
-import handler, { classifyWithGemini, classifyWithRetry, pickModels, chooseModels } from '../api/classify.js';
+import handler, { classifyWithGemini, classifyWithRetry, pickModels, chooseModels, readSharedGuess, saveSharedGuess } from '../api/classify.js';
+import { cleanAiAliases } from '../src/domain/disposal/ai-classification.js';
 
 const guess = (route, extra = {}) => ({ itemName: '실리콘주걱', material: '기타', type: '', route, confidence: 'high', reason: '실리콘 제품은 재활용 대상이 아니에요.', ...extra });
 
@@ -198,9 +199,10 @@ test('서버 함수: 잘못된 요청·등록 품목·키 미설정', async () =
   assert.equal((await call('GET', 'x'.repeat(41))).statusCode, 400);
   const known = await call('GET', '우유팩');
   assert.equal(known.statusCode, 200); assert.equal(JSON.parse(known.body).guess, null);
-  const previous = process.env.GEMINI_API_KEY; delete process.env.GEMINI_API_KEY;
+  const previous = { key: process.env.GEMINI_API_KEY, fetch: globalThis.fetch }; delete process.env.GEMINI_API_KEY;
+  globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) }); // 공용 저장소 없음
   try { assert.equal((await call('GET', '실리콘주걱')).statusCode, 503); }
-  finally { if (previous !== undefined) process.env.GEMINI_API_KEY = previous; }
+  finally { globalThis.fetch = previous.fetch; if (previous.key !== undefined) process.env.GEMINI_API_KEY = previous.key; }
 });
 
 test('브라우저 서비스: 오류 안내와 응답 검증', async () => {
@@ -216,4 +218,46 @@ test('브라우저 서비스: 오류 안내와 응답 검증', async () => {
   assert.equal(ok.route, 'general');
   const forged = await requestAiGuess('물건E', async () => ({ ok: true, json: async () => ({ guess: { itemName: '다른이름', material: '기타', type: '', route: 'general', confidence: 'high' } }) }));
   assert.equal(forged, null);
+});
+
+test('공용 AI 저장소: 다른 이름까지 저장하고, 다음 요청은 AI 없이 바로 답한다', async () => {
+  const table = new Map();
+  const fetcher = async (url, init = {}) => {
+    if (init.method === 'POST') {
+      assert.equal(init.headers.apikey, 'service-secret'); assert.ok(!url.includes('service-secret'));
+      for (const row of JSON.parse(init.body)) if (!table.has(row.name_key)) table.set(row.name_key, row);
+      return { ok: true, status: 201, json: async () => ({}) };
+    }
+    assert.ok(!JSON.stringify(init.headers).includes('service-secret'), '읽기에는 서버 키를 쓰지 않음');
+    const key = decodeURIComponent(url.match(/name_key=eq.([^&]*)/)[1]);
+    return { ok: true, json: async () => (table.has(key) ? [table.get(key)] : []) };
+  };
+  const answer = { itemName: '실리콘집게', material: '기타', type: '', route: 'general', confidence: 'high', reason: '실리콘은 종량제봉투로 버려요.', source: 'gemini', model: 'lite',
+    aliases: ['실리콘 집게', '주방집게', '우유팩', '건전지', '조리용집게'] };
+  assert.equal(await saveSharedGuess('실리콘집게', answer, { fetcher, serviceKey: 'service-secret' }), true);
+  assert.deepEqual([...table.keys()].sort(), ['실리콘집게', '조리용집게', '주방집게'].sort(), '등록 품목·다른 종류로 인식되는 별칭은 저장하지 않음');
+  assert.equal(table.get('주방집게').canonical_key, '실리콘집게');
+  const hit = await readSharedGuess('주방 집게', { fetcher });
+  assert.equal(hit.route, 'general'); assert.equal(hit.itemName, '주방 집게');
+  assert.equal(await readSharedGuess('없는물건', { fetcher }), null);
+  assert.equal(await saveSharedGuess('추측물건', { ...answer, itemName: '추측물건', confidence: 'low' }, { fetcher, serviceKey: 'service-secret' }), false, '확신 낮은 답은 저장 안 함');
+  assert.equal(await saveSharedGuess('실리콘집게2', answer, { fetcher, serviceKey: '' }), false, '서버 키가 없으면 건너뜀');
+  assert.deepEqual(cleanAiAliases(['약', ' 알 약 ', '알약', 'x'.repeat(20), '<b>', 1], '알약'), ['약']);
+});
+
+test('서버 함수: 공용 저장소에 있으면 Gemini를 부르지 않고 바로 답한다', async () => {
+  const previous = { key: process.env.GEMINI_API_KEY, fetch: globalThis.fetch };
+  const urls = [];
+  process.env.GEMINI_API_KEY = 'test-key';
+  globalThis.fetch = async url => { urls.push(url); return { ok: true, json: async () => [{ material: '기타', item_type: '', route: 'general', confidence: 'high', reason: '공용 답' }] }; };
+  try {
+    const res = fakeResponse();
+    await handler({ method: 'GET', query: { name: '공용저장물건' }, headers: {} }, res);
+    const body = JSON.parse(res.body);
+    assert.equal(res.statusCode, 200); assert.equal(body.cached, 'shared'); assert.equal(body.guess.reason, '공용 답');
+    assert.ok(urls.every(url => !url.includes('generativelanguage')), 'Gemini 호출 없음');
+  } finally {
+    globalThis.fetch = previous.fetch;
+    if (previous.key === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = previous.key;
+  }
 });

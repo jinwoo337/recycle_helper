@@ -40,8 +40,10 @@ export function aiResponseSchema() {
       route: { type: 'STRING', enum: AI_ROUTES },
       confidence: { type: 'STRING', enum: AI_CONFIDENCE },
       reason: { type: 'STRING' },
+      // 같은 물건을 부르는 다른 이름들입니다. 공용 저장소에 함께 저장해 다음에는 AI 없이 바로 답합니다.
+      aliases: { type: 'ARRAY', items: { type: 'STRING' }, maxItems: 5 },
     },
-    required: ['material', 'type', 'route', 'confidence', 'reason'],
+    required: ['material', 'type', 'route', 'confidence', 'reason', 'aliases'],
   };
 }
 
@@ -60,5 +62,18 @@ route:
 - unknown: 판단하기 어려움
 confidence: 확실하면 high, 대체로 맞으면 medium, 추측이면 low.
 reason: 판단 근거를 한국어 한 문장(80자 이내)으로.
+aliases: 같은 물건을 사람들이 다르게 부르는 한국어 이름 최대 5개(띄어쓰기 없이, 15자 이내). 더 넓은 분류나 다른 물건은 넣지 마. 없으면 빈 배열.
 여러 재질이 섞인 제품은 가장 큰 부분의 재질을 고르고, 분리가 어려우면 general로 해.`;
+}
+
+// AI가 준 별칭을 정리합니다: 물건 이름과 같거나 형식이 맞지 않는 것은 버리고 최대 5개만 남깁니다.
+export function cleanAiAliases(aliases, itemName) {
+  if (!Array.isArray(aliases)) return [];
+  const own = normalizeItemName(itemName);
+  const seen = new Set([own]);
+  return aliases.map(alias => cleanAiName(alias).replace(/s+/g, '')).filter(alias => {
+    const key = normalizeItemName(alias);
+    if (!alias || alias.length > 15 || seen.has(key)) return false;
+    seen.add(key); return true;
+  }).slice(0, 5);
 }

@@ -321,6 +321,7 @@ export function bindItemInput() {
       const differs = status !== 'mixed' && (guess.route === 'hazardous' ? status !== 'check' : status === 'recycle' ? guess.route !== 'recyclable' : status === 'general' && guess.route === 'recyclable');
       body = `<p class="ai-panel-title">${escapeHtml(aiLine(guess))} <span class="ai-confidence">${confidenceLabels[guess.confidence]}</span></p>
         ${guess.reason ? `<p class="ai-panel-reason">${escapeHtml(guess.reason)}</p>` : ''}
+        ${guess.shared ? '<p class="ai-note">다른 사용자가 이미 물어본 결과라 바로 보여 드려요.</p>' : ''}
         ${known ? '<p class="ai-note">등록된 기준 결과가 우선이에요.</p>' : ''}
         ${differs ? '<p class="ai-warn">AI 의견이 기준 결과와 달라요. 제품 표시를 확인해 주세요.</p>' : ''}`;
     }

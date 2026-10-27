@@ -37,5 +37,7 @@ async function fetchAiGuess(name, fetcher, opinion) {
     : 'AI가 응답하지 못했어요. 잠시 후 다시 시도하거나 물건 종류를 직접 골라 AI 없이 확인할 수 있어요.'));
   let body;
   try { body = await response.json(); } catch { body = null; }
-  return validateAiGuess(body?.guess, name);
+  const guess = validateAiGuess(body?.guess, name);
+  // 다른 사용자가 이미 물어봐 공용 저장소에 있던 답이면 화면에 알려 줍니다.
+  return guess && body?.cached === 'shared' ? { ...guess, shared: true } : guess;
 }

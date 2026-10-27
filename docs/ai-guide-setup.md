@@ -55,3 +55,21 @@ $env:GEMINI_API_KEY="발급한 키"; npm start
 - 호출 제한은 함수 인스턴스 메모리 기준이라 완벽하지 않습니다. 사용자가 많아지면 Supabase 테이블이나 Vercel KV 기반 제한·캐시로 바꾸는 것을 권장합니다.
 - 무료 사용량과 데이터 활용 조건은 Google 정책에 따라 바뀔 수 있으니 AI Studio에서 확인하세요.
 - AI 추정은 자동 테스트로 "형식과 안전장치"만 검증했습니다. 실제 Gemini 응답의 정확도는 검증하지 않았습니다.
+
+## 공용 AI 답 저장소 (모든 사용자가 함께 사용)
+
+AI가 한 번 답한 미등록 물품은 Supabase `ai_item_guesses` 표에 저장되고, 다음부터는 누가 물어보든 AI를 거치지 않고 바로 답합니다. AI가 함께 알려 준 같은 물건의 다른 이름(예: 알약 → 감기약·두통약)도 함께 저장합니다.
+
+- 확신도 high·medium 답만 저장합니다. 이미 저장된 이름은 덮어쓰지 않습니다.
+- 등록 품목 이름이거나, 이름 속 낱말로 다른 종류(약·전지 등)로 인식되는 별칭은 저장하지 않습니다.
+- 브라우저는 읽기만 합니다. 쓰기는 서버 함수가 `SUPABASE_SERVICE_ROLE_KEY`로만 합니다.
+- 잘못된 답은 Supabase Table Editor에서 해당 줄의 `hidden`을 `true`로 바꾸면 바로 숨겨집니다.
+
+### 처음 한 번 설정
+
+1. Supabase 대시보드 → SQL Editor → `supabase/ai-shared-guesses.sql` 내용을 붙여 넣고 Run (여러 번 실행해도 안전).
+2. Supabase 대시보드 → Project Settings → API Keys → **Secret key**(또는 legacy `service_role` 키)를 복사.
+3. Vercel → 프로젝트 → Settings → Environment Variables → `SUPABASE_SERVICE_ROLE_KEY` = 복사한 키 (Production, **Sensitive** 체크).
+4. Vercel → Deployments → 최신 배포 ⋯ → Redeploy.
+
+이 키는 모든 데이터를 바꿀 수 있는 서버 전용 키입니다. 브라우저 코드·채팅·깃허브에 절대 붙여 넣지 마세요. 키가 없으면 저장만 건너뛰고 사이트는 지금처럼 동작합니다.
