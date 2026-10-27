@@ -67,3 +67,49 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 }
 
 .history-filter-options { margin-top:12px; border-top:1px solid var(--line); }.history-filter-options>summary,.statistics-help>summary { min-height:44px; align-content:center; cursor:pointer; color:var(--muted); font-size:13px; }.statistics-chart:has(>.input-hint) { display:block; }.statistics-help { margin-top:8px; }.history-filters { margin-bottom:14px; }
+
+/* Keep the input task compact without shrinking touch targets or hiding questions. */
+.item-page { padding-block:14px 28px; }
+.item-page .item-heading { margin:10px 0 8px; }
+.item-page .item-heading .eyebrow { display:none; }
+.item-page .item-heading h1 { font-size:25px; margin-bottom:4px; }
+.item-page .item-heading > p:last-child { font-size:13px; }
+.item-page .region-current { margin:6px 0 10px; }
+#catalog-status:empty { display:none; }
+#item-form { padding:16px 20px; }
+#item-form h2 { font-size:16px; margin-bottom:10px; }
+#item-form section + section { margin-top:12px; padding-top:12px; }
+#item-form .field { margin-bottom:8px; }
+#item-form .field label { margin-bottom:5px; }
+#item-form .input-examples { margin-top:6px; }
+#item-form:has(#item-conditions:not([hidden])) .input-examples { display:none; }
+#item-form label[for="item-name"] { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+#item-form .input-hint { margin-top:5px; line-height:1.5; }
+#item-form .material-editor { margin-bottom:10px; }
+#item-form .material-editor > summary { padding:10px 12px; }
+#item-form .material-controls { padding-bottom:8px; }
+#item-form .quick-condition { padding:8px; margin-bottom:10px; }
+#item-form .quick-condition p { margin:4px 0 0; }
+#item-form .item-question { margin-bottom:10px; }
+#item-form .item-question legend { line-height:1.5; margin-bottom:6px; }
+#item-form .choice { min-height:44px; box-sizing:border-box; padding:8px 10px; }
+#item-form .selected-conditions { margin:4px 0; }
+#item-form .selected-conditions > summary { min-height:36px; }
+#item-form .form-actions { margin-top:6px; }
+#item-form .button { padding:10px 14px; }
+#item-form .component-card { padding:12px; margin-block:10px; }
+@media(min-width:640px) {
+  #item-form { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 20px; }
+  #item-form > * { grid-column:1/-1; }
+  #item-form > #item-conditions { grid-column:1; }
+  #item-form > #combination-section { grid-column:2; display:block; }
+  #item-form:has(#components-section:not([hidden])) > #combination-section { grid-column:1/-1; }
+  #item-form .part-fields > [data-condition="state"] { display:block; }
+}
+@media(max-width:639px) {
+  #item-form { padding:14px; }
+  .item-page .item-heading h1 { font-size:22px; }
+  #item-form .choice-row { gap:5px; }
+  #item-form .choice { flex:1; justify-content:center; padding-inline:6px; }
+  #item-form .material-controls { grid-template-columns:1fr; }
+}
