@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { validateAiGuess, aiResponseSchema } from '../src/domain/disposal/ai-classification.js';
 import { requestAiGuess } from '../src/services/ai-classify.js';
-import handler, { classifyWithGemini, classifyWithRetry, pickFallbackModel, fallbackModelFor } from '../api/classify.js';
+import handler, { classifyWithGemini, classifyWithRetry, pickModels, chooseModels } from '../api/classify.js';
 
 const guess = (route, extra = {}) => ({ itemName: '실리콘주걱', material: '기타', type: '', route, confidence: 'high', reason: '실리콘 제품은 재활용 대상이 아니에요.', ...extra });
 
@@ -69,60 +69,66 @@ test('Gemini 호출: 키는 헤더로만 보내고 응답을 검증한다', asyn
   await assert.rejects(classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher: async () => ({ ok: false, status: 500 }) }));
 });
 
-test('Gemini 과부하: 같은 모델로 재시도하고, 그래도 안 되면 예비 모델을 쓴다', async () => {
-  const answer = { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '기타', type: 'none', route: 'general', confidence: 'high', reason: '일반 생활용품' }) }] } }] }) };
+test('동시 요청: 빠른 모델이 늦으면 예비 모델을 함께 부르고 먼저 온 답을 쓴다', async () => {
+  const answer = route => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '기타', type: 'none', route, confidence: 'high', reason: '' }) }] } }] }) });
   const busy = { ok: false, status: 503, json: async () => ({ error: { message: 'high demand' } }) };
-  const scripted = (...responses) => { const urls = []; const fetcher = async url => { urls.push(url); return responses.shift(); }; return { urls, fetcher }; };
-  const options = { apiKey: 'k', model: 'main-model', fallbackModel: 'backup-model', wait: async () => {} };
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const models = { primary: 'lite-model', fallback: 'big-model' };
+  const run = async (handlers, extra = {}) => {
+    const urls = [];
+    const fetcher = async (url, init) => {
+      urls.push(url);
+      const handle = handlers[url.includes('lite-model') ? 'lite' : 'big'];
+      return handle(init.signal);
+    };
+    return { urls, result: classifyWithRetry('실리콘 주걱', { apiKey: 'k', fetcher, models, hedgeMs: 30, ...extra }) };
+  };
 
-  const retry = scripted(busy, answer);
-  assert.equal((await classifyWithRetry('실리콘 주걱', { ...options, fetcher: retry.fetcher })).route, 'general');
-  assert.equal(retry.urls.length, 2); assert.ok(retry.urls[1].includes('main-model'));
+  const fast = await run({ lite: async () => answer('general'), big: async () => answer('large') });
+  const fastResult = await fast.result;
+  assert.equal(fastResult.route, 'general'); assert.equal(fastResult.type, '', "'none'은 빈 값으로 바뀜");
+  await sleep(50); assert.equal(fast.urls.length, 1, '빠르면 예비 모델을 부르지 않음');
 
-  const fallback = scripted(busy, busy, answer);
-  const result = await classifyWithRetry('실리콘 주걱', { ...options, fetcher: fallback.fetcher });
-  assert.equal(result.route, 'general'); assert.equal(result.type, '', "'none'은 빈 값으로 바뀜");
-  assert.equal(fallback.urls.length, 3); assert.ok(fallback.urls[1].includes('main-model')); assert.ok(fallback.urls[2].includes('backup-model'));
+  let aborted = false;
+  const slowLite = async signal => { await new Promise(resolve => { const t = setTimeout(resolve, 300); signal.addEventListener('abort', () => { aborted = true; clearTimeout(t); resolve(); }); }); return answer('general'); };
+  const slow = await run({ lite: slowLite, big: async () => answer('large') });
+  assert.equal((await slow.result).route, 'large', '늦으면 예비 모델 답을 씀');
+  assert.equal(slow.urls.length, 2); assert.ok(aborted, '남은 요청은 취소');
 
-  const last = scripted(busy, busy, busy, answer);
-  assert.equal((await classifyWithRetry('실리콘 주걱', { ...options, fetcher: last.fetcher })).route, 'general');
-  assert.equal(last.urls.length, 4); assert.ok(last.urls[3].includes('main-model'), '예비 모델도 붐비면 기본 모델로 마지막 시도');
+  const failFast = await run({ lite: async () => busy, big: async () => answer('large') }, { hedgeMs: 5_000 });
+  assert.equal((await failFast.result).route, 'large', '기본 모델이 실패하면 기다리지 않고 바로 예비 모델');
 
-  const alone = scripted(busy, busy, busy);
-  await assert.rejects(classifyWithRetry('실리콘 주걱', { ...options, fallbackModel: '', fetcher: alone.fetcher }), error => error.status === 503);
-  assert.equal(alone.urls.length, 3, '예비 모델이 없으면 기본 모델만 3번');
+  const both = await run({ lite: async () => busy, big: async () => ({ ok: false, status: 400, json: async () => ({}) }) });
+  await assert.rejects(both.result, error => error.status === 503, '둘 다 실패하면 과부하 오류를 우선');
 
-  const bad = scripted({ ok: false, status: 400, json: async () => ({}) });
-  await assert.rejects(classifyWithRetry('실리콘 주걱', { ...options, fetcher: bad.fetcher }), error => error.status === 400);
-  assert.equal(bad.urls.length, 1, '400은 재시도하지 않음');
-
-  const gone = scripted({ ok: false, status: 404, json: async () => ({ error: { message: 'no longer available' } }) }, answer);
-  assert.equal((await classifyWithRetry('실리콘 주걱', { ...options, fetcher: gone.fetcher })).route, 'general');
-  assert.equal(gone.urls.length, 2, '없어진 모델은 다시 부르지 않고 예비 모델로'); assert.ok(gone.urls[1].includes('backup-model'));
+  const alone = await run({ lite: async () => busy }, { models: { primary: 'lite-model', fallback: '' } });
+  await assert.rejects(alone.result, error => error.status === 503);
+  assert.equal(alone.urls.length, 1);
 });
 
-test('빠른 응답: 생각 단계를 낮추고, 거절되면 생각 설정 없이 다시 부른다', async () => {
+test('빠른 응답: 생각 단계를 minimal → low → 없음 순으로 낮춰 기억한다', async () => {
   const bodies = [];
   const answer = { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '기타', type: 'none', route: 'general', confidence: 'high', reason: '' }) }] } }] }) };
   const rejectThinking = { ok: false, status: 400, json: async () => ({ error: { message: 'thinking_level is not supported for this model.' } }) };
-  const responses = [rejectThinking, answer, answer];
+  const responses = [rejectThinking, rejectThinking, answer, answer];
   const fetcher = async (url, options) => { bodies.push(JSON.parse(options.body)); return responses.shift(); };
   assert.equal((await classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher, model: 'old-model' })).route, 'general');
-  assert.equal(bodies[0].generationConfig.thinkingConfig.thinkingLevel, 'low');
-  assert.equal(bodies[1].generationConfig.thinkingConfig, undefined, '거절되면 생각 설정 없이 다시');
+  assert.equal(bodies[0].generationConfig.thinkingConfig.thinkingLevel, 'minimal');
+  assert.equal(bodies[1].generationConfig.thinkingConfig.thinkingLevel, 'low');
+  assert.equal(bodies[2].generationConfig.thinkingConfig, undefined, '모두 거절되면 생각 설정 없이');
   await classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher, model: 'old-model' });
-  assert.equal(bodies[2].generationConfig.thinkingConfig, undefined, '다음부터도 생각 설정을 보내지 않음');
+  assert.equal(bodies[3].generationConfig.thinkingConfig, undefined, '다음부터도 바로 통하는 설정을 씀');
 });
 
-test('예비 모델 자동 선택: 가벼운 정식 flash 모델을 고르고 키는 헤더로만 보낸다', async () => {
+test('모델 자동 선택: 가장 가벼운 flash-lite를 기본으로, flash를 예비로 고르고 키는 헤더로만 보낸다', async () => {
   const model = (name, methods = ['generateContent']) => ({ name: `models/${name}`, supportedGenerationMethods: methods });
   const list = [model('gemini-3.8-flash'), model('gemini-3.8-flash-lite-preview'), model('gemini-3.5-flash-lite'), model('gemini-3.8-flash-lite'),
     model('gemini-3.8-flash-image'), model('gemini-3.8-pro'), model('text-embedding-4', ['embedContent']), model('gemini-3.8-flash-tts')];
-  assert.equal(pickFallbackModel(list, 'gemini-3.8-flash'), 'gemini-3.8-flash-lite');
-  assert.equal(pickFallbackModel([model('gemini-3.8-flash')], 'gemini-3.8-flash'), '', '기본 모델뿐이면 예비 없음');
+  assert.deepEqual(pickModels(list), { lite: 'gemini-3.8-flash-lite', flash: 'gemini-3.8-flash' });
+  assert.deepEqual(pickModels([model('gemini-3.8-flash')]), { lite: '', flash: 'gemini-3.8-flash' });
   let request;
-  const picked = await fallbackModelFor('gemini-3.8-flash', { apiKey: 'secret', fetcher: async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ models: list }) }; } });
-  assert.equal(picked, 'gemini-3.8-flash-lite');
+  const picked = await chooseModels({ apiKey: 'secret', now: () => 1e15, fetcher: async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ models: list }) }; } });
+  assert.deepEqual(picked, { primary: 'gemini-3.8-flash-lite', fallback: 'gemini-3.8-flash' });
   assert.ok(!request.url.includes('secret')); assert.equal(request.options.headers['x-goog-api-key'], 'secret');
 });
 
@@ -154,9 +160,10 @@ test('서버 함수: mode=opinion이면 등록 품목도 AI 의견을 받는다'
     const call = async query => { const res = fakeResponse(); await handler({ method: 'GET', query, headers: {} }, res); return res; };
     const plain = await call({ name: '우유팩' });
     assert.equal(JSON.parse(plain.body).reason, 'known_item'); assert.equal(urls.length, 0, '기본은 등록 품목에 AI를 부르지 않음');
+    const generated = () => urls.filter(url => url.includes(':generateContent')).length;
     const opinion = await call({ name: '우유팩', mode: 'opinion' });
     assert.equal(opinion.statusCode, 200); assert.equal(JSON.parse(opinion.body).guess.route, 'recyclable');
-    assert.equal(urls.length, 1);
+    assert.equal(generated(), 1);
   } finally {
     globalThis.fetch = previous.fetch;
     if (previous.key === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = previous.key;
