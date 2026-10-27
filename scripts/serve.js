@@ -7,7 +7,15 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const server = http.createServer(async (request, response) => {
   try {
-    const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+    const url = new URL(request.url, 'http://localhost');
+    const pathname = decodeURIComponent(url.pathname);
+    // 로컬에서도 Vercel 함수와 같은 방식으로 AI 분류를 시험합니다. GEMINI_API_KEY 환경변수가 필요합니다.
+    if (pathname === '/api/classify') {
+      const { default: classify } = await import('../api/classify.js');
+      const res = { setHeader: (name, value) => response.setHeader(name, value), status(code) { response.statusCode = code; return res; }, send: body => response.end(body) };
+      await classify({ method: request.method, query: Object.fromEntries(url.searchParams), headers: request.headers }, res);
+      return;
+    }
     const relative = pathname === '/' ? 'index.html' : pathname.slice(1);
     const target = path.resolve(root, relative);
     const safePath = path.relative(root, target);

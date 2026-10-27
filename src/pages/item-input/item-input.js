@@ -1,7 +1,9 @@
 import { escapeHtml } from '../../utils/html.js';
 import { getDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisposalHistory } from '../../services/disposal-history.js';
 import { MATERIALS, TYPES, supportsState, needsWashQuestion, normalizePart, judgeDisposal, RULE_SOURCE, RULE_VERSION } from '../../domain/disposal/rules.js';
-import { suggestItemInfo, searchItemNames } from '../../domain/disposal/item-suggestions.js';
+import { suggestItemInfo, searchItemNames, lookupItem, normalizeItemName } from '../../domain/disposal/item-suggestions.js';
+import { validateAiGuess } from '../../domain/disposal/ai-classification.js';
+import { requestAiGuess } from '../../services/ai-classify.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { getCatalogMessage, initializeItemCatalog } from '../../services/item-catalog.js';
 import { resultToolsMarkup, bindResultTools } from '../../components/result-tools.js';
@@ -46,7 +48,8 @@ export function itemInputPage() {
     <p id="catalog-status" class="input-hint" role="status" aria-live="polite"></p>
     <div class="item-grid"><form id="item-form" class="item-card">
       <section aria-labelledby="item-basic"><h2 id="item-basic">1. 물건 이름</h2>
-        <div class="item-basic-fields"><div class="field"><label for="item-name">물건 이름</label><div class="item-name-control"><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="item-name-options" aria-expanded="false" aria-describedby="item-name-hint item-name-status"><div id="item-name-options" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><p class="input-hint" id="item-name-hint">추천에서 실제 물건과 맞는 이름을 골라 주세요.</p><p class="input-hint" id="item-name-status" role="status" aria-live="polite"></p></div>
+        <div class="item-basic-fields"><div class="field"><label for="item-name">물건 이름</label><div class="item-name-control"><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="item-name-options" aria-expanded="false" aria-describedby="item-name-hint item-name-status"><div id="item-name-options" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><p class="input-hint" id="item-name-hint">추천에서 실제 물건과 맞는 이름을 골라 주세요.</p><p class="input-hint" id="item-name-status" role="status" aria-live="polite"></p>
+        <div id="ai-guess-box" class="ai-guess" hidden><p id="ai-guess-text">등록되지 않은 물건이에요. AI에게 어떤 재질인지 물어볼까요?</p><button type="button" class="button secondary" id="ai-guess-button">🤖 AI에게 물어보기</button><p id="ai-guess-status" class="input-hint" role="status" aria-live="polite"></p></div></div>
         <div class="example-items input-examples" aria-label="자주 찾는 물건">${['우유팩', '투명생수병', '과자봉지', '종이상자'].map(name => `<button class="history-action" type="button" data-item-example="${name}">${name}</button>`).join('')}</div></div>
         </section><section id="item-conditions" aria-labelledby="conditions-title" hidden><h2 id="conditions-title">2. 상태 확인</h2>${partFields('', '주요 재질')}
       </section>
@@ -84,6 +87,7 @@ export function resultMarkup(input, result, createdAt) {
   return `<p class="eyebrow">${createdAt ? '저장된 결과' : '분리배출 결과'}</p><h2 id="summary-title">${escapeHtml(input.itemName)}</h2>
     ${createdAt ? `<p class="input-hint">${escapeHtml(new Date(createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))} · 당시 기준으로 저장된 결과</p>` : ''}
     ${result.ruleVersion !== RULE_VERSION ? '<p class="demo-notice">이전 기준의 결과예요. 조건 수정 후 현재 기준으로 다시 확인해 주세요.</p>' : ''}
+    ${result.aiAssisted ? '<p class="ai-badge">🤖 AI 추정 결과예요. 실제 제품의 분리배출 표시를 꼭 확인해 주세요.</p>' : ''}
     <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}"><span class="result-badge">${input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status]}</span><h3>${escapeHtml(result.method)}</h3></div>
     <p class="result-region input-hint">${result.regional ? `${escapeHtml(result.regional.label)} · ${result.regional.coverage === 'verified' ? '해당 품목 지역 기준 적용' : '기본 안내 · 지역 기준 확인 필요'}` : '지역 미기록 · 지역을 설정하고 다시 판별해 주세요.'}</p>
     <h3>이렇게 배출하세요</h3><ol class="action-steps">${result.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>
@@ -108,6 +112,12 @@ export function bindItemInput() {
   const materialEditor = document.getElementById('material-editor');
   const savedTools = document.getElementById('saved-tools');
   let disposeResultTools = () => {};
+  let aiGuess = null, aiPending = false;
+  const aiBox = document.getElementById('ai-guess-box');
+  const aiText = document.getElementById('ai-guess-text');
+  const aiButton = document.getElementById('ai-guess-button');
+  const aiStatus = document.getElementById('ai-guess-status');
+  const aiMatches = name => Boolean(aiGuess && name && normalizeItemName(aiGuess.itemName) === normalizeItemName(name));
   const catalogStatus = document.getElementById('catalog-status');
   catalogStatus.textContent = '품목 정보를 확인하고 있어요…';
   const catalogReady = initializeItemCatalog().then(() => {
@@ -224,6 +234,7 @@ export function bindItemInput() {
   function updateConditional() {
     const hasName = Boolean(nameInput.value.trim());
     document.getElementById('item-conditions').hidden = !hasName;
+    updateAiBox(hasName);
     syncPart(form.querySelector('.part-fields'), hasName);
     const supported = supportsState(partValue(''));
     // 부모에서 자식 순서로 갱신해 숨겨진 필수 질문을 비활성화합니다.
@@ -252,6 +263,43 @@ export function bindItemInput() {
       value('foodSeparated') === 'yes' ? '음식물 외 이물질 제거함' : value('foodSeparated') === 'no' ? '이물질 분리 필요' : ''].filter(Boolean).join(' · ') || '이름과 재질을 선택하면 필요한 질문만 나타나요.';
   }
   function materialLabel() { return value('material'); }
+  const routeLabels = { recyclable: '재활용 대상', general: '종량제봉투 배출', large: '대형폐기물', hazardous: '별도 수거·안전 처리', unknown: '판단 어려움' };
+  const confidenceLabels = { high: '확신 높음', medium: '확신 보통', low: '확신 낮음' };
+  function updateAiBox(hasName) {
+    const name = nameInput.value.trim();
+    aiBox.hidden = !hasName || Boolean(lookupItem(name));
+    if (aiBox.hidden) return;
+    const matched = aiMatches(name);
+    aiButton.hidden = matched; aiButton.disabled = aiPending;
+    if (matched) {
+      const typeLabel = TYPES[aiGuess.material]?.find(([type]) => type === aiGuess.type)?.[1];
+      aiText.textContent = `🤖 AI 추정: ${[aiGuess.material, typeLabel].filter(Boolean).join(' · ')} · ${routeLabels[aiGuess.route]} (${confidenceLabels[aiGuess.confidence]})`;
+    } else if (!aiPending) {
+      aiText.textContent = '등록되지 않은 물건이에요. AI에게 어떤 재질인지 물어볼까요?';
+      aiStatus.textContent = '';
+    }
+  }
+  aiButton.addEventListener('click', async () => {
+    const name = nameInput.value.trim();
+    if (aiPending || saving || deleting || !name || lookupItem(name)) return;
+    aiPending = true; aiButton.disabled = true; aiStatus.textContent = 'AI에게 물어보고 있어요…';
+    try {
+      const guess = await requestAiGuess(name);
+      if (!form.isConnected || nameInput.value.trim() !== name) return;
+      if (!guess) { aiStatus.textContent = 'AI가 분류하지 못했어요. 재질을 직접 선택해 주세요.'; return; }
+      aiGuess = guess;
+      // AI가 고른 재질·종류를 채우고, 상태 질문은 사용자가 직접 답하게 합니다.
+      form.querySelectorAll('input[type="radio"]').forEach(control => { control.checked = false; });
+      // 재활용 외 경로는 상태 질문이 필요 없도록 '기타'로 두고 AI 경로에 따라 판별합니다.
+      const fill = guess.route === 'recyclable' ? { material: guess.material, type: guess.type } : { material: '기타', type: '' };
+      for (let pass = 0; pass < 3; pass++) { writeValues(fill); updateConditional(); }
+      materialEditor.open = guess.route === 'recyclable' && !guess.type;
+      draft = collect();
+      if (guess.route === 'recyclable') aiStatus.textContent = `${guess.reason ? guess.reason + ' ' : ''}현재 상태를 골라 주세요.`;
+      else { aiStatus.textContent = guess.reason; form.requestSubmit(); }
+    } catch (error) { if (form.isConnected) aiStatus.textContent = error.message; }
+    finally { aiPending = false; if (form.isConnected) updateConditional(); }
+  });
   function collect() {
     const input = { itemName: nameInput.value.trim(), ...normalizePart(partValue('')), region: getCurrentMember()?.region || null };
     if (supportsState(input)) {
@@ -261,6 +309,7 @@ export function bindItemInput() {
         if (input.separable === 'yes') input.components = Array.from({ length: componentCount }, (_, index) => normalizePart(partValue(`part${index}-`)));
       }
     }
+    if (aiMatches(input.itemName)) input.aiGuess = structuredClone(aiGuess);
     return input;
   }
   function writeValues(part, prefix = '') {
@@ -277,6 +326,7 @@ export function bindItemInput() {
     closeSuggestions(); nameStatus.textContent = '';
     document.getElementById('preset-info').hidden = true;
     form.reset(); componentCount = Math.max(1, input.components?.length || 0); drawComponents();
+    aiGuess = validateAiGuess(input.aiGuess, input.itemName);
     autoFill.checked = autoFillEnabled;
     autoFillStatus.textContent = autoFillEnabled ? '자동 입력이 켜져 있어요. 물건 이름을 바꾸면 재질 정보를 다시 채워요.' : '체크하면 우유팩·생수병 등 알려진 물품의 재질 정보를 채워요.';
     // 재질→세부 종류→상태 순서로 선택지를 생성한 후 저장된 답변을 복원합니다.
@@ -394,6 +444,7 @@ export function bindItemInput() {
       writeValues(stateAnswers(event.target.value, needsWashQuestion(partValue(prefix))), prefix);
     }
     nameInput.setCustomValidity(''); saveStatus.textContent = '';
+    if (event.target === nameInput && !aiMatches(nameInput.value.trim())) aiGuess = null;
     // 브라우저가 체크 상태를 복원해도 실제 화면의 선택과 일치시킵니다.
     autoFillEnabled = autoFill.checked;
     if (event.target === autoFill) {

@@ -126,3 +126,6 @@ recycling-helper/
 
 ## 품목과 대표 구성 자동 입력
 검토한 품목 목록·검색 명칭·대표 결합 구성과 적용 한계는 [품목 확장 목록](docs/catalog-expansion.md)을 확인해 주세요. `node scripts/build-catalog-expansion.js`로 목록과 선택 실행용 SQL을 생성합니다. 오염·세척 상태는 자동 입력하지 않습니다.
+
+## 미등록 물품 AI 안내 (Gemini)
+카탈로그에 없는 물건은 입력 화면의 "🤖 AI에게 물어보기"로 Gemini에게 재질·경로를 추정받고, 배출 방법은 기존 규칙으로 판별합니다. Vercel 환경변수 `GEMINI_API_KEY` 설정이 필요하며, 동작 원칙과 설정 순서는 [AI 안내 설정](docs/ai-guide-setup.md)을 확인해 주세요.
