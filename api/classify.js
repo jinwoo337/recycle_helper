@@ -6,6 +6,9 @@ import { lookupItem } from '../src/domain/disposal/item-suggestions.js';
 // 생각(thinking)하는 모델은 응답이 늦을 수 있어 함수 실행 시간을 늘립니다.
 export const config = { maxDuration: 30 };
 const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// 기본 모델이 붐비면(503 등) 이 모델로 한 번 더 시도합니다.
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || (MODEL === 'gemini-2.5-flash' ? 'gemini-2.5-flash-lite' : 'gemini-2.5-flash');
+const BUSY_STATUSES = [429, 500, 503, 504];
 const PER_MINUTE = Number(process.env.AI_RATE_LIMIT_PER_MINUTE || 10);
 const PER_DAY = Number(process.env.AI_DAILY_LIMIT || 500);
 const cache = new Map();
@@ -23,7 +26,7 @@ export function allowRequest(ip, now = Date.now()) {
   return true;
 }
 
-export async function classifyWithGemini(name, { apiKey = process.env.GEMINI_API_KEY, fetcher = fetch, model = MODEL } = {}) {
+export async function classifyWithGemini(name, { apiKey = process.env.GEMINI_API_KEY, fetcher = fetch, model = MODEL, timeoutMs = 25_000 } = {}) {
   const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
@@ -32,19 +35,40 @@ export async function classifyWithGemini(name, { apiKey = process.env.GEMINI_API
       contents: [{ role: 'user', parts: [{ text: `물건 이름: ${JSON.stringify(name)}` }] }],
       generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: aiResponseSchema() },
     }),
-    signal: AbortSignal.timeout(25_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) {
     // 원인 확인용으로 상태 코드와 Google 오류 문구만 기록합니다. 키는 기록하지 않습니다.
     let detail = '';
     try { detail = (await response.json())?.error?.message || ''; } catch { /* 본문 없음 */ }
-    throw new Error(`Gemini ${response.status} ${String(detail).slice(0, 300)}`);
+    const error = new Error(`Gemini ${response.status} ${String(detail).slice(0, 300)}`);
+    error.status = response.status;
+    throw error;
   }
   const data = await response.json();
   const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('') || '';
   let parsed;
   try { parsed = JSON.parse(text); } catch { return null; }
   return validateAiGuess({ ...parsed, itemName: name }, name);
+}
+
+const isBusy = error => BUSY_STATUSES.includes(error?.status) || ['TimeoutError', 'AbortError'].includes(error?.name);
+
+// 일시적인 과부하는 잠시 뒤 같은 모델로 한 번, 그래도 안 되면 예비 모델로 한 번 더 시도합니다.
+// 함수 실행 시간(30초) 안에 끝나도록 시도마다 9초 제한을 둡니다.
+export async function classifyWithRetry(name, { model = MODEL, fallbackModel = FALLBACK_MODEL, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), ...options } = {}) {
+  const models = [model, model, ...(fallbackModel && fallbackModel !== model ? [fallbackModel] : [])];
+  let lastError;
+  for (const [index, current] of models.entries()) {
+    if (index === 1) await wait(800);
+    try { return await classifyWithGemini(name, { timeoutMs: 9_000, ...options, model: current }); }
+    catch (error) {
+      if (!isBusy(error)) throw error;
+      console.error('classify retry', current, error?.message);
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 function send(res, status, body, cacheSeconds = 0) {
@@ -65,12 +89,13 @@ export default async function handler(req, res) {
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
   if (!allowRequest(ip)) { send(res, 429, { error: 'rate_limited' }); return; }
   try {
-    const guess = await classifyWithGemini(name);
+    const guess = await classifyWithRetry(name);
     if (guess) cache.set(key, guess);
     if (cache.size > 2000) cache.delete(cache.keys().next().value);
     send(res, 200, { guess }, guess ? 604800 : 0);
   } catch (error) {
     console.error('classify failed', error?.message);
+    if (isBusy(error)) { send(res, 503, { error: 'busy' }); return; }
     send(res, 502, { error: 'upstream_failed' });
   }
 }

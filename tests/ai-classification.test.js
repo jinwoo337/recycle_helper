@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { validateAiGuess, aiResponseSchema } from '../src/domain/disposal/ai-classification.js';
 import { requestAiGuess } from '../src/services/ai-classify.js';
-import handler, { classifyWithGemini } from '../api/classify.js';
+import handler, { classifyWithGemini, classifyWithRetry } from '../api/classify.js';
 
 const guess = (route, extra = {}) => ({ itemName: '실리콘주걱', material: '기타', type: '', route, confidence: 'high', reason: '실리콘 제품은 재활용 대상이 아니에요.', ...extra });
 
@@ -69,6 +69,26 @@ test('Gemini 호출: 키는 헤더로만 보내고 응답을 검증한다', asyn
   await assert.rejects(classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher: async () => ({ ok: false, status: 500 }) }));
 });
 
+test('Gemini 과부하: 같은 모델로 재시도하고, 그래도 안 되면 예비 모델을 쓴다', async () => {
+  const answer = { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '기타', type: 'none', route: 'general', confidence: 'high', reason: '일반 생활용품' }) }] } }] }) };
+  const busy = { ok: false, status: 503, json: async () => ({ error: { message: 'high demand' } }) };
+  const scripted = (...responses) => { const urls = []; const fetcher = async url => { urls.push(url); return responses.shift(); }; return { urls, fetcher }; };
+  const options = { apiKey: 'k', model: 'main-model', fallbackModel: 'backup-model', wait: async () => {} };
+
+  const retry = scripted(busy, answer);
+  assert.equal((await classifyWithRetry('실리콘 주걱', { ...options, fetcher: retry.fetcher })).route, 'general');
+  assert.equal(retry.urls.length, 2); assert.ok(retry.urls[1].includes('main-model'));
+
+  const fallback = scripted(busy, busy, answer);
+  const result = await classifyWithRetry('실리콘 주걱', { ...options, fetcher: fallback.fetcher });
+  assert.equal(result.route, 'general'); assert.equal(result.type, '', "'none'은 빈 값으로 바뀜");
+  assert.equal(fallback.urls.length, 3); assert.ok(fallback.urls[2].includes('backup-model'));
+
+  const bad = scripted({ ok: false, status: 400, json: async () => ({}) });
+  await assert.rejects(classifyWithRetry('실리콘 주걱', { ...options, fetcher: bad.fetcher }), error => error.status === 400);
+  assert.equal(bad.urls.length, 1, '400은 재시도하지 않음');
+});
+
 function fakeResponse() {
   const res = { headers: {}, statusCode: 200, body: '' };
   res.setHeader = (name, value) => { res.headers[name] = value; };
@@ -91,7 +111,8 @@ test('서버 함수: 잘못된 요청·등록 품목·키 미설정', async () =
 
 test('브라우저 서비스: 오류 안내와 응답 검증', async () => {
   await assert.rejects(requestAiGuess(''), /40자/);
-  await assert.rejects(requestAiGuess('물건A', async () => ({ ok: false, status: 503 })), /설정되지 않았어요/);
+  await assert.rejects(requestAiGuess('물건A', async () => ({ ok: false, status: 503, json: async () => ({ error: 'not_configured' }) })), /설정되지 않았어요/);
+  await assert.rejects(requestAiGuess('물건F', async () => ({ ok: false, status: 503, json: async () => ({ error: 'busy' }) })), /사용자가 많아/);
   await assert.rejects(requestAiGuess('물건B', async () => ({ ok: false, status: 404 })), /배포된 사이트/);
   await assert.rejects(requestAiGuess('물건C', async () => { throw new Error('offline'); }), /연결하지 못했어요/);
   const ok = await requestAiGuess('물건D', async url => {
