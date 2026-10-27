@@ -145,9 +145,11 @@ test('브라우저 서비스: 같은 이름의 요청은 하나로 합치고, �
 });
 
 test('AI 위험 경로만으로 전자제품 처리를 단정하지 않고 직접 고른 종류로 전용 안내한다', () => {
-  const result = judgeDisposal({ itemName: '무선마우스X', material: '기타', aiGuess: guess('hazardous', { itemName: '무선마우스X' }) });
+  // 이름 속 낱말로 종류를 알 수 없는 이름에서 AI 위험 경로만으로는 전자제품 처리를 단정하지 않습니다.
+  const result = judgeDisposal({ itemName: '정체모를기계X', material: '기타', aiGuess: guess('hazardous', { itemName: '정체모를기계X' }) });
   assert.equal(result.status, 'check'); assert.match(result.method, /물건 종류 확인/);
   assert.ok(!result.steps.some(step => /1599-0903|폐건전지|전자제품/.test(step)));
+  assert.equal(judgeDisposal({ itemName: '무선마우스X', aiGuess: guess('hazardous', { itemName: '무선마우스X' }) }).handling, 'electronic', '낱말로 알 수 있으면 AI보다 우선');
   const selected = judgeDisposal({ itemName: '무선마우스X', category: 'electronic' });
   assert.match(selected.method, /소형 폐가전/);
   assert.ok(selected.steps.some(step => /전용 수거함|회수 서비스/.test(step)));

@@ -26,3 +26,6 @@
 .ai-note{font-size:14px;color:#4a5868}
 .ai-warn{font-size:15px;padding:8px 10px;border-radius:8px;background:#fff4dc;color:#7a4b00}
 .ai-opinion{margin:14px 0 18px}
+/* 이름 속 낱말로 물건 종류를 알아봤을 때의 안내 */
+.keyword-note{margin:10px 0;padding:10px 12px;border-radius:8px;background:#eef6ec;border:1px solid #cfe0c9;font-size:15px;line-height:1.6}
+.keyword-note .history-action{margin-left:6px}

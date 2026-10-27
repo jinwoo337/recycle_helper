@@ -17,6 +17,7 @@ import { stateAnswers, selectedState } from '../../domain/disposal/input-state.j
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { ITEM_CATEGORIES, categoryLabel } from '../../domain/disposal/item-categories.js';
+import { detectItemCategory } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 
 let draft = {};
@@ -103,13 +104,14 @@ export function resultMarkup(input, result, createdAt) {
     ${createdAt ? `<p class="input-hint">${escapeHtml(new Date(createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))} · 당시 기준으로 저장된 결과</p>` : ''}
     ${result.ruleVersion !== RULE_VERSION ? '<p class="demo-notice">이전 기준의 결과예요. 조건 수정 후 현재 기준으로 다시 확인해 주세요.</p>' : ''}
     ${result.aiAssisted ? '<p class="ai-badge">🤖 AI 추정 결과예요. 실제 제품의 분리배출 표시를 꼭 확인해 주세요.</p>' : ''}
+    ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
     <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}"><span class="result-badge">${input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status]}</span><h3>${escapeHtml(result.method)}</h3></div>
     <p class="result-region input-hint">${result.regional ? `${escapeHtml(result.regional.label)} · ${result.regional.coverage === 'verified' ? result.regional.scope === 'city' ? '서울시 공통 안내 · 구별 수거 확인 필요' : '해당 품목 지역 기준 적용' : '기본 안내 · 지역 기준 확인 필요'}` : '지역 미기록 · 지역을 설정하고 다시 판별해 주세요.'}</p>
     <h3>이렇게 배출하세요</h3><ol class="action-steps">${result.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>
     ${result.parts.length > 1 ? `<h3>재질별 처리</h3><div class="result-parts">${result.parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${list(part.steps)}</article>`).join('')}</div>` : ''}
     ${regionalComparisonMarkup(input, result)}
     <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${list(result.reasons)}${result.regional ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">확인일 ${escapeHtml(result.checkedAt || '미기록')} · ${escapeHtml(result.ruleVersion)} · ${sources.map(url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url === RULE_SOURCE ? '분리배출 지침' : escapeHtml(CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a>`).join(' · ')}</p></details>
-    <details class="input-details"><summary>입력한 조건</summary><dl><div><dt>물건</dt><dd>${escapeHtml(input.itemName)}</dd></div>${input.category ? `<div><dt>직접 선택한 종류</dt><dd>${escapeHtml(categoryLabel(input.category))}</dd></div>` : ''}${details(input)}</dl>${(input.components || []).map((part, index) => `<h4>부속품 ${index + 1}</h4><dl>${details(part)}</dl>`).join('')}</details>
+    <details class="input-details"><summary>입력한 조건</summary><dl><div><dt>물건</dt><dd>${escapeHtml(input.itemName)}</dd></div>${input.category ? `<div><dt>${result.keywordCategory ? '이름으로 알아본 종류' : '직접 선택한 종류'}</dt><dd>${escapeHtml(categoryLabel(input.category))}</dd></div>` : ''}${details(input)}</dl>${(input.components || []).map((part, index) => `<h4>부속품 ${index + 1}</h4><dl>${details(part)}</dl>`).join('')}</details>
     <button class="button secondary" type="button" id="edit-item">조건 수정</button>${resultToolsMarkup(input)}`;
 }
 
@@ -221,7 +223,8 @@ export function bindItemInput() {
     document.getElementById('item-category-section').hidden = !unregistered;
     category.required = unregistered; category.disabled = !unregistered;
     const needsMaterial = !dedicated && (!unregistered || ['packaging', 'food'].includes(category.value));
-    document.getElementById('category-guidance').textContent = category.value && !needsMaterial ? '재질 선택 없이 종류별 수거 안내를 확인할 수 있어요.' : category.value ? '재질·세부 종류와 현재 상태를 확인해 주세요.' : '';
+    const detected = keywordCategory();
+    document.getElementById('category-guidance').textContent = detected && category.value === detected.category ? `이름의 ‘${detected.keyword}’(으)로 자동으로 골랐어요. 다른 물건이면 종류를 바꿔 주세요.` : category.value && !needsMaterial ? '재질 선택 없이 종류별 수거 안내를 확인할 수 있어요.' : category.value ? '재질·세부 종류와 현재 상태를 확인해 주세요.' : '';
     document.getElementById('item-conditions').hidden = !hasName || !needsMaterial;
     updateAiBox(hasName);
     syncPart(form.querySelector('.part-fields'), hasName && needsMaterial);
@@ -252,6 +255,7 @@ export function bindItemInput() {
       value('foodSeparated') === 'yes' ? '음식물 외 이물질 제거함' : value('foodSeparated') === 'no' ? '이물질 분리 필요' : ''].filter(Boolean).join(' · ') || '이름과 재질을 선택하면 필요한 질문만 나타나요.';
   }
   function materialLabel() { return value('material'); }
+  function keywordCategory() { return lookupItem(nameInput.value)?.material ? null : detectItemCategory(nameInput.value); }
   const routeLabels = { recyclable: '재활용 대상', general: '종량제봉투 배출', large: '대형폐기물', hazardous: '별도 수거·안전 처리', unknown: '판단 어려움' };
   const confidenceLabels = { high: '확신 높음', medium: '확신 보통', low: '확신 낮음' };
   const aiLine = guess => {
@@ -388,6 +392,10 @@ export function bindItemInput() {
     summary.innerHTML = resultMarkup(input, result, createdAt);
     if (aiEnabled || result.aiGuess) { attachOpinionPanel(); renderOpinion(); if (!result.aiGuess) askAi(input.itemName); }
     summary.hidden = false; summary.focus(); summary.scrollIntoView({ behavior: 'auto', block: 'start' });
+    document.getElementById('category-other')?.addEventListener('click', () => {
+      restore({ ...shownInput, category: '' }); summary.hidden = true; saveStatus.textContent = '실제 물건에 맞는 종류를 골라 주세요.';
+      form.elements.namedItem('category').focus();
+    });
     document.getElementById('edit-item').addEventListener('click', () => {
       restore(shownInput); summary.hidden = true; saveStatus.textContent = ''; nameInput.focus();
     });
@@ -480,7 +488,8 @@ export function bindItemInput() {
   }
   function changed(event) {
     if (event.isComposing) return;
-    if (event.target === nameInput) form.elements.namedItem('category').value = '';
+    // 사전에 없는 이름이면 이름 속 낱말로 물건 종류를 자동으로 골라 둡니다. 사용자가 바꿀 수 있습니다.
+    if (event.target === nameInput) form.elements.namedItem('category').value = keywordCategory()?.category || '';
     if (event.target.name === 'category') {
       form.querySelectorAll('input[type="radio"]').forEach(control => { control.checked = false; });
       componentCount = 1; drawComponents();

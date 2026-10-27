@@ -4,6 +4,7 @@ import { judgeFood, FOOD_SOURCE } from './food.js';
 import { applyRegionalRules } from './regions.js';
 import { specialItemGuide, guideForHandling } from './special-guides.js';
 import { validItemCategory, categoryLabel } from './item-categories.js';
+import { detectItemCategory } from './category-keywords.js';
 import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 
@@ -142,16 +143,22 @@ function judgeBaseDisposal(input = {}) {
   if (special) return { ...finish(special, [{label:'물품 전체',material:known.material,...structuredClone(special)}]), handling: known.handling };
   const dangerous = /전자제품|전기제품|휴대폰|충전기|배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이|전자담배|이어폰|멀티탭|전기완구|전동/.test(name)
     && !(name === '전자제품포장완충재' && input.material === '스티로폼' && input.type === 'packaging');
-  const category = !known?.material && validItemCategory(input.category) ? input.category : '';
+  // 종류를 직접 고르지 않았으면 이름 속 낱말로 종류를 알아봅니다. 사용자가 '다른 물건이에요'를 고르면(keywordCategory: false) 건너뜁니다.
+  const detected = !known?.material && input.keywordCategory !== false ? detectItemCategory(input.itemName) : null;
+  const category = !known?.material && validItemCategory(input.category) ? input.category : detected?.category || '';
+  const fromKeyword = detected && detected.category === category;
+  const categoryReason = fromKeyword
+    ? `이름의 '${detected.keyword}'(으)로 물건 종류(${categoryLabel(category)})를 알아봤어요. 다른 물건이면 종류를 바꿔 주세요.`
+    : `직접 선택한 물건 종류(${categoryLabel(category)})를 기준으로 안내해요. 이름으로 확인된 품목은 아니에요.`;
   const manualGuide = category && guideForHandling(category);
   if (manualGuide) {
-    manualGuide.reasons.push(`직접 선택한 물건 종류(${categoryLabel(category)})를 기준으로 안내해요. 이름으로 확인된 품목은 아니에요.`);
+    manualGuide.reasons.push(categoryReason);
     const result = finish(manualGuide, [{ label: '물품 전체', material: '기타', ...structuredClone(manualGuide) }]);
     if (category === 'medicine') result.sourceUrls.push('https://news.seoul.go.kr/env/archives/564807');
-    return { ...result, handling: category };
+    return { ...result, handling: category, ...(fromKeyword ? { keywordCategory: { ...detected } } : {}) };
   }
   if (category === 'unknown') return finish(outcome('check', '물건 종류·수거처 확인 필요', '이름과 선택한 정보만으로 배출 경로를 확정할 수 없어요.', ['제품 이름·용도와 분리배출 표시를 확인해 주세요.', '제품 사진·설명서를 준비해 제조사나 거주지 폐기물 담당 부서에 수거 경로를 문의해 주세요.']));
-  if (category === 'large') return finish(outcome('check', '대형폐기물 품목·접수 조건 확인', '가구·큰 생활용품으로 직접 선택했어요.', ['구청 대형폐기물 안내에서 실제 품목·크기에 맞는 접수 대상을 확인해 주세요.', '접수 후 안내받은 필증·배출일·지정 장소에 따라 배출해 주세요.']));
+  if (category === 'large') return { ...finish(outcome('check', '대형폐기물 품목·접수 조건 확인', fromKeyword ? categoryReason : '가구·큰 생활용품으로 직접 선택했어요.', ['구청 대형폐기물 안내에서 실제 품목·크기에 맞는 접수 대상을 확인해 주세요.', '접수 후 안내받은 필증·배출일·지정 장소에 따라 배출해 주세요.'])), handling: 'large', ...(fromKeyword ? { keywordCategory: { ...detected } } : {}) };
   const manualMaterial = (category === 'packaging' && ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼'].includes(input.material)) || (category === 'food' && input.material === '음식물류');
   const ai = known || category ? null : validateAiGuess(input.aiGuess, input.itemName);
   if (ai && !dangerous && ai.route !== 'recyclable') return finishAi(aiOnlyOutcome(ai), input, ai);
