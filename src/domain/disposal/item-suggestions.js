@@ -1,4 +1,5 @@
-// 명확한 품목명만 일치시킵니다. 상태/색상/결합 여부를 이름으로 추정하지 않습니다.
+import { expandedItemEntries } from './expanded-catalog.js';
+// 정확한 품목명만 일치시킵니다. 대표 구성은 별도 메타데이터로 관리합니다.
 export const bundledItemEntries = [
   [['우유팩', '두유팩', '주스팩', '쥬스팩', '멸균우유팩', '멸균팩', '종이팩'], '종이', 'carton'],
   [['신문', '신문지', '책', '노트', '종이상자', '택배상자', '골판지상자'], '종이', 'paper'],
@@ -28,7 +29,8 @@ export const bundledItemEntries = [
   [['음식물', '과일껍질', '채소찌꺼기'], '음식물류', '', '단단한 껍데기·뼈·씨앗 포함 여부를 확인한 뒤 종류를 선택해 주세요.'],
 ];
 
-let entries = bundledItemEntries;
+const localEntries = [...expandedItemEntries, ...bundledItemEntries];
+let entries = localEntries;
 
 export function setItemCatalog(rows) {
   if (!Array.isArray(rows) || !rows.length || rows.some(row =>
@@ -37,7 +39,8 @@ export function setItemCatalog(rows) {
     typeof row.material !== 'string' || typeof row.item_type !== 'string' || typeof row.note !== 'string')) {
     throw new Error('품목 데이터 형식을 확인해 주세요.');
   }
-  entries = rows.map(row => [row.aliases, row.material, row.item_type, row.note]);
+  // 운영 DB의 기존 품목을 유지하고, 이번에 검토한 품목은 보완 목록으로 병합합니다.
+  entries = [...rows.map(row => [row.aliases, row.material, row.item_type, row.note]), ...localEntries];
 }
 
 const aliases = { '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔' };
@@ -50,15 +53,19 @@ export function lookupItem(name) {
   const normalized = normalizeItemName(name);
   const entry = entries.find(([names]) => names.some(alias => normalizeItemName(alias) === normalized));
   if (!entry) return null;
-  const [, material, type, note = '실제 재질 표시를 확인해 주세요. 오염과 결합 상태는 직접 선택해 주세요.'] = entry;
-  return { material, type, note };
+  const local = expandedItemEntries.find(([names]) => names.some(alias => normalizeItemName(alias) === normalized));
+  const chosen = local && !entry[1] ? local : entry;
+  const [, material, type, note = '실제 재질 표시를 확인해 주세요. 오염과 결합 상태는 직접 선택해 주세요.'] = chosen;
+  const compatible = local && local[1] === material && (!type || local[2] === type || local[4]?.defaults?.type === type);
+  return { material, type, note:compatible ? local[3] : note, ...(compatible ? structuredClone(local[4]) : {}) };
 }
 
 // 부분 일치는 추천 전용이며 재질 자동 입력은 정확히 일치하는 이름에만 적용합니다.
 export function searchItemNames(query, limit = 6) {
   const normalized = normalizeItemName(query);
   if (!normalized || !Number.isInteger(limit) || limit < 1) return [];
-  const names = entries.flatMap(([names]) => names);
+  // 같은 길이의 후보는 기존의 익숙한 명칭을 먼저 보여 줍니다.
+  const names = [...bundledItemEntries, ...entries].flatMap(([names]) => names);
   const extra = Object.keys(aliases).filter(alias => names.some(name => normalizeItemName(name) === aliases[alias]));
   return [...new Set([...names, ...extra])].filter(name => normalizeItemName(name).includes(normalized) || name.includes(query.trim().toLowerCase()))
     .sort((a, b) => Number(!normalizeItemName(a).startsWith(normalized)) - Number(!normalizeItemName(b).startsWith(normalized)) || a.length - b.length)
@@ -67,5 +74,5 @@ export function searchItemNames(query, limit = 6) {
 
 export function suggestItemInfo(name) {
   const item = lookupItem(name);
-  return item?.material ? item : null;
+  return item?.material ? { ...item, type:item.type || item.defaults?.type || '' } : null;
 }

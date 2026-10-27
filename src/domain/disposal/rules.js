@@ -2,8 +2,9 @@
 import { lookupItem, normalizeItemName } from './item-suggestions.js';
 import { judgeFood, FOOD_SOURCE } from './food.js';
 import { applyRegionalRules } from './regions.js';
+import { specialItemGuide } from './special-guides.js';
 
-export const RULE_VERSION = '2026-10-26.v5';
+export const RULE_VERSION = '2026-10-27.v6';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -127,6 +128,8 @@ function judgeBaseDisposal(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) input = {};
   const name = normalizeItemName(input.itemName);
   const known = lookupItem(name);
+  const special = specialItemGuide(known, input);
+  if (special) return finish(special, [{label:'물품 전체',material:input.material,...structuredClone(special)}]);
   const dangerous = /전자제품|전기제품|휴대폰|충전기|배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이|전자담배|이어폰|멀티탭|전기완구|전동/.test(name)
     && !(name === '전자제품포장완충재' && input.material === '스티로폼' && input.type === 'packaging');
   const allowedTypes = name === '종이컵' ? ['cup', 'coated'] : null;
@@ -178,6 +181,6 @@ function judgeBaseDisposal(input = {}) {
 function finish(result, parts) {
   return { ...result, parts, ruleVersion: RULE_VERSION,
     sourceUrls: parts.some(part => part.material === '음식물류') ? [RULE_SOURCE, FOOD_SOURCE] : [RULE_SOURCE],
-    sourceUrl: parts.some(part => part.material === '음식물류') ? FOOD_SOURCE : RULE_SOURCE, checkedAt: '2026-10-26',
+    sourceUrl: parts.some(part => part.material === '음식물류') ? FOOD_SOURCE : RULE_SOURCE, checkedAt: '2026-10-27',
     notice: '공개된 분리배출 지침을 참고한 안내예요. 지역별 수거 대상·수거함·배출일이 다를 수 있으므로 거주지 안내를 확인해 주세요.' };
 }

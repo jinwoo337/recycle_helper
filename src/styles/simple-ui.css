@@ -69,6 +69,9 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .history-filter-options { margin-top:12px; border-top:1px solid var(--line); }.history-filter-options>summary,.statistics-help>summary { min-height:44px; align-content:center; cursor:pointer; color:var(--muted); font-size:13px; }.statistics-chart:has(>.input-hint) { display:block; }.statistics-help { margin-top:8px; }.history-filters { margin-bottom:14px; }
 
 /* Keep the input task compact without shrinking touch targets or hiding questions. */
+.preset-info { margin:0 0 8px; font-size:12px; color:var(--green); }
+.preset-info > summary { min-height:36px; align-content:center; cursor:pointer; }
+.preset-info > p { margin-bottom:8px; }
 .item-page { padding-block:14px 28px; }
 .item-page .item-heading { margin:10px 0 8px; }
 .item-page .item-heading .eyebrow { display:none; }

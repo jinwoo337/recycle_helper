@@ -56,6 +56,19 @@ test('PostgreSQL: 스키마·품목·사용자 격리·통계·기록 이전·�
       assert.deepEqual(stats.rows[0].stats.counts, { pet: 1 });
     });
 
+    await t.test('품목 확장 SQL은 기존 데이터와 정책을 보존하고 재실행해도 중복되지 않는다', async () => {
+      const original = await query('select id,note from public.disposal_items order by id');
+      const beforeRecords = await query('select count(*)::int as count from public.disposal_records');
+      const expansion = await readFile(new URL('../supabase/catalog-expansion.sql', import.meta.url), 'utf8');
+      await db.exec(expansion); await db.exec(expansion);
+      const after = await query('select id,note from public.disposal_items order by id');
+      assert.ok(after.rows.length >= original.rows.length + 100);
+      for (const old of original.rows) assert.deepEqual(after.rows.find(row=>row.id===old.id),old);
+      assert.deepEqual((await query('select count(*)::int as count from public.disposal_records')).rows,beforeRecords.rows);
+      assert.equal((await asUser(other,()=>query('select * from public.disposal_records'))).rows.length,0);
+      await assert.rejects(asUser(owner,()=>query("update public.disposal_items set note='unverified'")),{code:'42501'});
+    });
+
     await t.test('이전 기록은 중복되지 않고 삭제 후 재이전해도 되살아나지 않는다', async () => {
       const importedId = crypto.randomUUID();
       const rows = [{ id: importedId, item_name: input.itemName, input, result, created_at: new Date().toISOString() }];

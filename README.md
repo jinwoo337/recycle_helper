@@ -123,3 +123,6 @@ recycling-helper/
 
 ## 첫 방문과 쉬운 입력
 가입 없이 이름부터 입력하고, 확인된 품목은 필요한 상태 질문만 답합니다. 가입·로그인·결과·기록 화면의 간소화 내용과 검증 범위는 [첫 방문 UX 검토](docs/first-visit-ux-review.md)를 확인해 주세요.
+
+## 품목과 대표 구성 자동 입력
+검토한 품목 목록·검색 명칭·대표 결합 구성과 적용 한계는 [품목 확장 목록](docs/catalog-expansion.md)을 확인해 주세요. `node scripts/build-catalog-expansion.js`로 목록과 선택 실행용 SQL을 생성합니다. 오염·세척 상태는 자동 입력하지 않습니다.

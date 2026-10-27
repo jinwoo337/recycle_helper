@@ -10,9 +10,11 @@ test('명확한 품목은 재질과 종류를 채우되 상태를 추정하지 �
   assert.equal(suggestItemInfo('참치캔').type, 'food-can');
   assert.equal(suggestItemInfo('과자봉지').material, '비닐');
 });
-test('생수병의 색상과 종이컵의 코팅을 이름만으로 확정하지 않는다', () => {
+test('생수병은 수정 가능한 대표 구성을 제공하며 모호한 종이컵은 종류 확인을 유지한다', () => {
   assert.equal(suggestItemInfo('생수병').material, '페트병');
-  assert.equal(suggestItemInfo('생수병').type, '');
+  assert.equal(suggestItemInfo('생수병').type, 'clear-drink');
+  assert.equal(lookupItem('생수병').type, ''); // 판별 시 다른 실제 종류로 수정할 수 있음
+  assert.match(suggestItemInfo('생수병').note, /유색.*수정/);
   assert.equal(suggestItemInfo('투명 생수 페트병').type, 'clear-drink');
   assert.equal(suggestItemInfo('유색페트병').type, 'other-pet');
   assert.equal(suggestItemInfo('종이컵').type, '');

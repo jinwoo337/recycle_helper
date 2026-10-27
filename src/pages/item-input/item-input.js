@@ -9,6 +9,7 @@ import { memberTools } from '../../services/member-tools.js';
 import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel } from '../../domain/disposal/regions.js';
 import { takeQueuedInput } from '../../services/input-draft.js';
 import { cleanSingleMaterialInput } from '../../domain/disposal/input-shortcuts.js';
+import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 
 let draft = {};
 let componentCount = 1;
@@ -21,10 +22,10 @@ function question(name, title, options = yesNo) {
 }
 function partFields(prefix, label) {
   return `<div class="part-fields" data-prefix="${prefix}">
-    ${!prefix ? '<details id="material-editor" class="material-editor" open><summary><span id="material-detected">재질·종류 선택</span><span class="material-edit-label">수정</span></summary><div class="material-controls">' : ''}
+    ${!prefix ? '<details id="material-editor" class="material-editor" open><summary><span id="material-detected">재질·종류 선택</span><span class="material-edit-label">수정</span></summary><div class="material-controls">' : '<details class="material-editor component-material-editor" open><summary><span class="component-material-summary">재질·종류 선택</span><span class="material-edit-label">수정</span></summary><div class="material-controls">'}
     <div class="field"><label for="${prefix}material">${label}</label><select id="${prefix}material" name="${prefix}material" required><option value="">재질을 선택해 주세요</option>${MATERIALS.map(material => `<option>${material}</option>`).join('')}</select></div>
     <div class="field" data-condition="type" hidden><label for="${prefix}type">세부 종류</label><select id="${prefix}type" name="${prefix}type" required></select></div>
-    ${!prefix ? '<label class="auto-fill-choice"><input type="checkbox" id="auto-fill-item"><span>이름에 맞춰 재질 자동 입력</span></label><p id="auto-fill-status" class="input-hint" role="status"></p></div></details>' : ''}
+    ${!prefix ? '<label class="auto-fill-choice"><input type="checkbox" id="auto-fill-item"><span>이름에 맞춰 재질 자동 입력</span></label><p id="auto-fill-status" class="input-hint" role="status"></p>' : ''}</div></details>
     ${!prefix ? '<div class="quick-condition" id="quick-condition" hidden><button class="button secondary" type="button" id="clean-shortcut">깨끗하고 다른 재질도 없어요 → 결과 보기</button><p class="input-hint">내용물·오염·라벨·빨대 등 다른 재질이 모두 없을 때만 선택해 주세요.</p></div>' : ''}
     <div data-condition="state" hidden>
       ${question(`${prefix}contaminated`, '현재 음식물·기름·이물질이 남아 있나요?', [['yes', '남아 있어요'], ['no', '없어요'], ['unknown', '모르겠어요']])}
@@ -43,7 +44,7 @@ export function itemInputPage() {
       <section aria-labelledby="item-basic"><h2 id="item-basic">1. 물건 이름</h2>
         <div class="item-basic-fields"><div class="field"><label for="item-name">물건 이름</label><div class="item-name-control"><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="item-name-options" aria-expanded="false" aria-describedby="item-name-hint item-name-status"><div id="item-name-options" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><p class="input-hint" id="item-name-hint">추천에서 실제 물건과 맞는 이름을 골라 주세요.</p><p class="input-hint" id="item-name-status" role="status" aria-live="polite"></p></div>
         <div class="example-items input-examples" aria-label="자주 찾는 물건">${['우유팩', '투명생수병', '과자봉지', '종이상자'].map(name => `<button class="history-action" type="button" data-item-example="${name}">${name}</button>`).join('')}</div></div>
-        </section><section id="item-conditions" aria-labelledby="conditions-title" hidden><h2 id="conditions-title">2. 상태 확인</h2>${partFields('', '주요 재질')}
+        </section><section id="item-conditions" aria-labelledby="conditions-title" hidden><h2 id="conditions-title">2. 상태 확인</h2><details id="preset-info" class="preset-info" hidden><summary id="preset-title">자동 입력 기준 · 수정 가능</summary><p id="preset-note" class="input-hint"></p></details>${partFields('', '주요 재질')}
       </section>
       <section id="combination-section" aria-labelledby="item-state" hidden><h3 id="item-state">다른 재질 확인</h3>
         ${question('combined', '라벨·뚜껑·테이프 등 다른 재질과 결합되어 있나요?')}
@@ -185,6 +186,8 @@ export function bindItemInput() {
       select.dataset.material = material;
     }
     toggle(node.querySelector('[data-condition="type"]'), active && options.length > 0);
+    const componentSummary = node.querySelector('.component-material-summary');
+    if (componentSummary) componentSummary.textContent = [material, options.find(([type])=>type===select.value)?.[1]].filter(Boolean).join(' · ') || '재질·종류 선택';
     toggle(node.querySelector('[data-condition="food"]'), active && material === '음식물류' && select.value === 'soft');
     const supported = active && supportsState(partValue(prefix));
     toggle(node.querySelector('[data-condition="state"]'), supported);
@@ -247,6 +250,7 @@ export function bindItemInput() {
   }
   function restore(input) {
     closeSuggestions(); nameStatus.textContent = '';
+    document.getElementById('preset-info').hidden = true;
     form.reset(); componentCount = Math.max(1, input.components?.length || 0); drawComponents();
     autoFill.checked = autoFillEnabled;
     autoFillStatus.textContent = autoFillEnabled ? '자동 입력이 켜져 있어요. 물건 이름을 바꾸면 재질 정보를 다시 채워요.' : '체크하면 우유팩·생수병 등 알려진 물품의 재질 정보를 채워요.';
@@ -256,6 +260,7 @@ export function bindItemInput() {
       (input.components || []).forEach((part, index) => writeValues(part, `part${index}-`));
       updateConditional();
     }
+    form.querySelectorAll('.component-material-editor').forEach(editor => { const node=editor.closest('.part-fields'); editor.open=!value(`${node.dataset.prefix}material`) || Boolean(TYPES[value(`${node.dataset.prefix}material`)]?.length && !value(`${node.dataset.prefix}type`)); });
     if (autoFillEnabled && input.itemName && !input.material) applySuggestion();
     else materialEditor.open = !value('material') || Boolean(TYPES[value('material')]?.length && !value('type'));
     draft = collect();
@@ -333,14 +338,24 @@ export function bindItemInput() {
   });
   function applySuggestion() {
     const suggestion = suggestItemInfo(nameInput.value);
+    const preset = itemPresetInput(nameInput.value);
     // 이름을 바꾸면 이전 물품의 상태와 부속품 답변을 새 물품에 사용하지 않습니다.
     form.querySelectorAll('input[type="radio"]').forEach(control => { control.checked = false; });
-    form.elements.namedItem('material').value = suggestion?.material || '';
+    componentCount = Math.max(1, preset.components?.length || 0); drawComponents();
+    form.elements.namedItem('material').value = preset.material;
     form.elements.namedItem('type').value = '';
-    updateConditional();
-    if (suggestion?.type) form.elements.namedItem('type').value = suggestion.type;
-    updateConditional();
-    materialEditor.open = !suggestion?.type;
+    for (let pass = 0; pass < 3; pass++) {
+      writeValues(preset);
+      (preset.components || []).forEach((part,index) => writeValues(part, `part${index}-`));
+      updateConditional();
+    }
+    form.querySelectorAll('.component-material-editor').forEach(editor => { editor.open = !editor.querySelector('[name$="type"]').value; });
+    const info = document.getElementById('preset-info');
+    info.hidden = !suggestion;
+    info.open = Boolean(suggestion?.handling);
+    document.getElementById('preset-title').textContent = suggestion?.handling ? '별도 수거 품목 · 재질 선택 불필요' : preset.components?.length ? '대표 구성 자동 입력 · 실제 제품을 확인해 주세요' : '자동 입력 기준 · 수정 가능';
+    document.getElementById('preset-note').textContent = suggestion?.note || '';
+    materialEditor.open = !suggestion?.type && !suggestion?.handling;
     autoFillStatus.textContent = suggestion
       ? `${suggestion.material}${suggestion.type ? ' · ' + TYPES[suggestion.material].find(([value]) => value === suggestion.type)[1] : ''} 정보를 채웠어요. ${suggestion.note}`
       : nameInput.value.trim() ? '자동 입력할 수 있는 이름이 아니에요. 실제 재질과 세부 종류를 직접 선택해 주세요.' : '물건 이름을 입력하면 알려진 품목의 재질 정보를 채워요.';
@@ -351,10 +366,11 @@ export function bindItemInput() {
     // 브라우저가 체크 상태를 복원해도 실제 화면의 선택과 일치시킵니다.
     autoFillEnabled = autoFill.checked;
     if (event.target === autoFill) {
-      if (!autoFillEnabled) autoFillStatus.textContent = '자동 입력을 껐어요. 재질 정보를 직접 선택하거나 수정할 수 있어요.';
+      if (!autoFillEnabled) { autoFillStatus.textContent = '자동 입력을 껐어요. 재질 정보를 직접 선택하거나 수정할 수 있어요.'; document.getElementById('preset-info').hidden = true; }
     }
     if (autoFillEnabled && (event.target === autoFill || event.target === nameInput)) applySuggestion();
     else {
+      if (event.target === nameInput || ['material','type'].includes(event.target.name)) document.getElementById('preset-info').hidden = true;
       if (event.target === nameInput) {
         form.querySelectorAll('input[type="radio"]').forEach(control => { control.checked = false; });
         form.elements.namedItem('material').value = ''; form.elements.namedItem('type').value = '';
