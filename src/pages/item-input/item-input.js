@@ -460,7 +460,19 @@ export function bindItemInput() {
       updateConditional();
     }
     if (event.target === nameInput && document.activeElement === nameInput) showSuggestions();
+    if (event.target === nameInput) scheduleAiPrefetch();
     draft = collect(); summary.hidden = true;
+  }
+  // 미등록 이름을 0.7초 동안 그대로 두면 AI에 미리 물어봐 둡니다. 버튼을 누르면 같은 요청을 이어 받아 바로 보여 줍니다.
+  let prefetchTimer = 0;
+  function scheduleAiPrefetch() {
+    clearTimeout(prefetchTimer);
+    const name = nameInput.value.trim();
+    if (name.length < 2 || lookupItem(name) || aiMatches(name)) return;
+    prefetchTimer = setTimeout(() => {
+      if (!form.isConnected || nameInput.value.trim() !== name) return;
+      requestAiGuess(name).catch(() => { /* 미리 조회 실패는 버튼을 누를 때 다시 시도합니다. */ });
+    }, 700);
   }
   form.addEventListener('input', changed);
   form.addEventListener('change', changed);

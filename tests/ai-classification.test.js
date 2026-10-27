@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { validateAiGuess, aiResponseSchema } from '../src/domain/disposal/ai-classification.js';
 import { requestAiGuess } from '../src/services/ai-classify.js';
-import handler, { classifyWithGemini, classifyWithRetry } from '../api/classify.js';
+import handler, { classifyWithGemini, classifyWithRetry, pickFallbackModel, fallbackModelFor } from '../api/classify.js';
 
 const guess = (route, extra = {}) => ({ itemName: '실리콘주걱', material: '기타', type: '', route, confidence: 'high', reason: '실리콘 제품은 재활용 대상이 아니에요.', ...extra });
 
@@ -79,10 +79,14 @@ test('Gemini 과부하: 같은 모델로 재시도하고, 그래도 안 되면 �
   assert.equal((await classifyWithRetry('실리콘 주걱', { ...options, fetcher: retry.fetcher })).route, 'general');
   assert.equal(retry.urls.length, 2); assert.ok(retry.urls[1].includes('main-model'));
 
-  const fallback = scripted(busy, busy, busy, answer);
+  const fallback = scripted(busy, busy, answer);
   const result = await classifyWithRetry('실리콘 주걱', { ...options, fetcher: fallback.fetcher });
   assert.equal(result.route, 'general'); assert.equal(result.type, '', "'none'은 빈 값으로 바뀜");
-  assert.equal(fallback.urls.length, 4); assert.ok(fallback.urls[2].includes('main-model')); assert.ok(fallback.urls[3].includes('backup-model'));
+  assert.equal(fallback.urls.length, 3); assert.ok(fallback.urls[1].includes('main-model')); assert.ok(fallback.urls[2].includes('backup-model'));
+
+  const last = scripted(busy, busy, busy, answer);
+  assert.equal((await classifyWithRetry('실리콘 주걱', { ...options, fetcher: last.fetcher })).route, 'general');
+  assert.equal(last.urls.length, 4); assert.ok(last.urls[3].includes('main-model'), '예비 모델도 붐비면 기본 모델로 마지막 시도');
 
   const alone = scripted(busy, busy, busy);
   await assert.rejects(classifyWithRetry('실리콘 주걱', { ...options, fallbackModel: '', fetcher: alone.fetcher }), error => error.status === 503);
@@ -95,6 +99,43 @@ test('Gemini 과부하: 같은 모델로 재시도하고, 그래도 안 되면 �
   const gone = scripted({ ok: false, status: 404, json: async () => ({ error: { message: 'no longer available' } }) }, answer);
   assert.equal((await classifyWithRetry('실리콘 주걱', { ...options, fetcher: gone.fetcher })).route, 'general');
   assert.equal(gone.urls.length, 2, '없어진 모델은 다시 부르지 않고 예비 모델로'); assert.ok(gone.urls[1].includes('backup-model'));
+});
+
+test('빠른 응답: 생각 단계를 낮추고, 거절되면 생각 설정 없이 다시 부른다', async () => {
+  const bodies = [];
+  const answer = { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '기타', type: 'none', route: 'general', confidence: 'high', reason: '' }) }] } }] }) };
+  const rejectThinking = { ok: false, status: 400, json: async () => ({ error: { message: 'thinking_level is not supported for this model.' } }) };
+  const responses = [rejectThinking, answer, answer];
+  const fetcher = async (url, options) => { bodies.push(JSON.parse(options.body)); return responses.shift(); };
+  assert.equal((await classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher, model: 'old-model' })).route, 'general');
+  assert.equal(bodies[0].generationConfig.thinkingConfig.thinkingLevel, 'low');
+  assert.equal(bodies[1].generationConfig.thinkingConfig, undefined, '거절되면 생각 설정 없이 다시');
+  await classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher, model: 'old-model' });
+  assert.equal(bodies[2].generationConfig.thinkingConfig, undefined, '다음부터도 생각 설정을 보내지 않음');
+});
+
+test('예비 모델 자동 선택: 가벼운 정식 flash 모델을 고르고 키는 헤더로만 보낸다', async () => {
+  const model = (name, methods = ['generateContent']) => ({ name: `models/${name}`, supportedGenerationMethods: methods });
+  const list = [model('gemini-3.8-flash'), model('gemini-3.8-flash-lite-preview'), model('gemini-3.5-flash-lite'), model('gemini-3.8-flash-lite'),
+    model('gemini-3.8-flash-image'), model('gemini-3.8-pro'), model('text-embedding-4', ['embedContent']), model('gemini-3.8-flash-tts')];
+  assert.equal(pickFallbackModel(list, 'gemini-3.8-flash'), 'gemini-3.8-flash-lite');
+  assert.equal(pickFallbackModel([model('gemini-3.8-flash')], 'gemini-3.8-flash'), '', '기본 모델뿐이면 예비 없음');
+  let request;
+  const picked = await fallbackModelFor('gemini-3.8-flash', { apiKey: 'secret', fetcher: async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ models: list }) }; } });
+  assert.equal(picked, 'gemini-3.8-flash-lite');
+  assert.ok(!request.url.includes('secret')); assert.equal(request.options.headers['x-goog-api-key'], 'secret');
+});
+
+test('브라우저 서비스: 같은 이름의 요청은 하나로 합치고, 실패하면 다시 요청한다', async () => {
+  let calls = 0;
+  const ok = async () => { calls++; return { ok: true, json: async () => ({ guess: { itemName: '물건G', material: '기타', type: '', route: 'general', confidence: 'high', reason: '' } }) }; };
+  const [first, second] = await Promise.all([requestAiGuess('물건G', ok), requestAiGuess('물건G', ok)]);
+  assert.equal(calls, 1); assert.equal(first, second);
+  let failures = 0;
+  const flaky = async () => { failures++; return { ok: false, status: 502, json: async () => ({}) }; };
+  await assert.rejects(requestAiGuess('물건H', flaky));
+  await assert.rejects(requestAiGuess('물건H', flaky));
+  assert.equal(failures, 2, '실패한 요청은 기억하지 않음');
 });
 
 function fakeResponse() {
