@@ -19,5 +19,12 @@ test('DB 품목을 추천·자동 입력·판별에 공통 사용하며 잘못�
     rows[0].item_type = 'invalid';
     await assert.rejects(loadItemCatalog(client), /세부 종류/);
     assert.equal(lookupItem('DB우유팩').type, 'carton');
+    rows[0].item_type = 'carton';
+    rows.push({id:'db-battery',aliases:['건전지'],material:'기타',item_type:'',note:'별도 수거'});
+    await loadItemCatalog(client);
+    assert.equal(lookupItem('건전지').handling,'battery');
+    assert.equal(lookupItem('플라스틱두부용기').type,'container');
+    rows.push({id:'invalid-material',aliases:['잘못된재질'],material:'없는재질',item_type:'',note:'잘못된 값'});
+    await assert.rejects(loadItemCatalog(client), /재질/);
   } finally { setItemCatalog(bundledRows); }
 });

@@ -106,7 +106,7 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
   #item-form > * { grid-column:1/-1; }
   #item-form > #item-conditions { grid-column:1; }
   #item-form > #combination-section { grid-column:2; display:block; }
-  #item-form:has(#components-section:not([hidden])) > #combination-section { grid-column:1/-1; }
+  #item-form #component-fields { grid-template-columns:minmax(0,1fr); }
   #item-form .part-fields > [data-condition="state"] { display:block; }
 }
 @media(max-width:639px) {

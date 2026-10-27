@@ -5,8 +5,8 @@ import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { lookupItem, suggestItemInfo, searchItemNames, setItemCatalog } from '../src/domain/disposal/item-suggestions.js';
 import { TYPES, MATERIALS, judgeDisposal, supportsState } from '../src/domain/disposal/rules.js';
 
-test('100개 검토 품목의 모든 명칭이 유효한 기본 정보·출처를 갖고 검색된다', () => {
-  assert.ok(expandedItemEntries.length >= 100);
+test('확장 품목의 모든 명칭이 유효한 기본 정보·출처를 갖고 검색된다', () => {
+  assert.ok(expandedItemEntries.length >= 200);
   const seen = new Set();
   for (const [names,material,type,,metadata] of expandedItemEntries) {
     assert.ok(MATERIALS.includes(material));
@@ -20,6 +20,7 @@ test('100개 검토 품목의 모든 명칭이 유효한 기본 정보·출처�
       assert.equal(suggestion.type,type || metadata.defaults?.type || '',name);
       assert.ok(searchItemNames(name,10).some(candidate=>candidate===name),name);
       const preset = itemPresetInput(name);
+      if (metadata.handling) assert.notEqual(judgeDisposal(preset).method,'추가 확인 필요',name);
       for (const part of [preset,...(preset.components||[])]) {
         for (const field of ['contaminated','washed','removable','foodSeparated']) assert.equal(part[field],undefined,`${name}: ${field}`);
         if (part.type) assert.ok(TYPES[part.material]?.some(([id])=>id===part.type));
