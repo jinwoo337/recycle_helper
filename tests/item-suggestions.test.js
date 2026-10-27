@@ -43,5 +43,6 @@ test('정확한 예외 품목은 안전한 세부 종류를 채우고 모호한 
   assert.equal(suggestItemInfo('감열영수증').type, 'excluded');
   assert.equal(suggestItemInfo('칫솔').type, 'other');
   assert.ok(lookupItem('도시락 용기'));
-  assert.equal(suggestItemInfo('도시락용기'), null);
+  assert.equal(suggestItemInfo('도시락용기').material, '플라스틱');
+  assert.ok(suggestItemInfo('도시락용기').variants['종이']);
 });

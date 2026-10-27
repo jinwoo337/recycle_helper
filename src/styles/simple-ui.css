@@ -72,6 +72,7 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .preset-info { margin:0 0 8px; font-size:12px; color:var(--green); }
 .preset-info > summary { min-height:36px; align-content:center; cursor:pointer; }
 .preset-info > p { margin-bottom:8px; }
+.component-label-field { grid-column:1/-1; }
 .item-page { padding-block:14px 28px; }
 .item-page .item-heading { margin:10px 0 8px; }
 .item-page .item-heading .eyebrow { display:none; }
@@ -115,4 +116,27 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
   #item-form .choice-row { gap:5px; }
   #item-form .choice { flex:1; justify-content:center; padding-inline:6px; }
   #item-form .material-controls { grid-template-columns:1fr; }
+}
+
+/* Current condition replaces the separate contamination and washing questions. */
+#item-form .state-storage { display:none; }
+#item-form .current-state .choice-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+#item-form .current-state .choice { margin:0; min-width:0; font-size:13px; }
+#item-form .current-state .choice[hidden] { display:none; }
+#item-form .component-help { margin-bottom:6px; font-size:12px; color:var(--muted); }
+#item-form .component-help summary { min-height:32px; align-content:center; cursor:pointer; }
+#item-form .composition-controls { padding:4px 10px 6px; }
+#item-form .component-card { padding:10px; margin-block:6px; }
+#item-form .component-card h3 { margin:0 0 6px; font-size:14px; }
+#item-form .material-editor { margin-bottom:6px; }
+#item-form .material-editor > summary { padding:8px 10px; }
+#item-form .material-controls > .preset-info { grid-column:1/-1; }
+#item-form .current-state .item-question { margin-bottom:6px; }
+#item-form section + section { margin-top:8px; padding-top:8px; }
+#item-form .preset-info > summary { min-height:30px; }
+#item-form .quick-condition { padding:6px 8px; margin-bottom:6px; }
+#item-form .quick-condition p { display:none; }
+#item-form .quick-condition button { font-size:13px; }
+@media(min-width:640px) {
+  #item-form { column-gap:14px; }
 }

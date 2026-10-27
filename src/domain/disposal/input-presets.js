@@ -11,7 +11,7 @@ export function itemPresetInput(itemName) {
     input.combined = 'yes';
     input.separable = defaults.separable || '';
     if (input.separable === 'yes') input.components = (defaults.components || []).slice(0,5)
-      .map(part => ({material:part.material, type:part.type || ''}));
+      .map(part => ({material:part.material, type:part.type || '', ...(part.label ? {label:part.label} : {})}));
   }
   return input;
 }

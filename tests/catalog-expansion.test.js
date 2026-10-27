@@ -3,16 +3,18 @@ import assert from 'node:assert/strict';
 import { expandedItemEntries } from '../src/domain/disposal/expanded-catalog.js';
 import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { lookupItem, suggestItemInfo, searchItemNames, setItemCatalog } from '../src/domain/disposal/item-suggestions.js';
-import { TYPES, MATERIALS, judgeDisposal, supportsState } from '../src/domain/disposal/rules.js';
+import { TYPES, MATERIALS, judgeDisposal, supportsState, normalizePart } from '../src/domain/disposal/rules.js';
+import { FOOD_SOURCE } from '../src/domain/disposal/food.js';
+import { CATALOG_DETAIL_SOURCES } from '../src/domain/disposal/catalog-sources.js';
 
 test('확장 품목의 모든 명칭이 유효한 기본 정보·출처를 갖고 검색된다', () => {
-  assert.ok(expandedItemEntries.length >= 200);
+  assert.ok(expandedItemEntries.length >= 400);
   const seen = new Set();
   for (const [names,material,type,,metadata] of expandedItemEntries) {
     assert.ok(MATERIALS.includes(material));
     if (type) assert.ok(TYPES[material]?.some(([id])=>id===type));
     assert.equal(metadata.checkedAt,'2026-10-27');
-    assert.ok(metadata.source.startsWith('https://wasteguide.or.kr/'));
+    assert.ok(metadata.source === 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003' || Object.hasOwn(CATALOG_DETAIL_SOURCES,metadata.source) || metadata.source === FOOD_SOURCE);
     for (const name of names) {
       const key = name.toLowerCase(); assert.ok(!seen.has(key),name); seen.add(key);
       const suggestion = suggestItemInfo(name);
@@ -29,10 +31,52 @@ test('확장 품목의 모든 명칭이 유효한 기본 정보·출처를 갖�
     }
   }
 });
+test('실제 검색어 용기의 대표 재질은 수정할 수 있고 재질을 명시한 이름의 충돌은 계속 막는다', () => {
+  const preset = itemPresetInput('컵라면용기');
+  assert.equal(preset.material,'종이'); assert.equal(preset.type,'food-container');
+  const clean = {...preset,contaminated:'no',combined:'no'};
+  assert.equal(judgeDisposal(clean).status,'recycle');
+  assert.ok(judgeDisposal(clean).steps.some(step=>step.includes('헹')));
+  assert.ok(!judgeDisposal(clean).steps.some(step=>step.includes('물에 씻지')));
+  assert.equal(judgeDisposal({...clean,material:'플라스틱',type:'container'}).status,'recycle');
+  assert.ok(!judgeDisposal({...clean,material:'플라스틱',type:'container'}).sourceUrls.includes(lookupItem('컵라면용기').source));
+  assert.equal(judgeDisposal({...clean,material:'스티로폼',type:'other'}).status,'check');
+  assert.equal(judgeDisposal({...clean,itemName:'종이컵라면용기',material:'플라스틱',type:'container'}).status,'check');
+  assert.equal(judgeDisposal({...clean,itemName:'샴푸통',material:'페트병',type:'other-pet'}).status,'recycle');
+  assert.equal(judgeDisposal({...clean,itemName:'샴푸통',material:'페트병',type:'clear-drink'}).status,'check');
+  assert.equal(judgeDisposal({...clean,itemName:'샴푸통',material:'유리',type:'bottle'}).status,'check');
+});
+test('학생 필기구와 음식 포장을 정확한 검색어로 찾고 해당 공식 출처를 함께 반환한다', () => {
+  for (const name of ['연필','색연필','볼펜','형광펜','지우개','보드마카']) {
+    const input = itemPresetInput(name), result = judgeDisposal(input);
+    assert.equal(result.status,'general',name);
+    assert.match(result.method,/종량제/);
+    assert.ok(result.sourceUrls.includes(lookupItem(name).source),name);
+  }
+  assert.equal(itemPresetInput('삼각김밥포장지').material,'비닐');
+  assert.equal(itemPresetInput('삼각커피우유팩').material,'비닐');
+  assert.equal(itemPresetInput('라면건더기봉지').type,'packaging');
+  assert.equal(itemPresetInput('샤프').material,'기타');
+  assert.equal(suggestItemInfo('볼펜모양장난감'),null);
+});
+test('찌꺼기·장류의 지역 차이를 전국 공통 결과로 확정하지 않는다', () => {
+  for (const name of ['커피찌꺼기','남은된장','남은고추장']) {
+    const input = itemPresetInput(name);
+    assert.equal(judgeDisposal(input).status,'check');
+    const geumcheon = judgeDisposal({...input,region:{province:'서울특별시',district:'금천구'}});
+    assert.equal(geumcheon.status,'general'); assert.equal(geumcheon.regional.coverage,'verified');
+    const yuseong = judgeDisposal({...input,region:{province:'대전광역시',district:'유성구'}});
+    assert.equal(yuseong.status,'check'); assert.equal(yuseong.regional.coverage,'unverified');
+    assert.equal(judgeDisposal({...input,itemName:'알수없는찌꺼기',region:{province:'서울특별시',district:'금천구'}}).status,'check');
+  }
+  assert.equal(judgeDisposal(itemPresetInput('대파뿌리')).status,'general');
+  const peel=itemPresetInput('귤껍질'); assert.equal(judgeDisposal(peel).status,'check');
+  assert.equal(judgeDisposal({...peel,foodSeparated:'yes'}).status,'recycle');
+});
 test('생수병 대표 구성과 무라벨 예외, 부속품 현재 상태 및 직접 수정', () => {
   const preset = itemPresetInput('생수병');
   assert.equal(preset.type,'clear-drink'); assert.equal(preset.combined,'yes');
-  assert.equal(preset.separable,'yes'); assert.deepEqual(preset.components,[{material:'비닐',type:'packaging'}]);
+  assert.equal(preset.separable,'yes'); assert.deepEqual(preset.components,[{material:'비닐',type:'packaging',label:'비닐 라벨'}]);
   const clean = {...preset,contaminated:'no',components:preset.components.map(p=>({...p,contaminated:'no'}))};
   assert.equal(judgeDisposal(clean).parts.length,2);
   assert.equal(judgeDisposal(clean).status,'recycle');
@@ -55,6 +99,20 @@ test('건전지·전자제품은 재질을 몰라도 구체적인 별도 수거 
   }
   assert.match(judgeDisposal(itemPresetInput('건전지')).method,/전지/);
   assert.match(judgeDisposal(itemPresetInput('부푼배터리')).method,/먼저 문의/);
+});
+test('자동 입력한 부속품 이름은 상태를 추정하지 않으며 직접 수정·정규화할 수 있다', () => {
+  const preset = itemPresetInput('종이컵뚜껑홀더세트');
+  assert.equal(preset.components.length,2);
+  for (const part of preset.components) assert.ok(part.label);
+  assert.equal(judgeDisposal({...preset,contaminated:'no'}).status,'check');
+  const clean = {...preset,contaminated:'no',components:preset.components.map(part=>({...part,contaminated:'no'}))};
+  assert.equal(judgeDisposal(clean).status,'recycle');
+  assert.equal(judgeDisposal({...clean,components:clean.components.map((part,i)=>({...part,label:`사용자 수정 ${i}`}))}).parts[1].label,'사용자 수정 0');
+  const changed = normalizePart({material:'비닐',type:'packaging',label:'  '+'가'.repeat(50)+'  ',contaminated:'no'});
+  assert.equal(changed.label.length,40);
+  assert.equal(normalizePart({material:'비닐',type:'packaging',label:42}).label,undefined);
+  assert.equal(itemPresetInput('펌프샴푸통').components[0].material,'기타');
+  assert.equal(judgeDisposal({...itemPresetInput('펌프샴푸통'),contaminated:'no'}).status,'check');
 });
 test('운영 DB의 기존 품목과 신규 품목 병합, DB 충돌 및 기본값 변경 방지', () => {
   setItemCatalog([{id:'old',aliases:['생수병'],material:'페트병',item_type:'',note:'이전 안내'}, {id:'old-battery',aliases:['건전지'],material:'',item_type:'',note:'이전 미분류'}]);

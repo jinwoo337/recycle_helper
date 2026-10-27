@@ -3,15 +3,16 @@ import { lookupItem, normalizeItemName } from './item-suggestions.js';
 import { judgeFood, FOOD_SOURCE } from './food.js';
 import { applyRegionalRules } from './regions.js';
 import { specialItemGuide } from './special-guides.js';
+import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 
-export const RULE_VERSION = '2026-10-27.v6';
+export const RULE_VERSION = '2026-10-27.v7';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
-  '음식물류': [['soft', '밥·면·확인된 부드러운 과일 껍질'], ['excluded', '단단한 뼈·껍데기·씨앗 등 수거 제외 품목'], ['unknown', '종류를 모르겠어요']],
+  '음식물류': [['soft', '확인된 음식물·부드러운 껍질 (뼈·포장 등 제외)'], ['excluded', '단단한 뼈·껍데기·씨앗 등 수거 제외 품목'], ['fibrous', '질긴 뿌리·대·겉껍질 등 수거 제외 부산물'], ['residue', '커피·차·약재 찌꺼기·장류 등 수거 제외 품목'], ['unknown', '종류를 모르겠어요']],
   '플라스틱': [['container', '일반 용기·트레이'], ['other', '그 밖의 플라스틱 제품'], ['unknown', '모르겠어요']],
   '페트병': [['clear-drink', '무색 투명한 생수·음료 페트병'], ['other-pet', '유색 페트병 / 식용유·세제 등 다른 용도'], ['unknown', '모르겠어요']],
-  '종이': [['paper', '일반 종이·상자·책'], ['carton', '종이팩 (우유팩·두유팩 등)'], ['cup', '일반 종이컵 (양면 코팅 제외)'], ['excluded', '감열 영수증·사진·종이호일·사용한 휴지'], ['coated', '분리되지 않는 코팅 종이·양면 코팅 종이컵'], ['unknown', '모르겠어요']],
+  '종이': [['paper', '일반 종이·상자·책'], ['carton', '종이팩 (우유팩·두유팩 등)'], ['cup', '일반 종이컵 (양면 코팅 제외)'], ['food-container', '수거 가능한 종이 식품 용기 (표시·지역 확인)'], ['excluded', '감열 영수증·사진·종이호일·사용한 휴지'], ['coated', '분리되지 않는 코팅 종이·양면 코팅 종이컵'], ['unknown', '모르겠어요']],
   '유리': [['bottle', '깨지지 않은 일반 음료·식품 유리병'], ['broken', '깨진 유리'], ['special', '내열유리·거울·판유리·크리스탈 등'], ['unknown', '모르겠어요']],
   '금속·캔': [['food-can', '음료·식품용 캔'], ['hazard', '가스·스프레이·페인트 등 특수 용기'], ['other', '그 밖의 금속 제품'], ['unknown', '모르겠어요']],
   '비닐': [['packaging', '비닐 봉투·포장재·랩'], ['other', '고무장갑·장판 등 그 밖의 제품'], ['unknown', '모르겠어요']],
@@ -20,7 +21,7 @@ export const TYPES = {
 
 export function supportsState(part = {}) {
   return ({ '플라스틱': ['container'], '페트병': ['clear-drink', 'other-pet'],
-    '종이': ['paper', 'carton', 'cup'], '유리': ['bottle'], '금속·캔': ['food-can'],
+    '종이': ['paper', 'carton', 'cup', 'food-container'], '유리': ['bottle'], '금속·캔': ['food-can'],
     '비닐': ['packaging'], '스티로폼': ['packaging'] })[part.material]?.includes(part.type) || false;
 }
 
@@ -32,6 +33,7 @@ export function needsWashQuestion(part = {}) {
 export function normalizePart(part = {}) {
   if (!part || typeof part !== 'object' || Array.isArray(part)) part = {};
   const clean = { material: part.material || '', type: part.type || '' };
+  if (typeof part.label === 'string' && part.label.trim()) clean.label = part.label.trim().slice(0,40);
   if (clean.material === '음식물류' && clean.type === 'soft') return { ...clean, foodSeparated: part.foodSeparated || '' };
   if (!supportsState(clean)) return clean;
   clean.contaminated = part.contaminated || '';
@@ -103,6 +105,8 @@ function judgePart(raw, itemName = '') {
       ? ['종이팩으로 분리배출', '종이팩은 일반 종이와 구분해 수거해요.', '종이팩은 내용물을 비우고 헹궈 말린 뒤 전용 수거함에 넣어 주세요. 수거함이 없으면 지역 안내를 확인해 주세요.']
       : p.type === 'cup'
         ? ['종이컵으로 분리배출', '일반 종이컵은 별도 확인이 필요한 코팅 제품과 구분해 배출해요.', '양면 코팅 여부를 확인하고, 내용물을 비우고 헹궈 모아 주세요. 양면 코팅이면 지역 안내를 확인해 주세요.']
+        : p.type === 'food-container'
+          ? ['종이 식품 용기로 분리배출 · 지역 수거 확인', '수거 가능한 종이 식품 용기는 내용물과 오염 제거가 필요해요.', '내용물을 비우고 헹궈 음식물·이물질을 제거한 뒤 말려 주세요. 도포·첩합 표시나 분리 불가한 다른 재질이 있으면 일반 수거 대상으로 단정하지 말고 다시 확인해 주세요.']
         : ['종이류로 분리배출', '일반 종이류이며 제거할 수 없는 오염·코팅이 확인되지 않았어요.', '물에 씻지 말고 물기에 젖지 않게 펴거나 접어 모아 주세요.'],
     '유리': ['유리병으로 분리배출', '깨지지 않은 일반 식품·음료 유리병이에요.', '내용물을 비우고 깨뜨리지 마세요. 보증금 대상 병은 소매점 반납이 가능해요.'],
     '금속·캔': ['금속캔으로 분리배출', '일반 음료·식품용 금속캔이에요.', '내용물을 비우고 날카로운 가장자리에 주의해 주세요.'],
@@ -121,7 +125,10 @@ function judgePart(raw, itemName = '') {
 
 export function judgeDisposal(input = {}) {
   const safe = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
-  return applyRegionalRules(safe, judgeBaseDisposal(safe));
+  const base = judgeBaseDisposal(safe);
+  const item = lookupItem(safe.itemName), source = item?.source;
+  if (item && item.material === safe.material && (!item.type || item.type === safe.type) && Object.hasOwn(CATALOG_DETAIL_SOURCES, source)) base.sourceUrls = [...new Set([...base.sourceUrls,source])];
+  return applyRegionalRules(safe, base);
 }
 
 function judgeBaseDisposal(input = {}) {
@@ -133,7 +140,8 @@ function judgeBaseDisposal(input = {}) {
   const dangerous = /전자제품|전기제품|휴대폰|충전기|배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이|전자담배|이어폰|멀티탭|전기완구|전동/.test(name)
     && !(name === '전자제품포장완충재' && input.material === '스티로폼' && input.type === 'packaging');
   const allowedTypes = name === '종이컵' ? ['cup', 'coated'] : null;
-  const conflict = known?.material && (input.material !== known.material || (known.type && input.type !== known.type) || (allowedTypes && !allowedTypes.includes(input.type)));
+  const acceptedVariant = known?.variants?.[input.material]?.includes(input.type);
+  const conflict = known?.material && !acceptedVariant && (input.material !== known.material || (known.type && input.type !== known.type) || (allowedTypes && !allowedTypes.includes(input.type)));
   // 이름·재질 충돌이나 미등록 품목을 확인하기 전에는 재질별 배출도 확정하지 않습니다.
   if (dangerous || !known || conflict) {
     const guarded = dangerous
@@ -159,7 +167,7 @@ function judgeBaseDisposal(input = {}) {
     } else if (input.combined === 'yes') {
       if (result.status !== 'check') result.steps.unshift('다른 재질의 부속품을 본체에서 분리해 주세요.');
       const components = Array.isArray(input.components) ? input.components : [];
-      components.forEach((component, index) => parts.push({ label: `부속품 ${index + 1}`, material: component?.material || '미확인', ...judgePart(component) }));
+      components.forEach((component, index) => parts.push({ label: normalizePart(component).label || `부속품 ${index + 1}`, material: component?.material || '미확인', ...judgePart(component) }));
       if (!components.length || parts.some(part => part.status === 'check')) {
         result.status = 'check'; result.method = '일부 재질 추가 확인 필요';
         result.reasons.push('본체 또는 부속품의 정보를 더 확인해야 해요. 재질별 안내를 확인해 주세요.');

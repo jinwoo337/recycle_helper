@@ -15,6 +15,7 @@ const validOutcome = value => value && ['recycle', 'general', 'check', 'mixed'].
   && typeof value.method === 'string' && strings(value.steps) && strings(value.reasons);
 const partKeys = ['material', 'type', 'contaminated', 'washed', 'removable', 'combined', 'separable', 'foodSeparated'];
 const validPart = part => part && typeof part === 'object' && !Array.isArray(part)
+  && (part.label === undefined || (typeof part.label === 'string' && part.label.length <= 40))
   && partKeys.every(key => part[key] === undefined || typeof part[key] === 'string');
 const validRegional = regional => regional === undefined || (regional && typeof regional === 'object'
   && ['verified', 'unverified'].includes(regional.coverage) && typeof regional.label === 'string'

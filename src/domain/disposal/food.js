@@ -1,6 +1,9 @@
 // 서울시·금천구 공개 안내에서 확인한 제한된 음식물류 범위입니다.
 export const FOOD_SOURCE = 'https://geumcheon.go.kr/portal/contents.do?key=818';
 export function judgeFood(part) {
+  if (['fibrous','residue'].includes(part.type)) return { status:part.type === 'residue' ? 'check' : 'general',method:part.type === 'residue' ? '찌꺼기·장류 · 지역 음식물 수거·별도 회수 기준 확인' : '음식물 수거 제외 · 지역 회수·일반폐기물 기준 확인',
+    reasons:[part.type === 'fibrous' ? '질긴 뿌리·대·겉껍질 등은 음식물 자원화 과정에 적합하지 않은 부산물로 구분해요.' : '찌꺼기·장류는 지역별 처리 방식과 별도 회수 여부가 달라 전국 공통 분류로 확정하지 않아요.'],
+    steps:['포장·다른 이물질을 제거하고 다른 음식물과 섞기 전에 분류를 확인해 주세요.', '거주지에서 음식물 수거 대상인지 또는 일반폐기물로 분류하는지 확인해 주세요.', '커피박 등은 별도 회수·자원화 사업의 접수 대상인지도 확인해 주세요.'] };
   if (part.type === 'excluded') return { status: 'general', method: '음식물 수거 제외 · 지역 일반폐기물 기준 확인',
     reasons: ['단단한 뼈·껍데기·씨앗 등은 음식물 자원화에 적합하지 않은 품목이에요.'],
     steps: ['먹을 수 있는 음식물과 따로 분리해 주세요.', '날카로운 뼈·껍데기는 다치지 않게 감싸 주세요.', '지역의 종량제봉투 등 일반폐기물 배출 기준을 확인해 주세요.'] };

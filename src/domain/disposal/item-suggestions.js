@@ -1,4 +1,5 @@
 import { expandedItemEntries } from './expanded-catalog.js';
+import { ITEM_VARIANTS } from './item-variants.js';
 // 정확한 품목명만 일치시킵니다. 대표 구성은 별도 메타데이터로 관리합니다.
 export const bundledItemEntries = [
   [['우유팩', '두유팩', '주스팩', '쥬스팩', '멸균우유팩', '멸균팩', '종이팩'], '종이', 'carton'],
@@ -57,7 +58,7 @@ export function lookupItem(name) {
   const chosen = local && !entry[1] ? local : entry;
   const [, material, type, note = '실제 재질 표시를 확인해 주세요. 오염과 결합 상태는 직접 선택해 주세요.'] = chosen;
   const compatible = local && local[1] === material && (!type || local[2] === type || local[4]?.defaults?.type === type);
-  return { material, type, note:compatible ? local[3] : note, ...(compatible ? structuredClone(local[4]) : {}) };
+  return { material, type, note:compatible ? local[3] : note, ...(compatible ? structuredClone(local[4]) : {}), ...(compatible && ITEM_VARIANTS[normalized] ? {variants:structuredClone(ITEM_VARIANTS[normalized])} : {}) };
 }
 
 // 부분 일치는 추천 전용이며 재질 자동 입력은 정확히 일치하는 이름에만 적용합니다.

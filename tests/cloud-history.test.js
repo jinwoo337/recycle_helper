@@ -4,6 +4,7 @@ import { createCloudHistoryRepository } from '../src/services/cloud-history.js';
 import { validRecord } from '../src/services/disposal-history.js';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { categoryOf } from '../src/domain/disposal/statistics.js';
+import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 
 const owner = '11111111-1111-4111-8111-111111111111';
 const input = { itemName: '우유팩', material: '종이', type: 'carton', contaminated: 'no', combined: 'no' };
@@ -11,6 +12,21 @@ const makeRecord = () => ({ schemaVersion: 2, id: crypto.randomUUID(), itemName:
   input: structuredClone(input), result: judgeDisposal(input), createdAt: new Date().toISOString() });
 const row = record => ({ id: record.id, user_id: owner, item_name: record.itemName,
   input: record.input, result: record.result, created_at: record.createdAt });
+
+test('클라우드: 대표 구성의 수정한 부속품 이름은 결과·저장·다시 불러오기에 보존된다', async () => {
+  const db = fakeDatabase();
+  const repo = createCloudHistoryRepository(db,owner,()=>({id:owner}),validRecord);
+  const configured = {...itemPresetInput('두부용기'),contaminated:'no'};
+  configured.components = configured.components.map(part=>({...part,label:'직접 확인한 포장 필름',contaminated:'no'}));
+  const record = {...makeRecord(),itemName:configured.itemName,input:configured,result:judgeDisposal(configured)};
+  assert.equal(validRecord(record),true);
+  assert.equal(record.result.parts[1].label,'직접 확인한 포장 필름');
+  await repo.save(record);
+  const [restored] = await createCloudHistoryRepository(db,owner,()=>({id:owner}),validRecord).list();
+  assert.deepEqual(restored,record);
+  assert.equal(validRecord({...record,input:{...configured,components:[{...configured.components[0],label:42}]}}),false);
+  assert.equal(validRecord({...record,input:{...configured,components:[{...configured.components[0],label:'가'.repeat(41)}]}}),false);
+});
 
 function fakeDatabase(initial = []) {
   const rows = structuredClone(initial), legacy = [], calls = [], receipts = new Set();

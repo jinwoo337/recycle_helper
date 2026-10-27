@@ -52,9 +52,15 @@ export function applyRegionalRules(input, base) {
       set(REGIONAL_SOURCES.gimpoRecycle, '김포시: 공동주택은 투명 페트병 전용 수거함, 단독주택 등은 전용봉투 또는 투명·반투명 봉투에 담아 배출해요.');
     }
   }
-  if (region?.province === '서울특별시' && region.district === '금천구' && single && input.material === '음식물류' && ['general', 'recycle'].includes(result.status)) {
+  const geumcheonFood = region?.province === '서울특별시' && region.district === '금천구' && single && input.material === '음식물류';
+  if (geumcheonFood && input.type === 'residue' && result.status === 'check' && result.parts.length===1 && result.parts[0].label==='본체') {
+    result.status = 'general'; result.method = '금천구 음식물 수거 제외 · 일반규격봉투 배출';
+    result.steps = ['포장·이물질을 따로 분리해 주세요.', '금천구 안내에 따라 생활폐기물 일반규격봉투로 배출해 주세요.', '커피박 등 별도 회수 사업을 이용하려면 해당 접수 조건을 먼저 확인해 주세요.'];
+    result.parts[0] = {...result.parts[0],status:result.status,method:result.method,steps:[...result.steps]};
+  }
+  if (geumcheonFood && ['general', 'recycle'].includes(result.status)) {
     set(REGIONAL_SOURCES.geumcheonFood, result.status === 'general'
-      ? '금천구는 뼈·패류 껍데기·알 껍데기·단단한 씨 등을 생활폐기물 일반규격봉투로 배출하도록 안내해요.'
+      ? '금천구는 해당 음식물 수거 제외 품목을 생활폐기물 일반규격봉투로 배출하도록 안내해요. 별도 회수 사업이 있으면 해당 안내를 확인해 주세요.'
       : '금천구 안내에 따라 음식물 외 이물질과 수분을 제거하고 음식물류 수거 방식에 맞춰 배출해 주세요.');
   }
   const daejeon = region?.province === '대전광역시' && DAEJEON_GUIDES[region.district];
