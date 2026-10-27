@@ -5,9 +5,10 @@ import { lookupItem } from '../src/domain/disposal/item-suggestions.js';
 
 // 생각(thinking)하는 모델은 응답이 늦을 수 있어 함수 실행 시간을 늘립니다.
 export const config = { maxDuration: 30 };
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-// 기본 모델이 붐비면(503 등) 이 모델로 한 번 더 시도합니다.
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || (MODEL === 'gemini-2.5-flash' ? 'gemini-2.5-flash-lite' : 'gemini-2.5-flash');
+// gemini-2.5-flash는 새 사용자에게 제공되지 않아(404) Google이 안내한 모델을 기본으로 씁니다.
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+// 기본 모델이 붐비거나(503 등) 없어졌으면(404) 이 모델로 한 번 더 시도합니다. 비어 있으면 건너뜁니다.
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || '';
 const BUSY_STATUSES = [429, 500, 503, 504];
 const PER_MINUTE = Number(process.env.AI_RATE_LIMIT_PER_MINUTE || 10);
 const PER_DAY = Number(process.env.AI_DAILY_LIMIT || 500);
@@ -54,21 +55,31 @@ export async function classifyWithGemini(name, { apiKey = process.env.GEMINI_API
 
 const isBusy = error => BUSY_STATUSES.includes(error?.status) || ['TimeoutError', 'AbortError'].includes(error?.name);
 
-// 일시적인 과부하는 잠시 뒤 같은 모델로 한 번, 그래도 안 되면 예비 모델로 한 번 더 시도합니다.
-// 함수 실행 시간(30초) 안에 끝나도록 시도마다 9초 제한을 둡니다.
-export async function classifyWithRetry(name, { model = MODEL, fallbackModel = FALLBACK_MODEL, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), ...options } = {}) {
-  const models = [model, model, ...(fallbackModel && fallbackModel !== model ? [fallbackModel] : [])];
+// 일시적인 과부하는 기본 모델로 최대 3번(0.8초, 2초 쉬고) 시도하고, 그래도 안 되면 예비 모델을 씁니다.
+// 기본 모델이 없어졌으면(404) 바로 예비 모델로 넘어갑니다. 예비 모델이 없으면 마지막 오류를 알립니다.
+// 함수 실행 시간(30초) 안에 끝나도록 전체 27초 안에서 시도마다 시간을 나눠 씁니다.
+export async function classifyWithRetry(name, { model = MODEL, fallbackModel = FALLBACK_MODEL, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now, budgetMs = 27_000, ...options } = {}) {
+  const deadline = now() + budgetMs;
+  const attempt = current => classifyWithGemini(name, { ...options, model: current, timeoutMs: Math.max(1_000, Math.min(12_000, deadline - now())) });
   let lastError;
-  for (const [index, current] of models.entries()) {
-    if (index === 1) await wait(800);
-    try { return await classifyWithGemini(name, { timeoutMs: 9_000, ...options, model: current }); }
+  for (const pause of [0, 800, 2_000]) {
+    if (pause) await wait(pause);
+    try { return await attempt(model); }
     catch (error) {
-      if (!isBusy(error)) throw error;
-      console.error('classify retry', current, error?.message);
+      console.error('classify retry', model, error?.message);
       lastError = error;
+      if (!isBusy(error)) break;
+      if (now() >= deadline - 1_000) break;
     }
   }
-  throw lastError;
+  if (!isBusy(lastError) && lastError?.status !== 404) throw lastError;
+  if (!fallbackModel || fallbackModel === model || now() >= deadline - 1_000) throw lastError;
+  try { return await attempt(fallbackModel); }
+  catch (error) {
+    console.error('classify retry', fallbackModel, error?.message);
+    // 예비 모델이 붐비면 그 오류를, 그 밖이면 기본 모델의 오류를 알립니다.
+    throw isBusy(error) ? error : isBusy(lastError) ? lastError : error;
+  }
 }
 
 function send(res, status, body, cacheSeconds = 0) {

@@ -29,7 +29,8 @@
 1. **Gemini API 키 발급**: [Google AI Studio](https://aistudio.google.com/app/apikey)에서 키를 만듭니다. Gemini API 약관상 만 18세 이상만 사용할 수 있으므로 보호자나 지도 교사 계정으로 발급하세요.
 2. **Vercel 환경변수 등록**: Vercel 대시보드 → 프로젝트 → Settings → Environment Variables
    - `GEMINI_API_KEY` = 발급한 키 (필수)
-   - `GEMINI_MODEL` = 사용할 모델 이름 (선택, 기본값 `gemini-2.5-flash`. AI Studio에서 현재 제공되는 모델 이름을 확인하세요)
+   - `GEMINI_MODEL` = 사용할 모델 이름 (선택, 기본값 `gemini-3.8-flash`. AI Studio에서 현재 제공되는 모델 이름을 확인하세요. `gemini-2.5-flash` 같은 2.x 모델은 새로 만든 키에서 404로 거절될 수 있습니다)
+   - `GEMINI_FALLBACK_MODEL` = 예비 모델 이름 (선택, 기본값 없음). 기본 모델이 붐비거나(503) 없을 때(404) 한 번 더 시도합니다. AI Studio에 표시되는 모델 이름을 그대로 넣으세요.
    - `AI_RATE_LIMIT_PER_MINUTE` (선택, 기본 10) / `AI_DAILY_LIMIT` (선택, 기본 500)
 3. **다시 배포**: 환경변수는 새 배포부터 적용됩니다. Deployments에서 Redeploy 하거나 새로 push합니다.
 4. **확인**: 배포 사이트에서 `실리콘 주걱`처럼 카탈로그에 없는 이름을 입력하고 "AI에게 물어보기"를 누릅니다.
@@ -48,6 +49,7 @@ $env:GEMINI_API_KEY="발급한 키"; npm start
 ## 비용과 한계
 
 - 같은 이름은 Vercel CDN 캐시(7일)와 함수 메모리 캐시로 다시 호출하지 않습니다.
+- Gemini가 붐비면(503) 기본 모델로 최대 3번, 예비 모델이 있으면 한 번 더 시도합니다. 그래도 실패하면 "AI 사용자가 많아 잠시 응답하지 못했어요"가 표시됩니다.
 - 호출 제한은 함수 인스턴스 메모리 기준이라 완벽하지 않습니다. 사용자가 많아지면 Supabase 테이블이나 Vercel KV 기반 제한·캐시로 바꾸는 것을 권장합니다.
 - 무료 사용량과 데이터 활용 조건은 Google 정책에 따라 바뀔 수 있으니 AI Studio에서 확인하세요.
 - AI 추정은 자동 테스트로 "형식과 안전장치"만 검증했습니다. 실제 Gemini 응답의 정확도는 검증하지 않았습니다.

@@ -79,14 +79,22 @@ test('Gemini 과부하: 같은 모델로 재시도하고, 그래도 안 되면 �
   assert.equal((await classifyWithRetry('실리콘 주걱', { ...options, fetcher: retry.fetcher })).route, 'general');
   assert.equal(retry.urls.length, 2); assert.ok(retry.urls[1].includes('main-model'));
 
-  const fallback = scripted(busy, busy, answer);
+  const fallback = scripted(busy, busy, busy, answer);
   const result = await classifyWithRetry('실리콘 주걱', { ...options, fetcher: fallback.fetcher });
   assert.equal(result.route, 'general'); assert.equal(result.type, '', "'none'은 빈 값으로 바뀜");
-  assert.equal(fallback.urls.length, 3); assert.ok(fallback.urls[2].includes('backup-model'));
+  assert.equal(fallback.urls.length, 4); assert.ok(fallback.urls[2].includes('main-model')); assert.ok(fallback.urls[3].includes('backup-model'));
+
+  const alone = scripted(busy, busy, busy);
+  await assert.rejects(classifyWithRetry('실리콘 주걱', { ...options, fallbackModel: '', fetcher: alone.fetcher }), error => error.status === 503);
+  assert.equal(alone.urls.length, 3, '예비 모델이 없으면 기본 모델만 3번');
 
   const bad = scripted({ ok: false, status: 400, json: async () => ({}) });
   await assert.rejects(classifyWithRetry('실리콘 주걱', { ...options, fetcher: bad.fetcher }), error => error.status === 400);
   assert.equal(bad.urls.length, 1, '400은 재시도하지 않음');
+
+  const gone = scripted({ ok: false, status: 404, json: async () => ({ error: { message: 'no longer available' } }) }, answer);
+  assert.equal((await classifyWithRetry('실리콘 주걱', { ...options, fetcher: gone.fetcher })).route, 'general');
+  assert.equal(gone.urls.length, 2, '없어진 모델은 다시 부르지 않고 예비 모델로'); assert.ok(gone.urls[1].includes('backup-model'));
 });
 
 function fakeResponse() {
