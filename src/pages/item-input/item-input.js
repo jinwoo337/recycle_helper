@@ -66,7 +66,7 @@ export function itemInputPage() {
         <label class="ai-toggle"><input type="checkbox" id="ai-enabled" role="switch"><span class="ai-toggle-track" aria-hidden="true"></span><span class="ai-toggle-text"><strong>🤖 AI 안내 켜기</strong><small>선택 기능이에요. 직접 고른 종류와 확인된 기준을 우선해요.</small></span></label>
         <div id="ai-guess-box" class="ai-panel" hidden role="status" aria-live="polite"><p class="ai-panel-title" id="ai-guess-text"></p><p class="ai-panel-reason" id="ai-guess-status"></p><button type="button" class="button secondary" id="ai-guess-button" hidden>다시 묻기</button></div></div>
         <div class="example-items input-examples" aria-label="자주 찾는 물건">${['우유팩', '투명생수병', '과자봉지', '종이상자'].map(name => `<button class="history-action" type="button" data-item-example="${name}">${name}</button>`).join('')}</div></div>
-        </section><section id="item-category-section" class="item-category-section" hidden><h2>어떤 종류의 물건인가요?</h2><p class="input-hint">사전에 없는 물건도 종류를 직접 고르면 AI 없이 안내받을 수 있어요. 약·전지 등은 재질을 고르지 않아도 돼요.</p><div class="field"><label for="item-category">물건 종류</label><select id="item-category" name="category"><option value="">실제 물건에 맞는 종류 선택</option>${ITEM_CATEGORIES.map(([id, label]) => `<option value="${id}">${escapeHtml(label)}</option>`).join('')}</select></div><p id="category-guidance" class="input-hint" role="status"></p></section>
+        </section><details id="item-category-section" class="item-category-section" hidden><summary id="item-category-summary">약·전지·전자제품처럼 따로 버리는 물건이면 종류 고르기</summary><p class="input-hint">사전에 없는 물건도 종류를 직접 고르면 AI 없이 안내받을 수 있어요. 약·전지 등은 재질을 고르지 않아도 돼요.</p><div class="field"><label for="item-category">물건 종류</label><select id="item-category" name="category"><option value="">실제 물건에 맞는 종류 선택</option>${ITEM_CATEGORIES.map(([id, label]) => `<option value="${id}">${escapeHtml(label)}</option>`).join('')}</select></div><p id="category-guidance" class="input-hint" role="status"></p></details>
         <section id="item-conditions" aria-labelledby="conditions-title" hidden><h2 id="conditions-title">2. 상태 확인</h2>${partFields('', '주요 재질')}
       </section>
       <section id="combination-section" aria-labelledby="item-state" hidden><h3 id="item-state">다른 재질 확인</h3>
@@ -221,9 +221,14 @@ export function bindItemInput() {
     const dedicated = Boolean(known?.handling && known.material === '기타');
     const category = form.elements.namedItem('category');
     document.getElementById('item-category-section').hidden = !unregistered;
-    category.required = unregistered; category.disabled = !unregistered;
-    const needsMaterial = !dedicated && (!unregistered || ['packaging', 'food'].includes(category.value));
+    category.required = false; category.disabled = !unregistered;
+    // 자동 인식했거나 직접 고른 별도 수거 종류면 재질을 묻지 않고, 그 밖에는 재질·상태만 묻습니다.
+    const needsMaterial = !dedicated && (!unregistered || !category.value || ['packaging', 'food'].includes(category.value));
     const detected = keywordCategory();
+    const categorySection = document.getElementById('item-category-section');
+    if (detected && category.value === detected.category) categorySection.open = false;
+    document.getElementById('item-category-summary').textContent = category.value && !['packaging', 'food'].includes(category.value)
+      ? `물건 종류: ${categoryLabel(category.value)}${detected && category.value === detected.category ? ' (이름으로 자동 인식)' : ''} · 바꾸기` : '약·전지·전자제품처럼 따로 버리는 물건이면 종류 고르기';
     document.getElementById('category-guidance').textContent = detected && category.value === detected.category ? `이름의 ‘${detected.keyword}’(으)로 자동으로 골랐어요. 다른 물건이면 종류를 바꿔 주세요.` : category.value && !needsMaterial ? '재질 선택 없이 종류별 수거 안내를 확인할 수 있어요.' : category.value ? '재질·세부 종류와 현재 상태를 확인해 주세요.' : '';
     document.getElementById('item-conditions').hidden = !hasName || !needsMaterial;
     updateAiBox(hasName);
@@ -343,6 +348,8 @@ export function bindItemInput() {
   function collect() {
     const input = { itemName: nameInput.value.trim(), ...normalizePart(partValue('')), region: judgementRegion.get() };
     if (!lookupItem(input.itemName)?.material && value('category')) input.category = value('category');
+    // 종류를 고르지 않고 재질을 고른 미등록 품목은 '재질 표시를 확인한 포장재·용기'로 판별합니다. AI 추정이 있으면 AI를 따릅니다.
+    else if (!lookupItem(input.itemName)?.material && input.material && !aiMatches(input.itemName)) input.category = input.material === '음식물류' ? 'food' : 'packaging';
     if (supportsState(input)) {
       input.combined = value('combined');
       if (input.combined === 'yes') {
