@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GAME_BINS, GAME_QUESTIONS, GAME_MAX_QUESTIONS, GAME_POOL_VERSION, gameItemKey, createGame, gameOptions, answerGame, gameExplanation, remainingSeconds, validateRankedGameState } from '../src/domain/disposal/game.js';
+import { GAME_BINS, GAME_QUESTIONS, GAME_MAX_QUESTIONS, GAME_POOL_VERSION, gameItemKey, createGame, gameOptions, answerGame, gameExplanation, remainingSeconds, validateRankedGameState, gamePrompt, gameStreak } from '../src/domain/disposal/game.js';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { gamePage } from '../src/pages/game/game.js';
 import { layout } from '../src/layouts/layout.js';
@@ -106,4 +106,33 @@ test('게임 탭은 회원·비회원 모두 접근하며 기존 기록과 분�
     const html=layout(gamePage(),'game',member);
     assert.ok(html.includes('href="#/game" aria-current="page">게임</a>'));
   }
+});
+
+test('어려운 표시 방식도 판별 입력·정답·서버 문제 ID를 변경하지 않는다',()=>{
+  const displayed=new Map();
+  for(const q of GAME_QUESTIONS){
+    const before=structuredClone(q),prompt=gamePrompt(q);
+    assert.ok(prompt.name.trim());assert.ok(prompt.condition.trim());
+    assert.deepEqual(q,before);
+    assert.ok(!displayed.has(prompt.name) || displayed.get(prompt.name)===gameItemKey(q),'축약한 물건 이름도 서로 구분되어야 합니다.');
+    displayed.set(prompt.name,gameItemKey(q));
+  }
+  const carton=GAME_QUESTIONS.find(q=>q.id==='milk');
+  assert.ok(!gamePrompt(carton).condition.includes('종이팩 전용'));
+  assert.ok(gamePrompt(carton).condition.includes('코팅'));
+  assert.equal(gamePrompt(GAME_QUESTIONS.find(q=>q.id==='glass')).name,'잼병');
+  assert.ok(!gamePrompt(GAME_QUESTIONS.find(q=>q.id==='plastic')).condition.includes('플라스틱'));
+  assert.ok(gamePrompt(GAME_QUESTIONS.find(q=>q.id==='bag')).condition.includes('필름형'));
+  assert.equal(gamePrompt(GAME_QUESTIONS.find(q=>q.id==='dirty-film')).condition,GAME_QUESTIONS.find(q=>q.id==='dirty-film').condition);
+});
+
+test('연습 오답 선택지에는 관련 분류를 포함하고 연속 정답은 점수와 별도로 집계한다',()=>{
+  const pet=GAME_QUESTIONS.find(q=>q.id==='water');
+  assert.deepEqual(new Set(gameOptions(pet)),new Set(['pet','plastic','glass','general']));
+  const carton=GAME_QUESTIONS.find(q=>q.id==='milk');
+  assert.ok(gameOptions(carton).includes('paper'));
+  assert.equal(gameStreak([]),0);
+  assert.equal(gameStreak([{correct:true},{correct:true}]),2);
+  assert.equal(gameStreak([{correct:true},{correct:false}]),0);
+  assert.equal(gameStreak([{correct:true},{correct:false},{correct:true}]),1);
 });

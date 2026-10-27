@@ -38,6 +38,45 @@ export const GAME_QUESTIONS = [
 
 export const GAME_POOL_VERSION = '2026-10-27.unique-v2';
 export const gameItemKey = question => question.name.normalize('NFKC').replace(/\s+/g,'').toLowerCase();
+const shortGameName = name => name.replace(/^(필름포장|랩포장|종이띠|비닐라벨)/,'')
+  .replace(/^(플라스틱|흰색스티로폼|유리|종이|비닐)(?=.)/,'')
+  .replace('페트병','병').replace('종이팩','팩');
+const shortNameGroups=new Map();
+for(const q of GAME_QUESTIONS){
+  const name=shortGameName(q.name);
+  if(!shortNameGroups.has(name))shortNameGroups.set(name,new Set());
+  shortNameGroups.get(name).add(gameItemKey(q));
+}
+
+// 표시용 힌트만 줄입니다. 실제 판별 입력과 서버의 정답은 변경하지 않습니다.
+export function gamePrompt(question) {
+  const shortened=shortGameName(question.name);
+  // 종이·플라스틱 계란판처럼 축약하면 같은 이름이 되는 경우에는 구분을 유지합니다.
+  const name=shortNameGroups.get(shortened)?.size>1?question.name:shortened;
+  let condition=question.condition;
+  const part=question.input;
+  if(part.contaminated==='no' && part.combined==='no') {
+    if(part.material==='플라스틱' && part.type==='container') condition='합성수지로 만든 용기나 뚜껑이에요. 내용물과 오염은 없고, 포장 필름·라벨 등 다른 재질은 분리했어요.';
+    if(part.material==='종이' && part.type==='paper') condition='펄프로 만든 일반 용지나 포장이에요. 코팅·오염이 없고, 테이프·스프링·다른 재질은 모두 떼었어요. 물에 젖지 않았어요.';
+    if(part.material==='비닐' && part.type==='packaging') condition='얇고 쉽게 접히는 필름형 포장재예요. 내용물·기름·이물질이 없고, 붙어 있던 종이 띠나 단단한 마개는 분리했어요.';
+    if(part.material==='금속·캔' && part.type==='food-can') condition='철·알루미늄 계열의 식품·음료용 캔이에요. 내용물과 기름을 제거했고 다른 재질은 분리했어요.';
+    if(part.material==='스티로폼' && part.type==='packaging') condition='일반 포장용 발포수지 상자나 완충재예요. 코팅·오염이 없고 랩·테이프·라벨은 제거했어요.';
+  }
+  if(part.material==='종이' && part.type==='carton') condition='음료·식품을 담던 종이 기반의 상자형 포장이에요. 헹궈 말리고 빨대·마개는 분리했지만, 안쪽 코팅층은 그대로예요. 이 지역에는 별도 수거함이 있어요.';
+  if(part.material==='종이' && part.type==='coated') condition='겉면에 코팅이나 금속박이 붙어 있고, 종이와 손으로 분리되지 않아요. 음식물이나 다른 오염은 없어요.';
+  if(part.material==='종이' && part.type==='excluded') {
+    if(/감열|영수증/.test(question.name)) condition='일반 인쇄용지가 아니라 열에 반응하는 감열지예요. 음식물이나 기름은 묻지 않았어요.';
+    else if(/인화|사진/.test(question.name)) condition='사진을 인화한 전용 용지예요. 찢어지거나 음식물에 오염되지는 않았어요.';
+    else if(/호일/.test(question.name)) condition='오븐 조리에 사용하는 종이호일이에요. 기름이나 음식물은 남아 있지 않아요.';
+  }
+  return {name:name || question.name,condition};
+}
+
+export function gameStreak(answers) {
+  let count=0;
+  for(let index=answers.length-1;index>=0 && answers[index].correct;index--)count++;
+  return count;
+}
 
 export function validateRankedGameState(state) {
   if(state?.pool_version!==GAME_POOL_VERSION) throw new Error('게임 문제 업데이트가 필요해요. 페이지를 새로고침하고 서버의 문제 업데이트 SQL 적용 여부를 확인해 주세요.');
@@ -86,10 +125,12 @@ export function createGame(random = Math.random, now = performance.now()) {
 }
 
 export function gameOptions(question, random = Math.random) {
-  const nearby = ({ pet:'plastic', plastic:'pet', paper:'carton', carton:'paper' })[question.bin];
-  const required = [question.bin, ...(nearby ? [nearby] : [])];
-  const others = shuffle(Object.keys(GAME_BINS).filter(id=>!required.includes(id)),random);
-  return shuffle([...required,...others.slice(0,4-required.length)],random);
+  const alternatives={pet:['plastic','glass','general'],plastic:['pet','vinyl','general'],paper:['carton','vinyl','general'],
+    carton:['paper','plastic','general'],glass:['plastic','metal','general'],metal:['plastic','glass','general'],
+    vinyl:['plastic','paper','general'],foam:['plastic','vinyl','general']};
+  const general=question.input.material==='비닐'?['vinyl','plastic','paper']
+    :question.input.material==='종이'?['paper','carton','plastic']:['plastic','metal','paper'];
+  return shuffle([question.bin,...(alternatives[question.bin] || general)],random);
 }
 
 export function answerGame(game, bin, now = performance.now()) {
