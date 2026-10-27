@@ -11,8 +11,8 @@ export function historyPage() {
     <a class="back-link" href="#/">← 메인으로</a>
     <header class="history-heading"><div><p class="eyebrow">MY RECYCLING</p><h1>나의 기록과 통계</h1><p>살펴본 물건과 배출 방법을 한눈에 확인해요.</p></div><a href="#/item-input" class="button primary">새 물품 판별하기 ↗</a></header>
     <section class="item-card statistics-card" aria-labelledby="statistics-title"><div class="history-section-title"><div><p class="eyebrow">작은 실천이 쌓이는 중</p><h2 id="statistics-title">분리배출 유형별 통계</h2></div><div class="total-stat"><span>총 판별한 물품</span><strong id="statistics-total">0<span>개</span></strong></div></div>
-      <p class="input-hint">검색과 관계없이 저장된 전체 판별 기록을 집계해요. 같은 물품을 다시 판별하면 각각 1개로 계산하며, 실제 배출 완료를 뜻하지 않아요.</p>
-      <div id="statistics-chart" class="statistics-chart"></div><details class="statistics-help"><summary>통계 집계 기준</summary><p class="input-hint">각 기록은 1개 유형에만 포함해요. 모두 재활용인 복합 물품은 본체 유형으로, 재활용·일반 배출이 섞이면 ‘재질별 배출’로 집계해요. 일반 배출·추가 확인 결과는 해당 유형으로 집계해요.</p><p id="legacy-statistics-note" class="input-hint"></p></details>
+      <p class="input-hint">저장된 판별 기록 기준이며, 실제 배출 완료 수는 아니에요.</p>
+      <div id="statistics-chart" class="statistics-chart"></div><details class="statistics-help"><summary>통계 집계 기준</summary><p class="input-hint">검색과 관계없이 저장된 전체 판별 기록을 집계해요. 같은 물품을 다시 판별하면 각각 1개로 계산하며, 실제 배출 완료를 뜻하지 않아요.</p><p class="input-hint">각 기록은 1개 유형에만 포함해요. 모두 재활용인 복합 물품은 본체 유형으로, 재활용·일반 배출이 섞이면 ‘재질별 배출’로 집계해요. 일반 배출·추가 확인 결과는 해당 유형으로 집계해요.</p><p id="legacy-statistics-note" class="input-hint"></p></details>
     </section>
     <section class="item-card history-card" aria-labelledby="history-title"><div class="history-section-title"><div><p class="eyebrow">MY HISTORY</p><h2 id="history-title">전체 분리배출 기록</h2></div><span id="history-count" class="history-count"></span></div>
       <div class="field history-search"><label for="history-search">물품 이름으로 검색</label><input id="history-search" type="search" placeholder="예: 우유팩, 생수병" maxlength="80"></div>
