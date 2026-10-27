@@ -144,11 +144,14 @@ test('브라우저 서비스: 같은 이름의 요청은 하나로 합치고, �
   assert.equal(failures, 2, '실패한 요청은 기억하지 않음');
 });
 
-test('AI 위험 경로 안내: 전자제품·배터리·가스류에 맞는 별도 수거 단계', () => {
+test('AI 위험 경로만으로 전자제품 처리를 단정하지 않고 직접 고른 종류로 전용 안내한다', () => {
   const result = judgeDisposal({ itemName: '무선마우스X', material: '기타', aiGuess: guess('hazardous', { itemName: '무선마우스X' }) });
-  assert.equal(result.status, 'check'); assert.equal(result.method, '별도 수거 · AI 추정');
-  assert.ok(result.steps.some(step => step.includes('1599-0903')));
-  assert.ok(result.steps.some(step => step.includes('폐건전지')));
+  assert.equal(result.status, 'check'); assert.match(result.method, /물건 종류 확인/);
+  assert.ok(!result.steps.some(step => /1599-0903|폐건전지|전자제품/.test(step)));
+  const selected = judgeDisposal({ itemName: '무선마우스X', category: 'electronic' });
+  assert.match(selected.method, /소형 폐가전/);
+  assert.ok(selected.steps.some(step => /전용 수거함|회수 서비스/.test(step)));
+  assert.equal(selected.aiAssisted, undefined);
 });
 
 test('서버 함수: mode=opinion이면 등록 품목도 AI 의견을 받는다', async () => {

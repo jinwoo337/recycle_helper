@@ -2,6 +2,7 @@ import { memberTools } from '../services/member-tools.js';
 import { getCurrentMember } from '../services/auth.js';
 import { lookupItem, normalizeItemName } from '../domain/disposal/item-suggestions.js';
 import { resultToText } from '../domain/disposal/result-text.js';
+import { bindRegionalComparison } from './regional-comparison.js';
 
 export function resultToolsMarkup(input) {
   return `<div class="result-actions"><button type="button" class="button secondary" data-copy-result>결과 복사</button><button type="button" class="button secondary" data-favorite aria-pressed="false">즐겨찾기</button><button type="button" class="button secondary" data-new-item>다른 물품 검색</button></div>
@@ -14,6 +15,7 @@ export function resultToolsMarkup(input) {
 }
 
 export function bindResultTools(root, input, result, { onNewItem } = {}) {
+  const disposeComparison = bindRegionalComparison(root, input);
   const status = root.querySelector('[data-result-tools-status]');
   const favorite = root.querySelector('[data-favorite]');
   let selected = false, disposed = false, loaded = false;
@@ -58,5 +60,5 @@ export function bindResultTools(root, input, result, { onNewItem } = {}) {
   });
   window.addEventListener('favorites-changed', refreshFavorite);
   refreshFavorite();
-  return () => { disposed = true; window.removeEventListener('favorites-changed', refreshFavorite); };
+  return () => { disposed = true; disposeComparison(); window.removeEventListener('favorites-changed', refreshFavorite); };
 }

@@ -55,7 +55,8 @@ export function lookupItem(name) {
   const entry = entries.find(([names]) => names.some(alias => normalizeItemName(alias) === normalized));
   if (!entry) return null;
   const local = expandedItemEntries.find(([names]) => names.some(alias => normalizeItemName(alias) === normalized));
-  const chosen = local && !entry[1] ? local : entry;
+  // 검토된 별도 수거 경로는 운영 DB의 오래된 재질 정보가 가리지 않게 합니다.
+  const chosen = local && (local[4]?.handling || !entry[1]) ? local : entry;
   const [, material, type, note = '실제 재질 표시를 확인해 주세요. 오염과 결합 상태는 직접 선택해 주세요.'] = chosen;
   const compatible = local && local[1] === material && (!type || local[2] === type || local[4]?.defaults?.type === type);
   return { material, type, note:compatible ? local[3] : note, ...(compatible ? structuredClone(local[4]) : {}), ...(compatible && ITEM_VARIANTS[normalized] ? {variants:structuredClone(ITEM_VARIANTS[normalized])} : {}) };

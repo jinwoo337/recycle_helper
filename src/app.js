@@ -12,6 +12,7 @@ import { bindRegionFields } from './components/region-fields.js';
 import { bindGoogleLogin } from './components/google-login.js';
 import { consumeGoogleLogin, callbackMessage } from './utils/auth-callback.js';
 import { gamePage, bindGame } from './pages/game/game.js';
+import { guidePage, bindGuide } from './pages/guide/guide.js';
 
 const routes = {
   '/': { page: 'main', title: '홈', render: mainPage },
@@ -21,6 +22,7 @@ const routes = {
   '/history': { page: 'history', title: '기록 및 통계', render: historyPage },
   '/profile': { page: 'profile', title: '마이페이지', render: profilePage },
   '/game': { page: 'game', title: '게임', render: gamePage },
+  '/guide': { page: 'guide', title: '분리배출 방법', render: guidePage },
 };
 
 let disposePage;
@@ -40,6 +42,7 @@ function render(moveFocus = false) {
   else if (route.page === 'history') disposePage = bindHistory();
   else if (route.page === 'profile') bindProfile();
   else if (route.page === 'game') disposePage = bindGame();
+  else if (route.page === 'guide') bindGuide();
   else {
     if (route.page === 'signup') bindRegionFields(document.querySelector('form'));
     bindForm(document.querySelector('form'), route.page === 'login' ? submitLogin : submitSignup);

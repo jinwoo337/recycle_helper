@@ -2,10 +2,12 @@ import { getCurrentMember, isAuthReady } from './auth.js';
 import { getSupabase } from './supabase.js';
 import { databaseError, readAllPages } from './database.js';
 import { normalizeItemName } from '../domain/disposal/item-suggestions.js';
+import { validItemCategory } from '../domain/disposal/item-categories.js';
 
 export function validFavoriteInput(input) {
   const fields = ['material', 'type', 'contaminated', 'washed', 'removable', 'combined', 'separable', 'foodSeparated'];
   const part = value => value && typeof value === 'object' && !Array.isArray(value) &&
+    (value.category === undefined || validItemCategory(value.category)) &&
     fields.every(key => value[key] === undefined || typeof value[key] === 'string');
   return part(input) && typeof input.itemName === 'string' && input.itemName.trim().length > 0 &&
     input.itemName.length <= 80 && (input.components === undefined ||

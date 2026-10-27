@@ -2,11 +2,12 @@
 import { lookupItem, normalizeItemName } from './item-suggestions.js';
 import { judgeFood, FOOD_SOURCE } from './food.js';
 import { applyRegionalRules } from './regions.js';
-import { specialItemGuide } from './special-guides.js';
+import { specialItemGuide, guideForHandling } from './special-guides.js';
+import { validItemCategory, categoryLabel } from './item-categories.js';
 import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 
-export const RULE_VERSION = '2026-10-27.v7';
+export const RULE_VERSION = '2026-10-27.v8';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -128,7 +129,7 @@ export function judgeDisposal(input = {}) {
   const safe = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const base = judgeBaseDisposal(safe);
   const item = lookupItem(safe.itemName), source = item?.source;
-  if (item && item.material === safe.material && (!item.type || item.type === safe.type) && Object.hasOwn(CATALOG_DETAIL_SOURCES, source)) base.sourceUrls = [...new Set([...base.sourceUrls,source])];
+  if (item && (item.handling || (item.material === safe.material && (!item.type || item.type === safe.type))) && Object.hasOwn(CATALOG_DETAIL_SOURCES, source)) base.sourceUrls = [...new Set([...base.sourceUrls,source])];
   return applyRegionalRules(safe, base);
 }
 
@@ -136,14 +137,26 @@ function judgeBaseDisposal(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) input = {};
   const name = normalizeItemName(input.itemName);
   const known = lookupItem(name);
-  const special = specialItemGuide(known, input);
-  if (special) return finish(special, [{label:'물품 전체',material:input.material,...structuredClone(special)}]);
+  // 별도 수거 품목은 재질 미입력으로 막지 않고 검토된 품목 경로를 우선합니다.
+  const special = known?.handling && known.material === '기타' ? guideForHandling(known.handling) : specialItemGuide(known, input);
+  if (special) return { ...finish(special, [{label:'물품 전체',material:known.material,...structuredClone(special)}]), handling: known.handling };
   const dangerous = /전자제품|전기제품|휴대폰|충전기|배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이|전자담배|이어폰|멀티탭|전기완구|전동/.test(name)
     && !(name === '전자제품포장완충재' && input.material === '스티로폼' && input.type === 'packaging');
-  const ai = known ? null : validateAiGuess(input.aiGuess, input.itemName);
+  const category = !known?.material && validItemCategory(input.category) ? input.category : '';
+  const manualGuide = category && guideForHandling(category);
+  if (manualGuide) {
+    manualGuide.reasons.push(`직접 선택한 물건 종류(${categoryLabel(category)})를 기준으로 안내해요. 이름으로 확인된 품목은 아니에요.`);
+    const result = finish(manualGuide, [{ label: '물품 전체', material: '기타', ...structuredClone(manualGuide) }]);
+    if (category === 'medicine') result.sourceUrls.push('https://news.seoul.go.kr/env/archives/564807');
+    return { ...result, handling: category };
+  }
+  if (category === 'unknown') return finish(outcome('check', '물건 종류·수거처 확인 필요', '이름과 선택한 정보만으로 배출 경로를 확정할 수 없어요.', ['제품 이름·용도와 분리배출 표시를 확인해 주세요.', '제품 사진·설명서를 준비해 제조사나 거주지 폐기물 담당 부서에 수거 경로를 문의해 주세요.']));
+  if (category === 'large') return finish(outcome('check', '대형폐기물 품목·접수 조건 확인', '가구·큰 생활용품으로 직접 선택했어요.', ['구청 대형폐기물 안내에서 실제 품목·크기에 맞는 접수 대상을 확인해 주세요.', '접수 후 안내받은 필증·배출일·지정 장소에 따라 배출해 주세요.']));
+  const manualMaterial = (category === 'packaging' && ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼'].includes(input.material)) || (category === 'food' && input.material === '음식물류');
+  const ai = known || category ? null : validateAiGuess(input.aiGuess, input.itemName);
   if (ai && !dangerous && ai.route !== 'recyclable') return finishAi(aiOnlyOutcome(ai), input, ai);
   // AI가 재활용 대상으로 분류한 미등록 품목은 AI 재질을 기준 품목처럼 사용하고 나머지는 규칙으로 판별합니다.
-  const reference = known || (ai ? { material: ai.material, type: ai.type } : null);
+  const reference = known || (manualMaterial ? { material: input.material, type: input.type } : null) || (ai ? { material: ai.material, type: ai.type } : null);
   const allowedTypes = name === '종이컵' ? ['cup', 'coated'] : null;
   const acceptedVariant = known?.variants?.[input.material]?.includes(input.type);
   const conflict = reference?.material && !acceptedVariant && (input.material !== reference.material || (reference.type && input.type !== reference.type) || (allowedTypes && !allowedTypes.includes(input.type)));
@@ -157,6 +170,7 @@ function judgeBaseDisposal(input = {}) {
     return finish(guarded, [{ label: '물품 전체', material: input.material || '미확인', ...structuredClone(guarded) }]);
   }
   const result = judgePart(input, input.itemName || '');
+  if (manualMaterial) result.reasons.push(`직접 확인한 물건 종류(${categoryLabel(category)})와 재질·상태를 기준으로 안내해요. 이름으로 확인된 품목은 아니에요.`);
   const parts = [{ label: '본체', material: input.material || '미확인', ...structuredClone(result) }];
   if (supportsState(input)) {
     if (!['yes', 'no'].includes(input.combined)) {
@@ -193,11 +207,10 @@ function judgeBaseDisposal(input = {}) {
 
 // 재활용 외 경로는 정해진 문구만 사용합니다. AI 응답 문장은 판단 근거로만 표시합니다.
 function aiOnlyOutcome(ai) {
-  if (ai.route === 'hazardous') return outcome('check', '별도 수거 · AI 추정', '별도 수거 또는 안전한 처리가 필요한 물품일 수 있어요.', [
+  if (ai.route === 'hazardous') return outcome('check', '물건 종류 확인 후 별도 수거 · AI 추정', '별도 수거 또는 안전한 처리가 필요한 물품일 수 있어요.', [
     '일반 쓰레기·재활용품과 섞지 말고 따로 보관해 주세요.',
-    '배터리가 들어 있으면 분리해 폐건전지 수거함에 넣어 주세요.',
-    '소형 전자제품은 주민센터·아파트의 소형가전 수거함이나 폐가전 무상방문수거(전화 1599-0903, 15990903.or.kr)를 이용해 주세요.',
-    '가스·스프레이·약품 등은 내용물을 임의로 버리지 말고 지자체 안내를 확인해 주세요.']);
+    '위의 물건 종류 질문에서 실제 제품에 맞는 종류를 선택해 주세요. 재질을 몰라도 전용 안내를 받을 수 있어요.',
+    '종류를 모르겠으면 제품 표시·설명서와 거주지 폐기물 담당 부서의 수거 방법을 확인해 주세요.']);
   if (ai.route === 'unknown' || ai.confidence === 'low') return outcome('check', '추가 확인 필요', 'AI도 이 물건의 분류를 확신하지 못했어요.', ['제품의 분리배출 표시와 재질 표시를 확인해 주세요.', '확인이 어려우면 지역 안내나 관리사무소에 문의해 주세요.']);
   if (ai.route === 'large') return outcome('check', '대형폐기물 신고 후 배출 · AI 추정', '종량제봉투에 들어가지 않는 대형 생활용품일 가능성이 높아요.', ['구청·주민센터 또는 지자체 누리집에서 대형폐기물 배출을 신고해 주세요.', '신고 후 받은 스티커(필증)를 붙여 지정 장소에 배출해 주세요.', '작게 분해해 종량제봉투에 들어가면 일반 배출이 가능한지 지역 안내를 확인해 주세요.']);
   return outcome(ai.confidence === 'high' ? 'general' : 'check', '종량제봉투로 배출 · AI 추정', '재활용 수거 대상이 아닌 생활용품일 가능성이 높아요.', ['종량제봉투에 담아 배출해 주세요.', '제품에 분리배출 표시가 있으면 표시를 우선 따라 주세요.']);
@@ -211,6 +224,7 @@ function finishAi(result, input, ai, parts) {
 }
 
 function finish(result, parts) {
+  parts ||= [{ label: '물품 전체', material: '미확인', ...structuredClone(result) }];
   return { ...result, parts, ruleVersion: RULE_VERSION,
     sourceUrls: parts.some(part => part.material === '음식물류') ? [RULE_SOURCE, FOOD_SOURCE] : [RULE_SOURCE],
     sourceUrl: parts.some(part => part.material === '음식물류') ? FOOD_SOURCE : RULE_SOURCE, checkedAt: '2026-10-27',

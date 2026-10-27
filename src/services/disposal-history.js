@@ -3,6 +3,7 @@ import { getRecentItems, storageKey as recentItemsKey } from './recent-items.js'
 import { getSupabase } from './supabase.js';
 import { createCloudHistoryRepository } from './cloud-history.js';
 import { getDisposalStatistics } from '../domain/disposal/statistics.js';
+import { validItemCategory } from '../domain/disposal/item-categories.js';
 
 const MAX_RECORDS = 8;
 function notifyHistoryChanged() {
@@ -15,6 +16,7 @@ const validOutcome = value => value && ['recycle', 'general', 'check', 'mixed'].
   && typeof value.method === 'string' && strings(value.steps) && strings(value.reasons);
 const partKeys = ['material', 'type', 'contaminated', 'washed', 'removable', 'combined', 'separable', 'foodSeparated'];
 const validPart = part => part && typeof part === 'object' && !Array.isArray(part)
+  && (part.category === undefined || validItemCategory(part.category))
   && (part.label === undefined || (typeof part.label === 'string' && part.label.length <= 40))
   && partKeys.every(key => part[key] === undefined || typeof part[key] === 'string');
 const validRegional = regional => regional === undefined || (regional && typeof regional === 'object'

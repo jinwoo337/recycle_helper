@@ -1,5 +1,8 @@
 // 실제 검토한 공개 자료만 결과 화면의 출처로 허용합니다.
 export const CATALOG_DETAIL_SOURCES = {
+  'https://news.seoul.go.kr/env/archives/564807': '서울시 · 폐의약품 수거 안내',
+  'https://www.daejeon.go.kr/drh/depart/board/boardNormalView.do?boardId=normal_0096&menuSeq=1631&ntatcSeq=1438964404': '대전시 · 폐의약품 안내 (2023)',
+  'https://www.donggu.go.kr/dg/kor/article/noticeDong13/142796': '대전 동구 · 폐의약품 안내 (2026)',
   'https://www.nowon.kr/www/minwon/minwon4/minwon4_03/minwon4_03_02.jsp':'노원구 · 생활폐기물 배출 안내',
   'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=316':'품목사전 · 연필·필기구',
   'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=325':'품목사전 · 지우개',

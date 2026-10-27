@@ -25,7 +25,11 @@ test('지역: 김포 깨진 유리 전용마대 기준, 다른 지역/이름충�
   assert.equal(result.regional.coverage, 'verified');
   assert.match(result.parts[0].method, /백색마대/);
   assert.ok(result.regional.sources.includes(REGIONAL_SOURCES.gimpoWaste));
-  for (const altered of [{ ...input, region: geumcheon }, { ...input, itemName: '건전지' }, { ...input, itemName: '모르는유리' }, { ...input, combined: 'yes' }, { ...input, type: 'bottle' }]) {
+  const seoul = judgeDisposal({ ...input, region: geumcheon });
+  assert.equal(seoul.regional.coverage, 'verified');
+  assert.equal(seoul.regional.scope, 'city');
+  assert.doesNotMatch(seoul.method, /백색마대/);
+  for (const altered of [{ ...input, itemName: '건전지' }, { ...input, itemName: '모르는유리' }, { ...input, combined: 'yes' }, { ...input, type: 'bottle' }]) {
     const other = judgeDisposal(altered);
     assert.equal(other.regional.coverage, 'unverified');
     assert.doesNotMatch(other.method, /백색마대/);
