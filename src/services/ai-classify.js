@@ -15,7 +15,7 @@ export async function requestAiGuess(itemName, fetcher = fetchWithTimeout) {
   const key = name.toLowerCase();
   if (memory.has(key)) return memory.get(key);
   let response;
-  try { response = await fetcher(`/api/classify?name=${encodeURIComponent(name)}`, { headers: { Accept: 'application/json' } }, 15000); }
+  try { response = await fetcher(`/api/classify?name=${encodeURIComponent(name)}`, { headers: { Accept: 'application/json' } }, 30000); }
   catch { throw new Error('AI 안내에 연결하지 못했어요. 네트워크를 확인하거나 재질을 직접 선택해 주세요.'); }
   if (!response.ok) throw new Error(messages[response.status] || (response.status === 404
     ? 'AI 안내는 배포된 사이트에서 사용할 수 있어요. 재질을 직접 선택해 주세요.'
