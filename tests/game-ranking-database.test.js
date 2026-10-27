@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
-import {GAME_QUESTIONS} from '../src/domain/disposal/game.js';
+import {GAME_QUESTIONS,gameItemKey,validateRankedGameState} from '../src/domain/disposal/game.js';
 
 test('랭킹 PostgreSQL: 서버 시간·채점·재시도·계정 격리·최고 기록·공개 범위',async()=>{
   const db=new PGlite();
@@ -23,22 +23,26 @@ test('랭킹 PostgreSQL: 서버 시간·채점·재시도·계정 격리·최고
     const seeds=(await db.query('select * from public.disposal_game_questions')).rows;
     assert.equal(seeds.length,GAME_QUESTIONS.length);
     for(const q of GAME_QUESTIONS)assert.equal(seeds.find(row=>row.id===q.id).bin,q.bin);
-    await assert.rejects(asUser(null,'select public.start_disposal_game() as data',[],'anon'),{code:'42501'});
+    await assert.rejects(asUser(null,'select public.start_disposal_game_v2() as data',[],'anon'),{code:'42501'});
     await assert.rejects(asUser(a,'select * from public.disposal_game_sessions'),{code:'42501'});
     await assert.rejects(asUser(a,"insert into public.disposal_game_scores values(gen_random_uuid(),$1,'조작',240,240,now())",[a]),{code:'42501'});
-    const initial=await asUser(a,'select public.start_disposal_game() as data');
+    const initial=await asUser(a,'select public.start_disposal_game_v2() as data');
+    validateRankedGameState(initial);
     assert.ok(initial.remaining_ms>58_000 && initial.remaining_ms<=60_000);
     assert.equal(initial.answered,0);assert.equal(initial.answers.length,0);
     assert.equal(initial.question.options.length,4);assert.equal(initial.question.correctBin,undefined);
     const session=(await db.query('select * from public.disposal_game_sessions where id=$1',[initial.id])).rows[0];
     assert.ok(new Set(session.questions.map(q=>q.id)).size>1);
-    assert.equal(session.questions.length,240);
+    assert.equal(session.questions.length,new Set(GAME_QUESTIONS.map(gameItemKey)).size);
+    assert.equal(new Set(session.questions.map(q=>q.id)).size,session.questions.length);
+    assert.equal(new Set(session.questions.map(q=>gameItemKey(GAME_QUESTIONS.find(item=>item.id===q.id)))).size,session.questions.length);
     assert.ok(session.questions.every((q,i)=>i===0 || q.id!==session.questions[i-1].id));
     await assert.rejects(asUser(b,'select public.get_disposal_game($1) as data',[initial.id]),/현재 계정/);
     await assert.rejects(asUser(b,'select public.answer_disposal_game($1,0,$2) as data',[initial.id,initial.question.options[0]]),/현재 계정/);
     await assert.rejects(asUser(a,"select public.publish_disposal_game($1,'학생A') as data",[initial.id]),/게임이 끝난/);
     const correct=GAME_QUESTIONS.find(q=>q.id===initial.question.id).bin;
     const answered=await asUser(a,'select public.answer_disposal_game($1,0,$2) as data',[initial.id,correct]);
+    validateRankedGameState(answered);
     assert.equal(answered.correct,1);assert.equal(answered.answered,1);
     const retry=await asUser(a,'select public.answer_disposal_game($1,0,$2) as data',[initial.id,correct]);
     assert.equal(retry.answered,1);assert.deepEqual(retry.question,answered.question);
@@ -65,7 +69,30 @@ test('랭킹 PostgreSQL: 서버 시간·채점·재시도·계정 격리·최고
     await db.query("insert into public.disposal_game_sessions(user_id,questions,expires_at,answers) values($1,'[]',clock_timestamp()-interval '1 second',$2::jsonb) returning id",[a,JSON.stringify([{questionId:'box',bin:'plastic',correct:false}])]).then(async result=>{
       await asUser(a,"select public.publish_disposal_game($1,'낮은 기록') as data",[result.rows[0].id]);
     });
+    // 기존 세션과 랭킹을 보존한 채 업데이트 SQL을 재실행합니다.
+    const before=await db.query('select * from public.disposal_game_scores order by session_id');
+    const sessionsBefore=await db.query('select * from public.disposal_game_sessions order by id');
+    const migration=await readFile(new URL('../supabase/game-question-update.sql',import.meta.url),'utf8');
+    await db.exec(migration);await db.exec(migration);
+    assert.deepEqual((await db.query('select * from public.disposal_game_scores order by session_id')).rows,before.rows);
+    assert.deepEqual((await db.query('select * from public.disposal_game_sessions order by id')).rows,sessionsBefore.rows);
+    await assert.rejects(asUser(a,'select public.start_disposal_game() as data'),/새로고침/);
     const best=await asUser(a,'select jsonb_agg(t) as data from public.disposal_game_leaderboard() t');
     assert.equal(best.length,1);assert.equal(best[0].display_name,'학생A');
+    // 시간 안에 준비된 물건을 모두 풀면 재출제하지 않고 종료·등록할 수 있습니다.
+    let full=await asUser(b,'select public.start_disposal_game_v2() as data');
+    const seen=new Set();
+    while(!full.finished){
+      validateRankedGameState(full);
+      const q=GAME_QUESTIONS.find(item=>item.id===full.question.id);
+      assert.ok(!seen.has(gameItemKey(q)));seen.add(gameItemKey(q));
+      full=await asUser(b,'select public.answer_disposal_game($1,$2,$3) as data',[full.id,full.answered,q.bin]);
+    }
+    validateRankedGameState(full);
+    assert.equal(full.answered,new Set(GAME_QUESTIONS.map(gameItemKey)).size);
+    assert.equal(full.correct,full.answered);assert.equal(full.question,null);
+    assert.ok(full.remaining_ms>0);
+    const complete=await asUser(b,"select public.publish_disposal_game($1,'모두 완료') as data",[full.id]);
+    assert.equal(complete.correct,full.answered);
   }finally{await db.close();}
 });

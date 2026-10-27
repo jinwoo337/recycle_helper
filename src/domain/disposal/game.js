@@ -1,4 +1,5 @@
 import { judgeDisposal } from './rules.js';
+import { catalogGameQuestions } from './game-catalog.js';
 
 export const GAME_BINS = {
   pet: { label: '투명 페트병', icon: '🧴' },
@@ -32,7 +33,33 @@ export const GAME_QUESTIONS = [
   question('receipt', '감열영수증', '🧾', '매장에서 받은 감열지 영수증이에요. 일반 인쇄용지가 아니에요.', 'general', { material:'종이', type:'excluded' }),
   question('tissue', '사용한휴지', '🧻', '사용한 휴지예요. 일반 종이류로 모으지 않아요.', 'general', { material:'종이', type:'excluded' }),
   question('dirty-film', '과자봉지', '🍪', '비닐 포장재지만 씻어도 기름과 이물질을 제거할 수 없어요. 내용물은 비웠어요.', 'general', { material:'비닐', type:'packaging', contaminated:'yes', washed:'yes', removable:'no', combined:'no' }),
+  ...catalogGameQuestions,
 ];
+
+export const GAME_POOL_VERSION = '2026-10-27.unique-v2';
+export const gameItemKey = question => question.name.normalize('NFKC').replace(/\s+/g,'').toLowerCase();
+
+export function validateRankedGameState(state) {
+  if(state?.pool_version!==GAME_POOL_VERSION) throw new Error('게임 문제 업데이트가 필요해요. 페이지를 새로고침하고 서버의 문제 업데이트 SQL 적용 여부를 확인해 주세요.');
+  const known=new Map(GAME_QUESTIONS.map(q=>[q.id,q]));
+  if(typeof state.id!=='string' || !Number.isFinite(state.remaining_ms) || state.remaining_ms<0 || state.remaining_ms>60_000
+    || typeof state.finished!=='boolean' || !Array.isArray(state.answers) || state.answers.length>GAME_MAX_QUESTIONS
+    || state.answered!==state.answers.length) throw new Error('게임 응답을 확인하지 못했어요.');
+  const used=new Set();
+  for(const answer of state.answers){
+    const q=known.get(answer.questionId);
+    if(!q || !Object.hasOwn(GAME_BINS,answer.bin) || answer.correctBin!==q.bin || answer.correct!==(answer.bin===q.bin)
+      || used.has(gameItemKey(q))) throw new Error('문제 순서나 채점 결과를 확인하지 못했어요.');
+    used.add(gameItemKey(q));
+  }
+  if(state.correct!==state.answers.filter(a=>a.correct).length)throw new Error('게임 점수를 확인하지 못했어요.');
+  if(!state.finished){
+    const q=known.get(state.question?.id),options=state.question?.options;
+    if(!q || used.has(gameItemKey(q)) || !Array.isArray(options) || options.length!==4 || new Set(options).size!==4
+      || !options.includes(q.bin) || options.some(bin=>!Object.hasOwn(GAME_BINS,bin)))throw new Error('게임 선택지를 확인하지 못했어요.');
+  }
+  return state;
+}
 
 export function shuffle(values, random = Math.random) {
   const result = [...values];
@@ -46,13 +73,16 @@ export function shuffle(values, random = Math.random) {
 export const GAME_DURATION_MS = 60_000;
 export const GAME_MAX_QUESTIONS = 240;
 export function createGame(random = Math.random, now = performance.now()) {
-  const questions=[];
-  while (questions.length<GAME_MAX_QUESTIONS) {
-    const batch=shuffle(GAME_QUESTIONS,random);
-    if (questions.at(-1)?.id===batch[0].id) [batch[0],batch[1]]=[batch[1],batch[0]];
-    questions.push(...batch);
+  const groups=new Map();
+  for(const q of GAME_QUESTIONS){
+    const key=gameItemKey(q);
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(q);
   }
-  return { questions:questions.slice(0,GAME_MAX_QUESTIONS), index:0, answers:[], deadline:now+GAME_DURATION_MS };
+  // 같은 물건의 깨끗한 상태·오염 상태 중 하나만 뽑고, 다시 넣지 않습니다.
+  const questions=shuffle([...groups.values()],random).slice(0,GAME_MAX_QUESTIONS)
+    .map(variants=>variants[Math.floor(random()*variants.length)]);
+  return { questions, index:0, answers:[], deadline:now+GAME_DURATION_MS };
 }
 
 export function gameOptions(question, random = Math.random) {
@@ -64,7 +94,8 @@ export function gameOptions(question, random = Math.random) {
 
 export function answerGame(game, bin, now = performance.now()) {
   const current=game.questions[game.index];
-  if (!current || now>=game.deadline || game.answers.length !== game.index || !Object.hasOwn(GAME_BINS,bin)) return null;
+  if (!current || now>=game.deadline || game.answers.length !== game.index || !Object.hasOwn(GAME_BINS,bin)
+    || (game.options && !game.options.includes(bin))) return null;
   const answer={ questionId:current.id, bin, correct:bin===current.bin };
   game.answers.push(answer);
   return answer;

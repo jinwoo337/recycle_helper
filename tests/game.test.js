@@ -1,19 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GAME_BINS, GAME_QUESTIONS, GAME_MAX_QUESTIONS, createGame, gameOptions, answerGame, gameExplanation, remainingSeconds } from '../src/domain/disposal/game.js';
+import { GAME_BINS, GAME_QUESTIONS, GAME_MAX_QUESTIONS, GAME_POOL_VERSION, gameItemKey, createGame, gameOptions, answerGame, gameExplanation, remainingSeconds, validateRankedGameState } from '../src/domain/disposal/game.js';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { gamePage } from '../src/pages/game/game.js';
 import { layout } from '../src/layouts/layout.js';
 
-test('60초 게임은 문제를 순환하며 각 문제에 정답을 포함한 4개 배출함을 제공한다',()=>{
+test('60초 게임은 동일 물건·문제를 재출제하지 않으며 정답 포함 4개 선택지를 제공한다',()=>{
   assert.equal(new Set(GAME_QUESTIONS.map(q=>q.id)).size,GAME_QUESTIONS.length);
   for(let seed=1;seed<=20;seed++){
     let value=seed;
     const random=()=>((value=(value*16807)%2147483647)/2147483647);
     const game=createGame(random);
-    assert.equal(game.questions.length,GAME_MAX_QUESTIONS);
-    assert.equal(new Set(game.questions.slice(0,16).map(q=>q.id)).size,16);
-    assert.ok(game.questions.every((q,i)=>i===0 || q.id!==game.questions[i-1].id));
+    assert.ok(GAME_QUESTIONS.length>=120);
+    assert.equal(game.questions.length,Math.min(GAME_MAX_QUESTIONS,new Set(GAME_QUESTIONS.map(gameItemKey)).size));
+    assert.equal(new Set(game.questions.map(q=>q.id)).size,game.questions.length);
+    assert.equal(new Set(game.questions.map(gameItemKey)).size,game.questions.length);
     for(const q of game.questions){
       const options=gameOptions(q,random);
       assert.equal(new Set(options).size,4);
@@ -21,6 +22,21 @@ test('60초 게임은 문제를 순환하며 각 문제에 정답을 포함한 4
       assert.ok(options.every(bin=>Object.hasOwn(GAME_BINS,bin)));
     }
   }
+});
+
+test('같은 물건의 오염 상태도 한 판에는 하나만 출제하며 모든 문제를 풀면 재출제하지 않는다',()=>{
+  const seenVariants=new Set();
+  for(let seed=1;seed<40;seed++){
+    let value=seed;
+    const random=()=>((value=(value*16807)%2147483647)/2147483647);
+    const game=createGame(random,0);
+    const snack=game.questions.filter(q=>q.name==='과자봉지');
+    assert.equal(snack.length,1);seenVariants.add(snack[0].id);
+    for(const q of game.questions){assert.ok(answerGame(game,q.bin,1));game.index++;}
+    assert.equal(game.questions[game.index],undefined);
+    assert.equal(answerGame(game,'paper',1),null);
+  }
+  assert.deepEqual([...seenVariants].sort(),['dirty-film','snack']);
 });
 
 test('게임의 정답은 명시된 물건 상태에 대한 기존 판별 규칙과 일치한다',()=>{
@@ -61,6 +77,27 @@ test('게임 제한 시간 경계와 백그라운드 경과 시간은 실제 경
   assert.equal(answerGame(game,game.questions[0].bin,60_000),null);
   assert.equal(game.answers.length,0);
   assert.ok(answerGame(game,game.questions[0].bin,59_999));
+});
+
+test('연습에서도 현재 표시한 선택지 밖의 답변은 채점하지 않는다',()=>{
+  const game=createGame(Math.random,0);
+  game.options=gameOptions(game.questions[0]);
+  const outside=Object.keys(GAME_BINS).find(bin=>!game.options.includes(bin));
+  assert.equal(answerGame(game,outside,1),null);
+  assert.equal(game.answers.length,0);
+});
+
+test('랭킹 응답은 문제 버전·중복 물건·점수·4개 선택지를 검증한다',()=>{
+  const q=GAME_QUESTIONS[0],next=GAME_QUESTIONS[1];
+  const state={pool_version:GAME_POOL_VERSION,id:'session',remaining_ms:50_000,answered:1,correct:1,finished:false,
+    answers:[{questionId:q.id,bin:q.bin,correct:true,correctBin:q.bin}],question:{id:next.id,options:gameOptions(next)}};
+  assert.equal(validateRankedGameState(state),state);
+  assert.throws(()=>validateRankedGameState({...state,pool_version:'old'}),/업데이트/);
+  assert.throws(()=>validateRankedGameState({...state,correct:2}),/점수/);
+  assert.throws(()=>validateRankedGameState({...state,question:{id:q.id,options:gameOptions(q)}}),/선택지/);
+  assert.throws(()=>validateRankedGameState({...state,question:{id:next.id,options:[next.bin,next.bin,'paper','glass']}}),/선택지/);
+  assert.throws(()=>validateRankedGameState({...state,remaining_ms:NaN}),/응답/);
+  assert.throws(()=>validateRankedGameState({...state,answered:2,correct:2,answers:[state.answers[0],state.answers[0]]}),/순서/);
 });
 
 test('게임 탭은 회원·비회원 모두 접근하며 기존 기록과 분리됨을 안내한다',()=>{

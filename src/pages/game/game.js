@@ -2,12 +2,12 @@ import { escapeHtml as esc } from '../../utils/html.js';
 import { RULE_SOURCE } from '../../domain/disposal/rules.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { gameRanking } from '../../services/game-ranking.js';
-import { GAME_BINS, GAME_QUESTIONS, GAME_DURATION_MS, createGame, gameOptions, answerGame, gameExplanation, remainingSeconds } from '../../domain/disposal/game.js';
+import { GAME_BINS, GAME_QUESTIONS, createGame, gameOptions, answerGame, gameExplanation, remainingSeconds, validateRankedGameState } from '../../domain/disposal/game.js';
 
 const byId = new Map(GAME_QUESTIONS.map(q=>[q.id,q]));
 export function gamePage() {
   return `<section class="container game-page"><header class="game-heading"><p class="eyebrow">60초 분리배출 대결</p><h1>누가 더 많이 분리할까요?</h1><p>물건 정보를 읽고 4개 배출함 중 하나를 고르세요.</p></header>
-    <div id="disposal-game" class="game-card"><div class="game-intro"><span class="game-intro-icon" aria-hidden="true">⏱️</span><h2>60초 동안 정확하고 빠르게!</h2><p>정답을 맞힐 때마다 분리 성공 1개.<br>선택하면 바로 다음 물건이 나타나요.</p><ul><li>랭킹은 정답 수 → 오답이 적은 순 → 먼저 등록한 순이에요.</li><li>회원별 최고 기록 하나로 대결해요.</li><li>게임 점수는 실제 분리배출 기록에 저장되지 않아요.</li></ul><div class="game-actions"><button type="button" class="button primary" id="start-ranked">랭킹 도전${getCurrentMember()?'':' · 로그인 필요'}</button><button type="button" class="button secondary" id="start-practice">혼자 연습</button></div><p id="game-start-status" role="status" class="input-hint"></p></div></div>
+    <div id="disposal-game" class="game-card"><div class="game-intro"><span class="game-intro-icon" aria-hidden="true">⏱️</span><h2>60초 동안 정확하고 빠르게!</h2><p>정답을 맞힐 때마다 분리 성공 1개.<br>선택하면 바로 다음 물건이 나타나요.</p><ul><li>한 게임에서는 같은 물건이 반복되지 않아요.</li><li>랭킹은 정답 수 → 오답이 적은 순 → 먼저 등록한 순이에요.</li><li>회원별 최고 기록 하나로 대결해요.</li><li>게임 점수는 실제 분리배출 기록에 저장되지 않아요.</li></ul><div class="game-actions"><button type="button" class="button primary" id="start-ranked">랭킹 도전${getCurrentMember()?'':' · 로그인 필요'}</button><button type="button" class="button secondary" id="start-practice">혼자 연습</button></div><p id="game-start-status" role="status" class="input-hint"></p></div></div>
     <section class="game-card game-ranking" aria-labelledby="ranking-title"><div class="game-progress"><h2 id="ranking-title">🏆 전체 랭킹</h2><button type="button" class="history-action" id="refresh-ranking">새로고침</button></div><p class="input-hint">60초 · 회원별 최고 기록 · 상위 20명 · 공개 이름은 중복될 수 있어요.</p><div id="game-ranking-content" aria-live="polite">랭킹을 불러오고 있어요…</div></section>
     <p class="game-note">일반적인 기준을 배우는 게임이에요. 실제 배출 시 제품 표시와 거주 지역·건물의 수거 기준을 확인해 주세요. <a href="${RULE_SOURCE}" target="_blank" rel="noopener noreferrer">기준 확인 ↗</a></p></section>`;
 }
@@ -23,7 +23,7 @@ export function bindGame() {
   function records(){return game?.answers || [];}
   function count(){return records().filter(a=>a.correct).length;}
   function current(){return mode==='ranked'?byId.get(game.question?.id):game.questions[game.index];}
-  function choices(q){return mode==='ranked'?game.question.options:gameOptions(q);}
+  function choices(q){return mode==='ranked'?game.question.options:(game.options=gameOptions(q));}
   function canContinue(){return game && !finished && remainingSeconds(game.deadline)>0 && current();}
   async function loadRanking(){
     const version=++rankVersion;
@@ -37,11 +37,10 @@ export function bindGame() {
     finally{if(alive() && version===rankVersion)refresh.disabled=false;}
   }
   function applyServer(state){
-    if(!state || !Array.isArray(state.answers) || typeof state.remaining_ms!=='number')throw new Error('게임 응답을 확인하지 못했어요.');
+    validateRankedGameState(state);
     const deadline=performance.now()+Math.max(0,state.remaining_ms);
     // 응답 지연 때문에 화면의 남은 시간이 늘어나지 않도록 유지합니다.
     game={...state,deadline:game?.id===state.id?Math.min(game.deadline,deadline):deadline};
-    if(!state.finished && !byId.has(state.question?.id))throw new Error('문제 정보가 바뀌었어요. 새로고침 후 다시 시작해 주세요.');
   }
   function drawQuestion(last=null){
     const q=current();
@@ -58,7 +57,7 @@ export function bindGame() {
     if(finished || !alive())return;
     finished=true;stopTimer();
     const right=count(),total=records().length;
-    host.innerHTML=`<div class="game-finish"><span class="game-intro-icon" aria-hidden="true">${right>=10?'🏆':'🌱'}</span><h2 id="game-finished" tabindex="-1">시간 종료!</h2><p class="game-score">${right}<small>개 분리 성공</small></p><p>도전 ${total}개 · 정답 ${right}개 · 오답 ${total-right}개${total?` · 정답률 ${Math.round(right/total*100)}%`:''}</p></div>${publishMarkup()}<details class="game-review"><summary>푼 문제와 정답 다시 보기</summary><ol>${records().map(answer=>{const q=byId.get(answer.questionId);return `<li><strong>${answer.correct?'✓ 정답':'✕ 오답'} · ${esc(q.name)}</strong><p>${esc(q.condition)}</p><p>내 선택: ${esc(GAME_BINS[answer.bin].label)} · 정답: ${esc(GAME_BINS[q.bin].label)}</p><p>${esc(gameExplanation(q).reasons.join(' '))}</p></li>`;}).join('')}</ol></details><div class="game-actions"><button type="button" class="button primary" id="restart-game">다시 도전</button><a href="#/item-input" class="button secondary">내 물건 판별하기</a></div>`;
+    host.innerHTML=`<div class="game-finish"><span class="game-intro-icon" aria-hidden="true">${right>=10?'🏆':'🌱'}</span><h2 id="game-finished" tabindex="-1">${current()?'시간 종료!':'모든 물건을 분리했어요!'}</h2><p class="game-score">${right}<small>개 분리 성공</small></p><p>도전 ${total}개 · 정답 ${right}개 · 오답 ${total-right}개${total?` · 정답률 ${Math.round(right/total*100)}%`:''}</p></div>${publishMarkup()}<details class="game-review"><summary>푼 문제와 정답 다시 보기</summary><ol>${records().map(answer=>{const q=byId.get(answer.questionId);return `<li><strong>${answer.correct?'✓ 정답':'✕ 오답'} · ${esc(q.name)}</strong><p>${esc(q.condition)}</p><p>내 선택: ${esc(GAME_BINS[answer.bin].label)} · 정답: ${esc(GAME_BINS[q.bin].label)}</p><p>${esc(gameExplanation(q).reasons.join(' '))}</p></li>`;}).join('')}</ol></details><div class="game-actions"><button type="button" class="button primary" id="restart-game">다시 도전</button><a href="#/item-input" class="button secondary">내 물건 판별하기</a></div>`;
     focus('#game-finished');
   }
   function tick(){
@@ -72,7 +71,7 @@ export function bindGame() {
       if(!busy && !pendingAnswer)finish();
       else if(!busy && pendingAnswer){
         const status=host.querySelector('#game-answer-status');
-        if(status)status.innerHTML='시간이 끝났어요. 마지막 답변의 서버 처리 결과를 확인해 주세요. <button type="button" class="history-action" id="retry-game-answer">결과 다시 확인</button>';
+        if(status && !status.querySelector('#retry-game-answer'))status.innerHTML='시간이 끝났어요. 마지막 답변의 서버 처리 결과를 확인해 주세요. <button type="button" class="history-action" id="retry-game-answer">결과 다시 확인</button>';
       }
     }
   }
@@ -127,7 +126,7 @@ export function bindGame() {
     else if(event.target.closest('#start-practice'))start(false);
     else if(event.target.closest('#retry-game-answer'))choose(pendingAnswer?.bin,true);
     else if(event.target.closest('#restart-game')){const template=document.createElement('template');template.innerHTML=gamePage();host.innerHTML=template.content.querySelector('#disposal-game').innerHTML;game=null;finished=false;focus('#start-ranked');}
-    else {const button=event.target.closest('[data-game-bin]');if(button)choose(button.dataset.gameBin);}
+    else {const button=event.target.closest('[data-game-bin]');if(button && host.contains(button))choose(button.dataset.gameBin);}
   }
   async function publish(event){
     if(event.target.id!=='publish-game')return;

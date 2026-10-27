@@ -17,7 +17,7 @@ export function createGameRanking({ getClient=getSupabase, getMember=getCurrentM
     return data;
   }
   return {
-    start:()=>rpc('start_disposal_game'),
+    start:()=>rpc('start_disposal_game_v2'),
     answer:(id,index,bin)=>rpc('answer_disposal_game',{p_session_id:id,p_index:index,p_bin:bin}),
     state:id=>rpc('get_disposal_game',{p_session_id:id}),
     submit:(id,name)=>rpc('publish_disposal_game',{p_session_id:id,p_display_name:name.trim()}),
