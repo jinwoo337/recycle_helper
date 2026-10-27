@@ -1,1 +1,28 @@
-.ai-guess{margin-top:10px;padding:12px 14px;border:1px dashed #9fb99a;border-radius:10px;background:#f6faf3}.ai-guess p{font-size:13px;margin:0 0 8px}.ai-guess p:last-child{margin-bottom:0}.ai-guess .button{min-height:44px;padding:10px 16px}.ai-guess .button[hidden]{display:none}.ai-badge{font-size:13px;background:#eef3fb;border:1px solid #c6d4ea;color:#2f4a6b;border-radius:8px;padding:10px 12px}
+.ai-badge{font-size:14px;background:#eef3fb;border:1px solid #c6d4ea;color:#2f4a6b;border-radius:8px;padding:10px 12px}
+/* AI 안내 켜기/끄기 스위치 */
+.ai-toggle{display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 12px;border:1px solid #dfe7d9;border-radius:10px;background:#fff;cursor:pointer}
+.ai-toggle input{position:absolute;opacity:0;width:1px;height:1px}
+.ai-toggle-track{flex:none;position:relative;width:46px;height:26px;border-radius:13px;background:#c9d1c6;transition:background .15s}
+.ai-toggle-track::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.ai-toggle input:checked+.ai-toggle-track{background:#2f6b4f}
+.ai-toggle input:checked+.ai-toggle-track::after{transform:translateX(20px)}
+.ai-toggle input:focus-visible+.ai-toggle-track{outline:3px solid #2f6b4f;outline-offset:2px}
+.ai-toggle-text{display:flex;flex-direction:column;gap:2px}
+.ai-toggle-text strong{font-size:15px}
+.ai-toggle-text small{font-size:13px;color:#5c6b5c}
+/* AI 의견 상자: 입력란 아래와 결과 카드 안에서 같은 모양 */
+.ai-panel{margin-top:12px;padding:16px 18px;border:1px solid #c6d4ea;border-left:5px solid #4a6fa5;border-radius:10px;background:#f4f7fc;color:#1f2d3d}
+.ai-panel[hidden]{display:none}
+.ai-panel h3{margin:0 0 8px;font-size:17px}
+.ai-panel p{margin:0 0 8px}
+.ai-panel p:last-child{margin-bottom:0}
+.ai-panel .ai-panel-title{font-size:17px;font-weight:700;line-height:1.5}
+.ai-panel .ai-panel-reason{font-size:16px;line-height:1.65}
+.ai-panel .ai-panel-reason:empty{display:none}
+.ai-panel .button{min-height:44px;padding:10px 16px;margin-top:4px}
+.ai-panel .button[hidden]{display:none}
+.ai-panel.is-loading{border-left-color:#9aa9bd;color:#4a5868}
+.ai-confidence{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:#dfe8f5;font-size:13px;font-weight:600;vertical-align:middle}
+.ai-note{font-size:14px;color:#4a5868}
+.ai-warn{font-size:15px;padding:8px 10px;border-radius:8px;background:#fff4dc;color:#7a4b00}
+.ai-opinion{margin:14px 0 18px}

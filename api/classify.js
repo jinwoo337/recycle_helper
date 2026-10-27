@@ -133,8 +133,9 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); send(res, 405, { error: 'method_not_allowed' }); return; }
   const name = cleanAiName(Array.isArray(req.query?.name) ? req.query.name[0] : req.query?.name);
   if (!name) { send(res, 400, { error: 'invalid_name' }); return; }
-  // 이미 등록된 품목은 AI를 부르지 않고 기존 규칙을 사용하게 합니다.
-  if (lookupItem(name)) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
+  // 등록된 품목은 기존 규칙을 쓰므로 AI를 부르지 않습니다. 단, mode=opinion이면 화면에 참고 의견으로만 보여 줄 AI 답을 받습니다.
+  const opinion = (Array.isArray(req.query?.mode) ? req.query.mode[0] : req.query?.mode) === 'opinion';
+  if (lookupItem(name) && !opinion) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
   if (!process.env.GEMINI_API_KEY) { send(res, 503, { error: 'not_configured' }); return; }
   const key = name.toLowerCase();
   if (cache.has(key)) { send(res, 200, { guess: cache.get(key) }, 604800); return; }

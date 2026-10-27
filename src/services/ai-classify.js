@@ -9,21 +9,22 @@ const messages = {
 };
 
 // 미등록 물품 이름을 서버 함수로 보내 AI 추정값을 받습니다. 회원 정보는 보내지 않습니다.
-// 같은 이름은 진행 중인 요청을 함께 기다리고(미리 조회와 버튼 클릭), 실패하면 다음에 다시 요청합니다.
-export async function requestAiGuess(itemName, fetcher = fetchWithTimeout) {
+// 같은 이름은 진행 중인 요청을 함께 기다리고(미리 조회와 판별), 실패하면 다음에 다시 요청합니다.
+// opinion: 등록된 품목도 AI 의견을 받아 화면에 참고로만 보여 줍니다.
+export async function requestAiGuess(itemName, fetcher = fetchWithTimeout, { opinion = false } = {}) {
   const name = cleanAiName(itemName);
   if (!name) throw new Error(messages[400]);
-  const key = name.toLowerCase();
+  const key = `${opinion ? 'opinion:' : ''}${name.toLowerCase()}`;
   if (memory.has(key)) return memory.get(key);
-  const pending = fetchAiGuess(name, fetcher);
+  const pending = fetchAiGuess(name, fetcher, opinion);
   memory.set(key, pending);
   pending.catch(() => { if (memory.get(key) === pending) memory.delete(key); });
   return pending;
 }
 
-async function fetchAiGuess(name, fetcher) {
+async function fetchAiGuess(name, fetcher, opinion) {
   let response;
-  try { response = await fetcher(`/api/classify?name=${encodeURIComponent(name)}`, { headers: { Accept: 'application/json' } }, 30000); }
+  try { response = await fetcher(`/api/classify?name=${encodeURIComponent(name)}${opinion ? '&mode=opinion' : ''}`, { headers: { Accept: 'application/json' } }, 30000); }
   catch { throw new Error('AI 안내에 연결하지 못했어요. 네트워크를 확인하거나 재질을 직접 선택해 주세요.'); }
   if (!response.ok) {
     // 503은 'busy'(AI 과부하)와 'not_configured'(키 미설정)를 본문으로 구분합니다.

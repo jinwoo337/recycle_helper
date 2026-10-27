@@ -138,6 +138,39 @@ test('브라우저 서비스: 같은 이름의 요청은 하나로 합치고, �
   assert.equal(failures, 2, '실패한 요청은 기억하지 않음');
 });
 
+test('AI 위험 경로 안내: 전자제품·배터리·가스류에 맞는 별도 수거 단계', () => {
+  const result = judgeDisposal({ itemName: '무선마우스X', material: '기타', aiGuess: guess('hazardous', { itemName: '무선마우스X' }) });
+  assert.equal(result.status, 'check'); assert.equal(result.method, '별도 수거 · AI 추정');
+  assert.ok(result.steps.some(step => step.includes('1599-0903')));
+  assert.ok(result.steps.some(step => step.includes('폐건전지')));
+});
+
+test('서버 함수: mode=opinion이면 등록 품목도 AI 의견을 받는다', async () => {
+  const previous = { key: process.env.GEMINI_API_KEY, fetch: globalThis.fetch };
+  const urls = [];
+  process.env.GEMINI_API_KEY = 'test-key';
+  globalThis.fetch = async url => { urls.push(url); return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '종이', type: 'carton', route: 'recyclable', confidence: 'high', reason: '종이팩이에요.' }) }] } }] }) }; };
+  try {
+    const call = async query => { const res = fakeResponse(); await handler({ method: 'GET', query, headers: {} }, res); return res; };
+    const plain = await call({ name: '우유팩' });
+    assert.equal(JSON.parse(plain.body).reason, 'known_item'); assert.equal(urls.length, 0, '기본은 등록 품목에 AI를 부르지 않음');
+    const opinion = await call({ name: '우유팩', mode: 'opinion' });
+    assert.equal(opinion.statusCode, 200); assert.equal(JSON.parse(opinion.body).guess.route, 'recyclable');
+    assert.equal(urls.length, 1);
+  } finally {
+    globalThis.fetch = previous.fetch;
+    if (previous.key === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = previous.key;
+  }
+});
+
+test('브라우저 서비스: 등록 품목 의견 요청은 mode=opinion을 붙이고 따로 기억한다', async () => {
+  const urls = [];
+  const fetcher = async url => { urls.push(url); return { ok: true, json: async () => ({ guess: { itemName: '물건I', material: '기타', type: '', route: 'general', confidence: 'high', reason: '' } }) }; };
+  await requestAiGuess('물건I', fetcher);
+  await requestAiGuess('물건I', fetcher, { opinion: true });
+  assert.equal(urls.length, 2); assert.ok(!urls[0].includes('mode=')); assert.ok(urls[1].endsWith('&mode=opinion'));
+});
+
 function fakeResponse() {
   const res = { headers: {}, statusCode: 200, body: '' };
   res.setHeader = (name, value) => { res.headers[name] = value; };
