@@ -43,3 +43,7 @@
 .guide-faq details[open] summary{border-bottom:1px solid #eef1ec}
 .guide-faq p{margin:10px 0;line-height:1.6}
 .guide-faq .history-action{margin:0 0 12px}
+/* 지역 비교: 내 지역 결과를 분명히, 다른 지역은 참고용 회색 카드 */
+.comparison-follow{margin:8px 0 0;padding:8px 10px;border-radius:8px;background:#fff;color:#1f4d36;font-weight:700}
+.comparison-card{background:#f5f6f4;border-color:#e1e4df;color:#3d463d}
+.comparison-card .comparison-label{color:#6b736b}
