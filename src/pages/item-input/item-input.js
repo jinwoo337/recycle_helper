@@ -4,6 +4,7 @@ import { MATERIALS, TYPES, supportsState, needsWashQuestion, normalizePart, judg
 import { suggestItemInfo, searchItemNames, lookupItem, normalizeItemName } from '../../domain/disposal/item-suggestions.js';
 import { validateAiGuess } from '../../domain/disposal/ai-classification.js';
 import { requestAiGuess } from '../../services/ai-classify.js';
+import { aiToggleMarkup, bindAiToggle, readAiEnabled } from '../../components/ai-toggle.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { getCatalogMessage, initializeItemCatalog } from '../../services/item-catalog.js';
 import { resultToolsMarkup, bindResultTools } from '../../components/result-tools.js';
@@ -53,14 +54,6 @@ function partFields(prefix, label) {
     </div><div data-condition="food" hidden>${question(`${prefix}foodSeparated`, '포장재·이쑤시개·단단한 뼈 등 음식물이 아닌 것을 모두 제거했나요?')}</div></div>`;
 }
 
-// AI 의견은 선택 기능이며 기본은 꺼짐입니다. 종류 선택과 규칙만으로 안내할 수 있습니다.
-const AI_ENABLED_KEY = 'recycle-helper.ai-enabled';
-function readAiEnabled() {
-  try { return localStorage.getItem(AI_ENABLED_KEY) === 'on'; } catch { return false; }
-}
-function writeAiEnabled(enabled) {
-  try { localStorage.setItem(AI_ENABLED_KEY, enabled ? 'on' : 'off'); } catch { /* 저장소 차단 */ }
-}
 
 export function itemInputPage() {
   return `<section class="container item-page">
@@ -72,7 +65,7 @@ export function itemInputPage() {
       ${judgementRegionMarkup(getCurrentMember()?.region)}
       <section aria-labelledby="item-basic"><h2 id="item-basic">1. 물건 이름</h2>
         <div class="item-basic-fields"><div class="field"><label for="item-name">물건 이름</label><div class="item-name-control"><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="item-name-options" aria-expanded="false" aria-describedby="item-name-hint item-name-status"><div id="item-name-options" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><p class="input-hint" id="item-name-hint">추천에서 실제 물건과 맞는 이름을 골라 주세요.</p><p class="input-hint" id="item-name-status" role="status" aria-live="polite"></p>
-        <label class="ai-toggle"><input type="checkbox" id="ai-enabled" role="switch"><span class="ai-toggle-track" aria-hidden="true"></span><span class="ai-toggle-text"><strong>🤖 AI 안내 켜기</strong><small>선택 기능이에요. 직접 고른 종류와 확인된 기준을 우선해요.</small></span></label>
+        ${aiToggleMarkup('ai-enabled')}
         <div id="ai-guess-box" class="ai-panel" hidden role="status" aria-live="polite"><p class="ai-panel-title" id="ai-guess-text"></p><p class="ai-panel-reason" id="ai-guess-status"></p><button type="button" class="button secondary" id="ai-guess-button" hidden>다시 묻기</button></div></div>
         <div class="example-items input-examples" aria-label="자주 찾는 물건">${['우유팩', '투명생수병', '과자봉지', '종이상자'].map(name => `<button class="history-action" type="button" data-item-example="${name}">${name}</button>`).join('')}</div></div>
         </section>${categoryFields()}
@@ -154,7 +147,6 @@ export function bindItemInput() {
   const aiStatus = document.getElementById('ai-guess-status');
   const aiMatches = name => Boolean(aiEnabled && aiGuess && name && normalizeItemName(aiGuess.itemName) === normalizeItemName(name));
   const aiToggle = document.getElementById('ai-enabled');
-  aiToggle.checked = aiEnabled;
   // 이름별 AI 의견 상태: { status: 'loading' | 'done' | 'error', guess, error, promise }
   const opinions = new Map();
   const catalogStatus = document.getElementById('catalog-status');
@@ -373,9 +365,8 @@ export function bindItemInput() {
   summary.addEventListener('click', event => {
     if (event.target.closest('[data-ai-retry]') && shownInput) askAi(shownInput.itemName);
   });
-  aiToggle.addEventListener('change', () => {
-    aiEnabled = aiToggle.checked;
-    writeAiEnabled(aiEnabled);
+  const aiSwitch = bindAiToggle(aiToggle, enabled => {
+    aiEnabled = enabled;
     if (aiEnabled) { const name = nameInput.value.trim(); if (name) askAi(name); if (!summary.hidden && shownInput) { attachOpinionPanel(); askAi(shownInput.itemName); } }
     else {
       clearTimeout(prefetchTimer); aiGuess = null;
@@ -424,7 +415,7 @@ export function bindItemInput() {
     form.reset(); componentCount = Math.max(1, input.components?.length || 0); drawComponents();
     judgementRegion.set(region);
     aiGuess = validateAiGuess(input.aiGuess, input.itemName);
-    autoFill.checked = autoFillEnabled; aiToggle.checked = aiEnabled;
+    autoFill.checked = autoFillEnabled; aiSwitch.sync(aiEnabled);
     autoFillStatus.textContent = autoFillEnabled ? '자동 입력이 켜져 있어요. 물건 이름을 바꾸면 재질 정보를 다시 채워요.' : '체크하면 우유팩·생수병 등 알려진 물품의 재질 정보를 채워요.';
     // 재질→세부 종류→상태 순서로 선택지를 생성한 후 저장된 답변을 복원합니다.
     for (let pass = 0; pass < 3; pass++) {
@@ -690,5 +681,5 @@ export function bindItemInput() {
   window.addEventListener('storage', storageChanged);
   window.addEventListener('focus', renderRecent);
   window.addEventListener('favorites-changed', renderFavorites);
-  return () => { submissions.dispose(); recentVersion++; favoriteVersion++; clearTimeout(prefetchTimer); autocomplete.dispose(); disposeResultTools(); window.removeEventListener('favorites-changed', renderFavorites); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', renderRecent); };
+  return () => { aiSwitch.dispose(); submissions.dispose(); recentVersion++; favoriteVersion++; clearTimeout(prefetchTimer); autocomplete.dispose(); disposeResultTools(); window.removeEventListener('favorites-changed', renderFavorites); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', renderRecent); };
 }
