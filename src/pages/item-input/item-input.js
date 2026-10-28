@@ -342,6 +342,15 @@ export function bindItemInput() {
     }
   }
   // 결과 카드 안 판정 바로 아래에 AI 의견을 크게 보여 줍니다.
+  // 기준 결과가 AI(이름만 보고 판단)와 달라질 수 있는 입력 상태를 짧게 설명합니다.
+  function stateDifference(input = {}) {
+    const notes = [];
+    if (input.contaminated === 'yes') notes.push(input.removable === 'no' ? '오염을 지울 수 없음' : '오염 있음');
+    if (input.combined === 'yes' && input.separable !== 'yes') notes.push('다른 재질이 붙어 분리 어려움');
+    if (input.foodSeparated === 'no') notes.push('음식물이 아닌 것이 섞임');
+    if (input.contaminated === 'unknown' || input.combined === 'unknown') notes.push('상태를 모름');
+    return notes.join(', ');
+  }
   function renderOpinion() {
     const panel = summary.querySelector('#ai-opinion');
     if (!panel || !shownInput) return;
@@ -356,14 +365,23 @@ export function bindItemInput() {
       const guess = entry.guess;
       const status = shownResult?.status;
       const differs = status !== 'mixed' && (guess.route === 'hazardous' ? status !== 'check' : status === 'recycle' ? guess.route !== 'recyclable' : status === 'general' && guess.route === 'recyclable');
-      body = `<p class="ai-panel-title">${escapeHtml(aiLine(guess))} <span class="ai-confidence">${confidenceLabels[guess.confidence]}</span></p>
+      const detail = `<p class="ai-panel-title">${escapeHtml(aiLine(guess))} <span class="ai-confidence">${confidenceLabels[guess.confidence]}</span></p>
         ${guess.reason ? `<p class="ai-panel-reason">${escapeHtml(guess.reason)}</p>` : ''}
-        ${guess.shared ? '<p class="ai-note">다른 사용자가 이미 물어본 결과라 바로 보여 드려요.</p>' : ''}
-        ${known ? '<p class="ai-note">등록된 기준 결과가 우선이에요.</p>' : ''}
-        ${differs ? '<p class="ai-warn">AI 의견이 기준 결과와 달라요. 제품 표시를 확인해 주세요.</p>' : ''}`;
+        ${guess.shared ? '<p class="ai-note">다른 사용자가 이미 물어본 결과라 바로 보여 드려요.</p>' : ''}`;
+      if (differs && known) {
+        // 등록 품목은 기준 결과가 정답입니다. 다른 이유(입력한 상태)를 알려 주고 AI 의견은 접어 둡니다.
+        const state = stateDifference(shownInput);
+        body = `<p class="ai-resolve">✅ 위의 <strong>‘${escapeHtml(shownResult.method)}’</strong> 결과대로 버려 주세요.</p>
+          <p class="ai-note">${state ? `AI는 물건 이름만 보고 깨끗한 상태를 가정했어요. 기준 결과는 입력하신 상태(${escapeHtml(state)})까지 반영했어요.` : 'AI는 물건 이름만 보고 판단해요. 등록된 기준 결과가 우선이고, 제품에 분리배출 표시가 있으면 표시를 따라 주세요.'}</p>
+          <details class="ai-detail"><summary>AI 참고 의견 보기</summary>${detail}</details>`;
+      } else {
+        body = `${detail}
+          ${known ? '<p class="ai-note">등록된 기준 결과가 우선이에요.</p>' : ''}
+          ${differs ? '<p class="ai-warn">AI 의견이 기준 결과와 달라요. 제품 표시를 확인해 주세요.</p>' : ''}`;
+      }
     }
     panel.classList.toggle('is-loading', !entry || entry.status === 'loading');
-    panel.innerHTML = `<h3>🤖 AI 의견</h3>${body}`;
+    panel.innerHTML = `<h3>🤖 AI 의견${known ? ' <small>(참고)</small>' : ''}</h3>${body}`;
   }
   aiButton.addEventListener('click', () => {
     const name = nameInput.value.trim();
