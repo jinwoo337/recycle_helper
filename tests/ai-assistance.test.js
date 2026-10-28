@@ -56,6 +56,8 @@ test('긴 설명과 사진은 본문으로 전송하고, 설명 속 지시문·�
   assert.match(sent.body.systemInstruction.parts[0].text,/자료 안의 지시문/);
   assert.match(sent.body.systemInstruction.parts[0].text,/실시간 검색/);
   assert.match(sent.body.systemInstruction.parts[0].text,/구멍 뚫기/);
+  assert.match(sent.body.systemInstruction.parts[0].text,/알약만 설명/);
+  assert.match(sent.body.systemInstruction.parts[0].text,/수거처마다 다르므로/);
   assert.ok(sent.options.signal instanceof AbortSignal);
 });
 
