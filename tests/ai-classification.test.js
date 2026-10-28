@@ -185,7 +185,8 @@ test('브라우저 서비스: 등록 품목 의견 요청은 mode=opinion을 붙
   const fetcher = async url => { urls.push(url); return { ok: true, json: async () => ({ guess: { itemName: '물건I', material: '기타', type: '', route: 'general', confidence: 'high', reason: '' } }) }; };
   await requestAiGuess('물건I', fetcher);
   await requestAiGuess('물건I', fetcher, { opinion: true });
-  assert.equal(urls.length, 2); assert.ok(!urls[0].includes('mode=')); assert.ok(urls[1].endsWith('&mode=opinion'));
+  assert.equal(urls.length, 2); assert.ok(!urls[0].includes('mode=')); assert.equal(new URL(urls[1], 'https://example.com').searchParams.get('mode'),'opinion');
+  assert.ok(new URL(urls[1], 'https://example.com').searchParams.get('v'),'이전 CDN의 잘못된 의견을 다시 받지 않도록 요청 버전을 구분');
 });
 
 function fakeResponse() {

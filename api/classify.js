@@ -4,6 +4,7 @@ import { cleanAiName, cleanAiAliases, validateAiGuess, aiResponseSchema, aiInstr
 import { lookupItem, normalizeItemName } from '../src/domain/disposal/item-suggestions.js';
 import { detectItemCategory } from '../src/domain/disposal/category-keywords.js';
 import { describeAiState } from '../src/domain/disposal/ai-state.js';
+import { verifiedNameGuide } from '../src/domain/disposal/verified-name-guide.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '../src/services/supabase.js';
 
 // 생각(thinking)하는 모델은 응답이 늦을 수 있어 함수 실행 시간을 늘립니다.
@@ -205,6 +206,8 @@ export default async function handler(req, res) {
   // 등록된 품목은 기존 규칙을 쓰므로 AI를 부르지 않습니다. 단, mode=opinion이면 화면에 참고 의견으로만 보여 줄 AI 답을 받습니다.
   const mode = Array.isArray(req.query?.mode) ? req.query.mode[0] : req.query?.mode;
   const opinion = mode === 'opinion';
+  // 기존 AI 캐시·공용 저장소를 읽기 전에 검토된 전용 품목을 구분합니다.
+  if (verifiedNameGuide(name) && (opinion || !lookupItem(name))) { send(res, 200, { guess: null, reason: 'verified_guide' }); return; }
   // mode=shared: AI를 부르지 않고 공용 저장소에 있는 답만 찾습니다(AI 안내가 꺼져 있을 때).
   if (mode === 'shared') {
     if (lookupItem(name)) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }

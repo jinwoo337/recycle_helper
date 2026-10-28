@@ -6,6 +6,14 @@ import { normalizeItemName } from './item-suggestions.js';
 export const AI_ROUTES = ['recyclable', 'general', 'large', 'hazardous', 'unknown'];
 export const AI_CONFIDENCE = ['high', 'medium', 'low'];
 export const AI_NAME_MAX = 40;
+// 조건이 미확인인 기준 결과에 AI가 확정 경로를 제시한 경우도 재검토 대상입니다.
+export function aiOpinionNeedsReview(result, guess) {
+  if (!result || !guess || guess.route === 'unknown' || result.status === 'mixed') return false;
+  if (result.status === 'check') return true;
+  if (result.status === 'recycle') return guess.route !== 'recyclable';
+  if (result.status === 'general') return guess.route !== 'general';
+  return false;
+}
 const aiMaterials = () => MATERIALS.filter(material => material !== '모르겠어요');
 
 export function cleanAiName(name) {

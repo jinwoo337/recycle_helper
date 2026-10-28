@@ -1,4 +1,4 @@
-// AI 안내 켜기/끄기 스위치. 홈과 입력 화면이 같은 설정을 쓰고, 켜짐·꺼짐을 글자·색·아이콘으로 함께 보여 줍니다.
+// 홈과 입력 화면이 같은 설정을 쓰고 ON/OFF와 색으로 상태를 표시합니다.
 // 설정은 이 브라우저에만 저장합니다. 기본은 꺼짐이며 저장소를 쓸 수 없으면 꺼진 상태로 둡니다.
 import { escapeHtml } from '../utils/html.js';
 
@@ -14,17 +14,11 @@ export function writeAiEnabled(enabled) {
   window.dispatchEvent(new CustomEvent(CHANGED, { detail: { enabled } }));
 }
 
-const HELP = {
-  on: '등록되지 않은 물건은 AI 의견도 함께 보여 줘요. 확인된 기준이 항상 우선이에요.',
-  off: '확인된 기준과 이름으로 알아본 종류로만 안내해요. 켜면 AI 의견도 함께 볼 수 있어요.',
-};
-
 export function aiToggleMarkup(id, { compact = false } = {}) {
   const safe = escapeHtml(id);
-  return `<label class="ai-toggle${compact ? ' is-compact' : ''}" data-ai-toggle>
-    <input type="checkbox" id="${safe}" role="switch" aria-describedby="${safe}-help">
+  return `<label class="ai-toggle is-switch-only${compact ? ' is-compact' : ''}" data-ai-toggle title="AI 사용 켜기/끄기">
+    <input type="checkbox" id="${safe}" role="switch" aria-label="이름 검색 AI 사용">
     <span class="ai-toggle-track" aria-hidden="true"><span class="ai-toggle-label on">ON</span><span class="ai-toggle-label off">OFF</span></span>
-    <span class="ai-toggle-text"><strong>🤖 AI 안내 <span class="ai-toggle-state" data-ai-state>꺼짐</span></strong><small id="${safe}-help" data-ai-help>${HELP.off}</small></span>
   </label>`;
 }
 
@@ -34,8 +28,6 @@ export function bindAiToggle(input, onChange = () => {}) {
   const sync = (enabled = readAiEnabled()) => {
     input.checked = enabled;
     label.classList.toggle('is-on', enabled);
-    label.querySelector('[data-ai-state]').textContent = enabled ? '켜짐' : '꺼짐';
-    label.querySelector('[data-ai-help]').textContent = enabled ? HELP.on : HELP.off;
   };
   const changed = () => { writeAiEnabled(input.checked); sync(input.checked); onChange(input.checked); };
   const external = () => sync();

@@ -2,6 +2,9 @@
 .input-modes a{display:flex;flex-direction:column;gap:4px;padding:16px;border:1px solid var(--line);border-radius:12px;background:#fff;min-width:0}
 .input-modes a strong{font-size:16px;word-break:keep-all;line-height:1.5}.input-modes a span{font-size:13px;color:var(--muted)}
 .input-modes a[aria-current]{background:#eaf5ee;border:2px solid var(--green);padding:15px}
+.ai-mode-controls{display:flex;align-items:center;gap:14px;margin-top:12px;max-width:100%}
+.ai-mode-controls .ai-toggle.is-switch-only,#item-form .ai-mode-controls .ai-toggle.is-switch-only{display:inline-flex;flex:none;min-height:44px;width:auto;max-width:100%;padding:7px 0;margin:0;border:0;border-radius:0;background:transparent;gap:0}
+.ai-mode-controls .input-mode-select{width:220px;max-width:calc(100% - 76px);min-height:44px;padding:9px 32px 9px 12px;border:1px solid #b8c9be;border-radius:9px;background-color:#fff;color:#253b31;font:inherit;font-size:14px}
 .assist-page{max-width:920px;padding-block:28px 48px}.assist-page .item-heading{margin-bottom:16px}
 .assist-form .field{margin-top:24px}.assist-form textarea{display:block;resize:vertical;width:100%;min-height:170px;border:1px solid #b8c9be;border-radius:10px;padding:14px;font:inherit;line-height:1.7;color:inherit;background:#fff}
 .assist-form textarea:focus-visible{outline:3px solid #bd831c;outline-offset:3px}.assist-form textarea:disabled{background:#f1f4ef}

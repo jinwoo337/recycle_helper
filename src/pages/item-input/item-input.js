@@ -2,7 +2,7 @@ import { escapeHtml } from '../../utils/html.js';
 import { getDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisposalHistory } from '../../services/disposal-history.js';
 import { MATERIALS, TYPES, supportsState, needsWashQuestion, normalizePart, judgeDisposal, RULE_SOURCE, RULE_VERSION } from '../../domain/disposal/rules.js';
 import { suggestItemInfo, searchItemNames, lookupItem, normalizeItemName } from '../../domain/disposal/item-suggestions.js';
-import { validateAiGuess } from '../../domain/disposal/ai-classification.js';
+import { validateAiGuess, aiOpinionNeedsReview } from '../../domain/disposal/ai-classification.js';
 import { requestAiGuess } from '../../services/ai-classify.js';
 import { aiToggleMarkup, bindAiToggle, readAiEnabled } from '../../components/ai-toggle.js';
 import { RECYCLE_MARKS, markById } from '../../domain/disposal/recycle-marks.js';
@@ -26,7 +26,8 @@ import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
-import { inputModesMarkup } from '../../components/input-modes.js';
+import { inputModeSelectMarkup, bindInputModeSelect } from '../../components/input-modes.js';
+import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
 
 let draft = {};
 let componentCount = 1;
@@ -67,14 +68,13 @@ export function itemInputPage() {
   return `<section class="container item-page">
     <a class="back-link" href="#/">← 메인으로</a>
     <header class="item-heading"><p class="eyebrow">나의 물건 살펴보기</p><h1>어떤 물건을 버리려고 하나요?</h1><p>이름을 고르고 현재 상태만 확인해 주세요.</p></header>
-    ${inputModesMarkup('name')}
     <p id="catalog-status" class="input-hint" role="status" aria-live="polite"></p>
     <button type="button" id="retry-catalog" class="history-action" hidden>품목 정보 다시 불러오기</button>
     <div class="item-grid"><form id="item-form" class="item-card" novalidate>
       ${judgementRegionMarkup(getCurrentMember()?.region)}
       <section aria-labelledby="item-basic"><h2 id="item-basic">1. 물건 이름</h2>
         <div class="item-basic-fields"><div class="field"><label for="item-name">물건 이름</label><div class="item-name-control"><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="item-name-options" aria-expanded="false" aria-describedby="item-name-hint item-name-status"><div id="item-name-options" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><p class="input-hint" id="item-name-hint">추천에서 실제 물건과 맞는 이름을 골라 주세요.</p><p class="input-hint" id="item-name-status" role="status" aria-live="polite"></p>
-        ${aiToggleMarkup('ai-enabled')}
+        <div class="ai-mode-controls">${aiToggleMarkup('ai-enabled')}${inputModeSelectMarkup('name')}</div>
         <div id="ai-guess-box" class="ai-panel" hidden role="status" aria-live="polite"><p class="ai-panel-title" id="ai-guess-text"></p><p class="ai-panel-reason" id="ai-guess-status"></p><button type="button" class="button secondary" id="ai-guess-button" hidden>다시 묻기</button></div></div>
         <div class="example-items input-examples" aria-label="자주 찾는 물건">${['우유팩', '투명생수병', '과자봉지', '종이상자'].map(name => `<button class="history-action" type="button" data-item-example="${name}">${name}</button>`).join('')}</div></div>
         </section>${categoryFields()}
@@ -134,6 +134,7 @@ export function bindItemInput() {
   if (draftOwner !== owner) { draft = {}; componentCount = 1; draftOwner = owner; }
   const queued = takeQueuedInput(); if (queued) draft = queued;
   const form = document.getElementById('item-form');
+  const disposeModeSelect = bindInputModeSelect(form);
   const judgementRegion = bindJudgementRegion(form, readJudgementRegion(getCurrentMember()), {
     onChange: region => rememberJudgementRegion(region, getCurrentMember()),
   });
@@ -358,6 +359,7 @@ export function bindItemInput() {
   function refreshAi() { updateAiBox(Boolean(nameInput.value.trim())); renderOpinion(); }
   function updateAiBox(hasName) {
     const name = nameInput.value.trim();
+    if (verifiedNameGuide(name)) { aiBox.hidden = true; return; }
     const entry = opinions.get(aiKey(name));
     // AI가 꺼져 있어도 공용 저장소에 있던 답은 보여 줍니다.
     aiBox.hidden = !hasName || (!aiEnabled && !entry?.guess?.shared);
@@ -374,21 +376,13 @@ export function bindItemInput() {
     }
   }
   // 결과 카드 안 판정 바로 아래에 AI 의견을 크게 보여 줍니다.
-  // 기준 결과가 AI(이름만 보고 판단)와 달라질 수 있는 입력 상태를 짧게 설명합니다.
-  function stateDifference(input = {}) {
-    const notes = [];
-    if (input.contaminated === 'yes') notes.push(input.removable === 'no' ? '오염을 지울 수 없음' : '오염 있음');
-    if (input.combined === 'yes' && input.separable !== 'yes') notes.push('다른 재질이 붙어 분리 어려움');
-    if (input.foodSeparated === 'no') notes.push('음식물이 아닌 것이 섞임');
-    if (input.contaminated === 'unknown' || input.combined === 'unknown') notes.push('상태를 모름');
-    return notes.join(', ');
-  }
   // 결과 화면의 등록 품목은 입력한 상태를 AI에게도 알려 줍니다. 미등록 품목은 AI 답으로 판별하므로 이름만 보냅니다.
   function shownAiState() { return shownInput && lookupItem(shownInput.itemName) ? encodeAiState(shownInput) : ''; }
   function renderOpinion() {
     const panel = summary.querySelector('#ai-opinion');
     if (!panel || !shownInput) return;
     const name = shownInput.itemName;
+    if (verifiedNameGuide(name)) { panel.remove(); return; }
     const known = Boolean(lookupItem(name));
     const entry = shownResult?.aiGuess ? { status: 'done', guess: shownResult.aiGuess } : opinions.get(aiKey(name, shownAiState()));
     let body;
@@ -398,16 +392,13 @@ export function bindItemInput() {
     else {
       const guess = entry.guess;
       const status = shownResult?.status;
-      const differs = status !== 'mixed' && (guess.route === 'hazardous' ? status !== 'check' : status === 'recycle' ? guess.route !== 'recyclable' : status === 'general' && guess.route === 'recyclable');
+      const differs = aiOpinionNeedsReview(shownResult, guess);
       const detail = `<p class="ai-panel-title">${escapeHtml(aiLine(guess))} <span class="ai-confidence">${confidenceLabels[guess.confidence]}</span></p>
         ${guess.reason ? `<p class="ai-panel-reason">${escapeHtml(guess.reason)}</p>` : ''}
         ${guess.shared ? '<p class="ai-note">다른 사용자가 이미 물어본 결과라 바로 보여 드려요.</p>' : ''}`;
       if (differs && known) {
-        // 등록 품목은 기준 결과가 정답입니다. 다른 이유(입력한 상태)를 알려 주고 AI 의견은 접어 둡니다.
-        const state = stateDifference(shownInput);
-        body = `<p class="ai-resolve">✅ 위의 <strong>‘${escapeHtml(shownResult.method)}’</strong> 결과대로 버려 주세요.</p>
-          <p class="ai-note">${entry.state ? 'AI도 입력하신 상태를 보고 답했지만 기준 결과와 달라요. 확인된 기준 결과가 우선이에요.' : state ? `AI는 물건 이름만 보고 깨끗한 상태를 가정했어요. 기준 결과는 입력하신 상태(${escapeHtml(state)})까지 반영했어요.` : 'AI는 물건 이름만 보고 판단해요. 등록된 기준 결과가 우선이고, 제품에 분리배출 표시가 있으면 표시를 따라 주세요.'}</p>
-          <details class="ai-detail"><summary>AI 참고 의견 보기</summary>${detail}</details>`;
+        body = `<p class="ai-resolve">${status === 'check' ? '아직 배출 방법을 확정할 수 없어요.' : `위의 <strong>‘${escapeHtml(shownResult.method)}’</strong> 기준 안내를 따라 주세요.`}</p>
+          <p class="ai-note">${status === 'check' ? '상태·수거 조건이 확인되지 않아 AI의 확정적인 의견은 표시하지 않았어요. 필요한 조건을 먼저 확인해 주세요.' : 'AI 의견이 확인된 기준과 달라 표시하지 않았어요.'}</p>`;
       } else {
         body = `${detail}
           ${known ? '<p class="ai-note">등록된 기준 결과가 우선이에요.</p>' : ''}
@@ -434,6 +425,7 @@ export function bindItemInput() {
     refreshAi();
   });
   function attachOpinionPanel() {
+    if (verifiedNameGuide(shownInput?.itemName)) return;
     if (summary.querySelector('#ai-opinion')) return;
     summary.querySelector('.result-verdict')?.insertAdjacentHTML('afterend', '<section id="ai-opinion" class="ai-panel ai-opinion" aria-live="polite"></section>');
   }
@@ -764,5 +756,5 @@ export function bindItemInput() {
   window.addEventListener('favorites-changed', renderFavorites);
   // 홈 검색·기록에서 이름을 가져온 경우에도 저장된 답(또는 AI 의견)을 바로 찾아봅니다.
   if (nameInput.value.trim()) scheduleAiPrefetch();
-  return () => { aiSwitch.dispose(); submissions.dispose(); recentVersion++; favoriteVersion++; clearTimeout(prefetchTimer); autocomplete.dispose(); disposeResultTools(); window.removeEventListener('favorites-changed', renderFavorites); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', renderRecent); };
+  return () => { disposeModeSelect(); aiSwitch.dispose(); submissions.dispose(); recentVersion++; favoriteVersion++; clearTimeout(prefetchTimer); autocomplete.dispose(); disposeResultTools(); window.removeEventListener('favorites-changed', renderFavorites); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', renderRecent); };
 }

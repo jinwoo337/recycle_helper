@@ -1,7 +1,9 @@
 import { fetchWithTimeout } from '../utils/network.js';
 import { cleanAiName, validateAiGuess } from '../domain/disposal/ai-classification.js';
+import { verifiedNameGuide } from '../domain/disposal/verified-name-guide.js';
 
 const memory = new Map();
+const REQUEST_VERSION = '2026-10-28.verified-guides';
 const messages = {
   400: '물건 이름은 40자 이내로 입력해 주세요.',
   429: 'AI 요청이 많아요. 잠시 후 다시 시도해 주세요.',
@@ -15,8 +17,9 @@ const messages = {
 export async function requestAiGuess(itemName, fetcher = fetchWithTimeout, { opinion = false, state = '', shared = false } = {}) {
   const name = cleanAiName(itemName);
   if (!name) throw new Error(messages[400]);
+  if (verifiedNameGuide(name)) return null;
   const mode = shared ? 'shared' : opinion ? 'opinion' : '';
-  const key = `${mode}:${name.toLowerCase()}|${state}`;
+  const key = `${REQUEST_VERSION}|${mode}:${name.toLowerCase()}|${state}`;
   if (memory.has(key)) return memory.get(key);
   const pending = fetchAiGuess(name, fetcher, mode, state);
   memory.set(key, pending);
@@ -26,7 +29,7 @@ export async function requestAiGuess(itemName, fetcher = fetchWithTimeout, { opi
 
 async function fetchAiGuess(name, fetcher, mode, state) {
   let response;
-  try { response = await fetcher(`/api/classify?name=${encodeURIComponent(name)}${mode ? `&mode=${mode}` : ''}${state ? `&state=${encodeURIComponent(state)}` : ''}`, { headers: { Accept: 'application/json' } }, 30000); }
+  try { response = await fetcher(`/api/classify?name=${encodeURIComponent(name)}${mode ? `&mode=${mode}` : ''}${state ? `&state=${encodeURIComponent(state)}` : ''}&v=${REQUEST_VERSION}`, { headers: { Accept: 'application/json' } }, 30000); }
   catch { throw new Error('AI 안내에 연결하지 못했어요. 네트워크를 확인하거나 물건 종류를 직접 골라 AI 없이 확인할 수 있어요.'); }
   if (!response.ok) {
     // 503은 'busy'(AI 과부하)와 'not_configured'(키 미설정)를 본문으로 구분합니다.
