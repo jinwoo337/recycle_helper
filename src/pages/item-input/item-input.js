@@ -70,7 +70,7 @@ export function itemInputPage() {
     ${inputModesMarkup('name')}
     <p id="catalog-status" class="input-hint" role="status" aria-live="polite"></p>
     <button type="button" id="retry-catalog" class="history-action" hidden>품목 정보 다시 불러오기</button>
-    <div class="item-grid"><form id="item-form" class="item-card">
+    <div class="item-grid"><form id="item-form" class="item-card" novalidate>
       ${judgementRegionMarkup(getCurrentMember()?.region)}
       <section aria-labelledby="item-basic"><h2 id="item-basic">1. 물건 이름</h2>
         <div class="item-basic-fields"><div class="field"><label for="item-name">물건 이름</label><div class="item-name-control"><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="item-name-options" aria-expanded="false" aria-describedby="item-name-hint item-name-status"><div id="item-name-options" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><p class="input-hint" id="item-name-hint">추천에서 실제 물건과 맞는 이름을 골라 주세요.</p><p class="input-hint" id="item-name-status" role="status" aria-live="polite"></p>
@@ -333,11 +333,13 @@ export function bindItemInput() {
   // AI가 꺼져 있을 때: 다른 사용자가 AI에게 물어 저장된 답이 있으면 AI 호출 없이 가져와 종류를 골라 둡니다.
   async function askShared(name) {
     const key = aiKey(name);
-    if (opinions.get(key)?.status === 'done') return;
+    const existing = opinions.get(key);
+    // 이미 받아 둔 답이 있으면 다시 묻지 않고 종류만 다시 골라 둡니다(이름을 지웠다 다시 쓴 경우 등).
+    if (existing?.status === 'done') { if (existing.guess?.shared && nameInput.value.trim() === name) { preselectFromShared(existing.guess); refreshAi(); } return; }
     let guess = null;
     try { guess = await requestAiGuess(name, undefined, { shared: true }); } catch { return; }
-    if (!guess || !form.isConnected || aiEnabled || nameInput.value.trim() !== name) return;
-    opinions.set(key, { status: 'done', guess, promise: Promise.resolve(guess) });
+    if (!guess || !form.isConnected || nameInput.value.trim() !== name) return;
+    if (opinions.get(key)?.status !== 'done') opinions.set(key, { status: 'done', guess, promise: Promise.resolve(guess) });
     preselectFromShared(guess);
     refreshAi();
   }
@@ -642,9 +644,10 @@ export function bindItemInput() {
     const name = nameInput.value.trim();
     if (name.length < 1) return;
     if (!aiEnabled && (lookupItem(name) || keywordCategory())) return;
+    // 저장된 답 조회는 가벼워서 0.3초, AI는 0.7초 기다린 뒤 묻습니다.
     prefetchTimer = setTimeout(() => {
       if (form.isConnected && nameInput.value.trim() === name) { if (aiEnabled) askAi(name); else askShared(name); }
-    }, 700);
+    }, aiEnabled ? 700 : 300);
   }
   // 분리배출 표시 버튼: 재질·세부 종류를 채우고 상태 질문으로 이어집니다.
   form.addEventListener('click', event => {
@@ -726,7 +729,14 @@ export function bindItemInput() {
     if (!judgementRegion.validate()) return;
     pendingDeletion = null; deleteConfirm.hidden = true;
     if (!nameInput.value.trim()) { nameInput.setCustomValidity('물건 이름을 입력해 주세요.'); nameInput.reportValidity(); return; }
-    // 확인된 종류와 상태로 즉시 안내합니다. 선택 기능인 AI·원격 품목 조회는 기다리지 않습니다.
+    // 종류를 아직 안 골랐으면 공용 저장소의 답(AI 호출 없음)만 최대 2초 확인해 종류를 골라 둡니다. AI 의견은 기다리지 않습니다.
+    const typedName = nameInput.value.trim();
+    if (!lookupItem(typedName)?.material && !value('category')) {
+      saveStatus.textContent = '저장된 답을 확인하고 있어요…';
+      await Promise.race([askShared(typedName), new Promise(resolve => setTimeout(resolve, 2_000))]);
+      if (!form.isConnected || nameInput.value.trim() !== typedName) return;
+      saveStatus.textContent = '';
+    }
     updateConditional(); if (!form.reportValidity()) return;
     const operation = submissions.begin(); if (!operation) return;
     const revision = inputRevision;
