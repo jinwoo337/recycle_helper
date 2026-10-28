@@ -4,10 +4,11 @@
 .home-recent-items{display:flex;flex-wrap:wrap;gap:8px}
 .home-recent-items .history-action{min-height:40px}
 /* 홈: 오늘의 분리배출 팁 */
-.daily-tip{margin:18px 0;padding:16px 18px;border-radius:12px;background:#fffaeb;border:1px solid #f0dfa8}
+.daily-tip{margin:24px 0 8px;padding:12px 14px;border-radius:10px;background:#fffaeb;border:1px solid #f0dfa8}
 .daily-tip .eyebrow{margin:0 0 4px;color:#8a6a00}
-.daily-tip h2{font-size:18px;margin:0 0 6px}
-.daily-tip p{margin:0 0 10px;line-height:1.6}
+.daily-tip h2{font-size:15px;margin:0 0 4px}
+.daily-tip p{margin:0 0 8px;font-size:13px;line-height:1.55}
+.daily-tip .eyebrow{font-size:11px}
 /* 휴대폰: 아래 고정 빠른 메뉴 */
 .bottom-nav{display:none}
 @media (max-width:720px){
