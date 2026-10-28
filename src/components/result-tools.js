@@ -6,7 +6,7 @@ import { bindRegionalComparison } from './regional-comparison.js';
 import { inputForDisplay } from '../domain/disposal/result-display.js';
 
 export function resultToolsMarkup(input) {
-  return `<div class="result-actions"><button type="button" class="button secondary" data-copy-result>결과 복사</button><button type="button" class="button secondary" data-favorite aria-pressed="false">즐겨찾기</button><button type="button" class="button secondary" data-new-item>다른 물품 검색</button></div>
+  return `<div class="result-actions"><button type="button" class="button secondary" data-share-result hidden>📤 공유하기</button><button type="button" class="button secondary" data-copy-result>결과 복사</button><button type="button" class="button secondary" data-favorite aria-pressed="false">즐겨찾기</button><button type="button" class="button secondary" data-new-item>다른 물품 검색</button></div>
     <p class="input-hint" data-result-tools-status role="status" aria-live="polite"></p>
     <textarea class="copy-fallback" data-copy-fallback aria-label="복사할 판별 결과" readonly hidden></textarea>
     <details class="feedback-panel"><summary>결과 오류 또는 미등록 품목 제보</summary>
@@ -53,6 +53,15 @@ export function bindResultTools(root, input, result, { onNewItem, tools = member
       status.textContent = '자동 복사를 사용할 수 없어요. 선택된 내용을 직접 복사해 주세요.';
     }
   });
+  // 휴대폰 등 공유 기능이 있는 브라우저에서는 카카오톡·문자로 바로 보낼 수 있게 공유 버튼을 보여 줍니다.
+  const share = root.querySelector('[data-share-result]');
+  if (typeof navigator.share === 'function') {
+    share.hidden = false;
+    share.addEventListener('click', async () => {
+      try { await navigator.share({ title: `${input.itemName} 분리배출 방법`, text: resultToText(input, result), url: location.origin + location.pathname }); if (alive()) status.textContent = '공유했어요.'; }
+      catch (error) { if (alive() && error?.name !== 'AbortError') status.textContent = '공유하지 못했어요. 결과 복사를 이용해 주세요.'; }
+    });
+  }
   root.querySelector('[data-new-item]').addEventListener('click', () => onNewItem?.());
   const feedbackForm = root.querySelector('[data-feedback-form]');
   feedbackForm?.elements.message.addEventListener('input', () => feedbackForm.elements.message.setCustomValidity(''));
