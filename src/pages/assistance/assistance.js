@@ -8,11 +8,30 @@ import { requestAssistance } from '../../services/ai-assistance.js';
 import { prepareAssistancePhoto } from '../../services/assistance-photo.js';
 import { queueInput } from '../../services/input-draft.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
+import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
 
 const titles = { description: '물건 설명하기', photo: '사진으로 인식하기' };
 const list = (values, ordered = false) => { const tag = ordered ? 'ol' : 'ul'; return `<${tag}>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</${tag}>`; };
 
-export function assistanceResultMarkup(answer, region) {
+function questionChoices(answer, index) {
+  return [...new Set([...(answer.questionChoices?.[index] || []), '모르겠어요'])];
+}
+
+function followUpMarkup(answer, answers) {
+  return `<section class="assist-questions"><h3>질문에 하나씩 답해 주세요</h3><p id="assist-followup-hint">처음 설명을 다시 쓸 필요 없어요. 선택지를 누르거나 짧게 입력해 주세요. 아는 것만 답해도 돼요.</p>
+    <form data-assist-followup-form>${answer.questions.map((question, index) => {
+      const value = answers.find(pair => pair.question === question)?.answer || '';
+      return `<div class="assist-followup-field"><label for="assist-answer-${index}">${index + 1}. ${escapeHtml(question)}</label>
+        <div class="assist-answer-options" role="group" aria-label="${escapeHtml(question)} 선택지">${questionChoices(answer, index).map((choice, choiceIndex) => `<button type="button" class="history-action" data-assist-option data-answer-index="${index}" data-choice-index="${choiceIndex}" aria-pressed="${value === choice}">${escapeHtml(choice)}</button>`).join('')}</div>
+        <input id="assist-answer-${index}" name="answer${index}" type="text" maxlength="300" value="${escapeHtml(value)}" placeholder="짧게 답해 주세요. 직접 입력해도 돼요." autocomplete="off" aria-describedby="assist-followup-hint"></div>`;
+    }).join('')}
+      <p class="input-hint">이 답변과 처음 설명, 이전 답변을 함께 Google Gemini에 보내 안내를 갱신해요.</p>
+      <div class="assist-followup-actions"><button type="submit" class="button primary">답변 반영해 다시 안내 받기</button><button type="button" class="button secondary" data-assist-followup-cancel hidden>분석 취소</button><button type="button" class="history-action" data-assist-refine>처음 설명 수정</button></div>
+      <p class="form-status" data-assist-followup-status role="status" aria-live="polite"></p>
+    </form></section>`;
+}
+
+export function assistanceResultMarkup(answer, region, { mode = 'photo', answers = [] } = {}) {
   return `<p class="eyebrow">AI 참고 안내 · ${escapeHtml(regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
     <p class="assist-identification">${escapeHtml(answer.identification)}</p>
@@ -21,7 +40,8 @@ export function assistanceResultMarkup(answer, region) {
     ${answer.markings.length ? `<h3>읽은 표시 · 실제 표시와 비교해 주세요</h3>${list(answer.markings)}` : ''}
     <div class="assist-method"><h3>${escapeHtml(answer.method)}</h3></div>
     ${answer.steps.length ? `<h3>이렇게 배출해 보세요</h3>${list(answer.steps, true)}` : ''}
-    ${answer.questions.length ? `<section class="assist-questions"><h3>배출 전에 확인해 주세요</h3>${list(answer.questions)}<p>아래 버튼으로 설명에 답을 덧붙이거나 사진을 바꾼 뒤 다시 물어볼 수 있어요.</p><button type="button" class="button secondary" data-assist-refine>설명 보완하기</button></section>` : ''}
+    ${mode === 'description' && answers.length ? `<details class="assist-answer-history"><summary>지금까지 답한 내용 ${answers.length}개</summary><dl>${answers.map(pair => `<dt>${escapeHtml(pair.question)}</dt><dd>${escapeHtml(pair.answer)}</dd>`).join('')}</dl></details>` : ''}
+    ${answer.questions.length ? mode === 'description' ? followUpMarkup(answer, answers) : `<section class="assist-questions"><h3>배출 전에 확인해 주세요</h3>${list(answer.questions)}<p>아래 버튼으로 설명에 답을 덧붙이거나 사진을 바꾼 뒤 다시 물어볼 수 있어요.</p><button type="button" class="button secondary" data-assist-refine>설명 보완하기</button></section>` : ''}
     ${answer.cautions.length ? `<h3>주의할 점</h3>${list(answer.cautions)}` : ''}
     <p class="assist-notice">AI가 설명·사진을 바탕으로 만든 안내예요. 사진에서 보이지 않는 재질·오염은 확인이 필요해요. 지자체 기준을 실시간으로 조회한 결과가 아니므로 수거처·봉투·요일은 관할 지자체나 관리사무소에서 확인해 주세요.</p>
     <div class="assist-result-actions"><button type="button" class="button secondary" data-assist-check>이 이름으로 기준 다시 확인</button><a class="button secondary" href="#/guide">분리배출 방법 보기</a></div>`;
@@ -54,14 +74,24 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   const status = root.querySelector('[data-assist-status]'), result = root.querySelector('[data-assist-result]');
   const submit = form.querySelector('[type="submit"]'), cancel = root.querySelector('[data-assist-cancel]');
   const gate = createOperationGate();
-  let image = null, photoRevision = 0, preparing = false, busy = false, disposed = false, controller, answer;
+  let image = null, photoRevision = 0, preparing = false, busy = false, disposed = false, controller, answer, answered = [];
   const region = bindRegion(form, readJudgementRegion(getCurrentMember()), { onChange(value) { rememberJudgementRegion(value, getCurrentMember()); clearResult(); } });
   const alive = () => !disposed && root.isConnected;
-  function clearResult() { answer = null; result.hidden = true; status.textContent = ''; }
-  function controls() { return [...form.querySelectorAll('input, textarea, select, button')].filter(control => control !== cancel && control !== submit); }
+  function clearResult() { answer = null; answered = []; result.hidden = true; status.textContent = ''; }
+  function setStatus(message) {
+    status.textContent = message;
+    const followupStatus = result.querySelector('[data-assist-followup-status]');
+    if (followupStatus) followupStatus.textContent = message;
+  }
+  function controls() {
+    const followupCancel = result.querySelector('[data-assist-followup-cancel]');
+    return [...form.querySelectorAll('input, textarea, select, button'), ...result.querySelectorAll('input, button')].filter(control => control !== cancel && control !== submit && control !== followupCancel);
+  }
   let disabledBefore = [];
   function setBusy(value) {
     busy = value; form.setAttribute('aria-busy', String(value)); cancel.hidden = !value;
+    const followupCancel = result.querySelector('[data-assist-followup-cancel]');
+    if (followupCancel) followupCancel.hidden = !value;
     if (value) { disabledBefore = controls().map(control => [control, control.disabled]); disabledBefore.forEach(([control]) => { control.disabled = true; }); }
     else { disabledBefore.forEach(([control, disabled]) => { control.disabled = disabled; }); disabledBefore = []; }
     submit.disabled = value || preparing;
@@ -98,28 +128,64 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   description.addEventListener('input', () => {
     description.setCustomValidity(''); root.querySelector('[data-assist-count]').textContent = `${description.value.length.toLocaleString('ko-KR')} / 2,000자`; clearResult();
   });
-  cancel.addEventListener('click', () => {
-    controller?.abort(); gate.cancel(); setBusy(false); status.textContent = '분석을 취소했어요. 입력은 그대로 유지했어요.';
-  });
+  function cancelAnalysis() {
+    controller?.abort(); gate.cancel(); setBusy(false); setStatus('분석을 취소했어요. 입력과 답변은 그대로 유지했어요.');
+  }
+  cancel.addEventListener('click', cancelAnalysis);
   form.addEventListener('submit', async event => {
     event.preventDefault(); if (busy || preparing) return;
     if (!region.validate()) return;
     if (mode === 'description' && description.value.trim().length < 10) { description.setCustomValidity('물건에 대해 10자 이상 설명해 주세요.'); description.reportValidity(); return; }
     if (!form.reportValidity()) return;
     if (mode === 'photo' && !image) { status.textContent = '분석할 사진을 먼저 촬영하거나 선택해 주세요.'; form.elements.namedItem('camera').focus(); return; }
+    await generate(answered);
+  });
+  async function generate(nextAnswers, followup = false) {
     const operation = gate.begin(); if (!operation) return;
-    controller = new AbortController(); const selectedRegion = region.get(); clearResult(); setBusy(true);
-    status.textContent = mode === 'photo' ? '사진 속 물건과 표시를 확인하고 배출 방법을 만들고 있어요…' : '설명을 읽고 배출 방법을 만들고 있어요…';
+    controller = new AbortController(); const selectedRegion = region.get();
+    if (!followup) { answer = null; result.hidden = true; }
+    setBusy(true);
+    setStatus(followup ? '질문에 답한 내용을 반영해 안내를 갱신하고 있어요…' : mode === 'photo' ? '사진 속 물건과 표시를 확인하고 배출 방법을 만들고 있어요…' : '설명을 읽고 배출 방법을 만들고 있어요…');
     try {
-      const response = await request({ mode, description: description.value.trim(), region: selectedRegion, ...(mode === 'photo' ? { image } : {}) }, { signal: controller.signal });
+      const response = await request({ mode, description: description.value.trim(), region: selectedRegion, ...(mode === 'photo' ? { image } : nextAnswers.length ? { answers: nextAnswers } : {}) }, { signal: controller.signal });
       if (!alive() || !operation.active()) return;
-      answer = response; result.innerHTML = assistanceResultMarkup(answer, selectedRegion); result.hidden = false;
-      status.textContent = 'AI 참고 안내를 만들었어요. 알아본 물건과 확인할 사항을 살펴봐 주세요.';
+      answered = nextAnswers; answer = response; result.innerHTML = assistanceResultMarkup(answer, selectedRegion, { mode, answers: answered }); result.hidden = false;
+      setStatus(followup ? '답변을 반영했어요. 갱신된 안내를 확인해 주세요.' : 'AI 참고 안내를 만들었어요. 알아본 물건과 확인할 사항을 살펴봐 주세요.');
       result.focus(); result.scrollIntoView({ block: 'start', behavior: 'instant' });
-    } catch (error) { if (alive() && operation.active()) status.textContent = error.message; }
+    } catch (error) { if (alive() && operation.active()) setStatus(error.message); }
     finally { if (alive() && operation.active()) setBusy(false); operation.finish(); }
+  }
+  function syncChoices(followupForm) {
+    followupForm.querySelectorAll('[data-assist-option]').forEach(button => {
+      const index = Number(button.dataset.answerIndex);
+      button.setAttribute('aria-pressed', String(followupForm.elements.namedItem(`answer${index}`).value.trim() === questionChoices(answer, index)[Number(button.dataset.choiceIndex)]));
+    });
+  }
+  result.addEventListener('input', event => {
+    const followupForm = event.target.closest('[data-assist-followup-form]');
+    if (!followupForm || busy) return;
+    syncChoices(followupForm); setStatus('');
+  });
+  result.addEventListener('submit', async event => {
+    const followupForm = event.target.closest('[data-assist-followup-form]');
+    if (!followupForm || mode !== 'description') return;
+    event.preventDefault(); if (busy || !answer || !followupForm.reportValidity()) return;
+    const additions = answer.questions.map((question, index) => ({ question, answer: followupForm.elements.namedItem(`answer${index}`).value.trim() })).filter(pair => pair.answer);
+    if (!additions.length) { setStatus('아는 질문에 하나 이상 답하거나 ‘모르겠어요’를 골라 주세요.'); followupForm.elements.namedItem('answer0')?.focus(); return; }
+    const next = mergeAssistanceAnswers(answered, additions);
+    if (next.length > ASSIST_ANSWERS_MAX) { setStatus('답변이 많아졌어요. 처음 설명에 지금까지 확인한 내용을 정리한 뒤 다시 물어봐 주세요.'); return; }
+    await generate(next, true);
   });
   result.addEventListener('click', event => {
+    if (event.target.closest('[data-assist-followup-cancel]')) { cancelAnalysis(); return; }
+    if (busy) return;
+    const option = event.target.closest('[data-assist-option]');
+    if (option && answer) {
+      const index = Number(option.dataset.answerIndex), followupForm = option.closest('form');
+      const input = followupForm.elements.namedItem(`answer${index}`);
+      input.value = questionChoices(answer, index)[Number(option.dataset.choiceIndex)];
+      syncChoices(followupForm); setStatus(''); return;
+    }
     if (event.target.closest('[data-assist-refine]')) { description.focus(); description.scrollIntoView({ block: 'center', behavior: 'instant' }); }
     if (event.target.closest('[data-assist-check]') && answer) { queueInput({ itemName: answer.itemName }); location.hash = '/item-input'; }
   });

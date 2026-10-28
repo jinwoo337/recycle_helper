@@ -23,8 +23,8 @@ export async function generateAssistance(input, { apiKey = process.env.GEMINI_AP
       try {
         const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify({ systemInstruction: { parts: [{ text: assistanceInstruction() }] }, contents: [{ role: 'user', parts: assistanceParts(input) }],
-            generationConfig: { temperature: 0, maxOutputTokens: 2048, responseMimeType: 'application/json', responseSchema: assistanceSchema(), ...(useThinking ? { thinkingConfig: { thinkingLevel: 'minimal' } } : {}) } }),
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: assistanceInstruction(input.mode) }] }, contents: [{ role: 'user', parts: assistanceParts(input) }],
+            generationConfig: { temperature: 0, maxOutputTokens: 2048, responseMimeType: 'application/json', responseSchema: assistanceSchema(input.mode), ...(useThinking ? { thinkingConfig: { thinkingLevel: 'minimal' } } : {}) } }),
           signal: AbortSignal.any([deadline, AbortSignal.timeout(10_000), ...(signal ? [signal] : [])]),
         });
         if (response.status === 400 && useThinking) { useThinking = false; continue; }

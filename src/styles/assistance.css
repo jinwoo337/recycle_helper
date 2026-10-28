@@ -17,4 +17,11 @@
 .assist-confidence{font-size:14px;color:#566961}.assist-method{padding:18px 20px;background:#fff4dc;border-radius:12px;margin:20px 0}.assist-method h3{margin:0}
 .assist-questions{padding:18px 20px;background:#f0f5fc;border:1px solid #c6d4ea;border-radius:12px;margin:20px 0}.assist-questions h3{margin-top:0}.assist-questions p{font-size:14px}.assist-result-actions .button{gap:8px}
 .assist-page [hidden]{display:none!important}
+.assist-followup-field{margin:22px 0}.assist-followup-field>label{display:block;font-weight:700;font-size:15px;margin-bottom:10px;line-height:1.65}
+.assist-followup-field>input{display:block;width:100%;min-height:46px;padding:10px 12px;border:1px solid #b8c9be;border-radius:8px;background:#fff;color:inherit;font:inherit;font-size:15px}
+.assist-followup-field>input:focus-visible{outline:3px solid #bd831c;outline-offset:3px}.assist-answer-options{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.assist-answer-options button{min-height:42px;white-space:normal;text-align:left}.assist-answer-options button[aria-pressed=true]{background:#226348;color:#fff;border-color:#226348}
+.assist-followup-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.assist-followup-actions>.primary{gap:8px;white-space:normal}
+.assist-answer-history{margin:20px 0;padding:14px 16px;border:1px solid var(--line);border-radius:10px;font-size:14px}.assist-answer-history summary{cursor:pointer;font-weight:600}.assist-answer-history dt{font-weight:600;margin-top:12px}.assist-answer-history dd{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:600px){.assist-followup-actions>.primary{width:100%}.assist-questions{padding:16px}.assist-followup-field>input{font-size:16px}}
 @media(max-width:600px){.input-modes{gap:6px}.input-modes a{padding:12px 8px;text-align:center}.input-modes a[aria-current]{padding:11px 7px}.input-modes a strong{font-size:13px}.input-modes a span{display:none}.assist-description-meta{flex-direction:column;gap:4px}.assist-description-meta span{text-align:right}.assist-form .assist-submit-row>.primary{width:100%}.assist-page{padding-top:20px}.assist-result-actions{flex-direction:column}.assist-result-actions .button{width:100%}}

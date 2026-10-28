@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAssistanceInput, validateAssistance, assistanceParts, assistanceSchema, ASSIST_IMAGE_MAX } from '../src/domain/disposal/ai-assistance.js';
+import { parseAssistanceInput, validateAssistance, assistanceParts, assistanceSchema, assistanceInstruction, mergeAssistanceAnswers, ASSIST_IMAGE_MAX } from '../src/domain/disposal/ai-assistance.js';
 import { createAssistanceHandler, generateAssistance, hasImageSignature } from '../api/assist.js';
 import { requestAssistance } from '../src/services/ai-assistance.js';
 import { assistancePage, assistanceResultMarkup } from '../src/pages/assistance/assistance.js';
@@ -115,4 +115,29 @@ test('세 가지 찾기 모드를 구분하고 사진의 명시적 전송·촬�
   const html=assistanceResultMarkup(answer({itemName:'<img src=x onerror=alert(1)>',steps:['<script>bad()</script>']}),input.region);
   assert.ok(!html.includes('<script>'));assert.ok(!html.includes('<img src=x'));assert.match(html,/&lt;script&gt;/);assert.match(html,/실시간으로 조회한 결과가 아니/);
   assert.match(layout('', 'photo', null),/href="#\/item-input" aria-current="page"/);
+});
+
+test('설명 모드는 질문별 선택지를 검증하고 사진 모드의 기존 질문 형식은 유지한다',()=>{
+  const raw=answer({questions:[{text:'책상 몸체는 어떤 재질인가요?',options:['철제','나무']},{text:'대략 크기는요?',options:[]}]});
+  const parsed=validateAssistance(raw);
+  assert.deepEqual(parsed.questions,['책상 몸체는 어떤 재질인가요?','대략 크기는요?']);assert.deepEqual(parsed.questionChoices,[['철제','나무'],[]]);
+  assert.deepEqual(validateAssistance(parsed),parsed,'서버에서 정리한 선택지를 브라우저 재검증에서도 유지');
+  assert.equal(validateAssistance({...raw,questions:[{text:'재질?',options:['x'.repeat(41)]}]}),null);
+  assert.equal(validateAssistance({...parsed,questionChoices:[]}),null);
+  assert.equal(assistanceSchema('description').properties.questions.items.type,'OBJECT');
+  assert.equal(assistanceSchema('photo').properties.questions.items.type,'STRING');
+  assert.doesNotMatch(assistanceInstruction('photo'),/이전 질문과 사용자의 짧은 답변/);
+  const html=assistanceResultMarkup(parsed,input.region,{mode:'description'});
+  assert.match(html,/name="answer0"/);assert.match(html,/name="answer1"/);assert.match(html,/철제/);assert.match(html,/모르겠어요/);assert.match(html,/답변 반영해 다시 안내/);
+  assert.doesNotMatch(assistanceResultMarkup(parsed,input.region,{mode:'photo'}),/data-assist-followup-form/);
+});
+
+test('최초 설명과 누적 질문·답변을 분리해 전송하고 잘못된 후속 답변은 거절한다',()=>{
+  const answers=[{question:'재질은?',answer:'철제'}],raw={...input,answers};
+  assert.deepEqual(parseAssistanceInput(raw),raw);
+  const sent=JSON.parse(assistanceParts(raw)[0].text);assert.equal(sent.description,input.description);assert.deepEqual(sent.answers,answers);
+  assert.deepEqual(mergeAssistanceAnswers(answers,[{question:'재질은?',answer:'나무'},{question:'크기는?',answer:'120cm'}]),[{question:'재질은?',answer:'나무'},{question:'크기는?',answer:'120cm'}]);
+  for(const bad of ['bad',Array(21).fill(answers[0]),[{question:'',answer:'철제'}],[{question:'재질은?',answer:' '}],[{question:'재질은?',answer:'가'.repeat(301)}]])assert.equal(parseAssistanceInput({...input,answers:bad}),null);
+  const escaped=assistanceResultMarkup(answer({questions:['<img onerror=alert(1)>']}),input.region,{mode:'description',answers:[{question:'<script>질문</script>',answer:'" onfocus="alert(1)'}]});
+  assert.ok(!escaped.includes('<script>'));assert.ok(!escaped.includes('<img onerror'));assert.match(escaped,/&quot;/);
 });
