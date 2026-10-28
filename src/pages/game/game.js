@@ -72,7 +72,7 @@ export function bindGame() {
     if(finished || !alive())return;
     finished=true;stopTimer();
     const right=count(),total=records().length;
-    host.innerHTML=`<div class="game-finish"><span class="game-intro-icon" aria-hidden="true">${right>=10?'🏆':'🌱'}</span><h2 id="game-finished" tabindex="-1">${current()?'시간 종료!':'모든 물건을 분리했어요!'}</h2><p class="game-score">${right}<small>개 분리 성공</small></p><p>도전 ${total}개 · 정답 ${right}개 · 오답 ${total-right}개${total?` · 정답률 ${Math.round(right/total*100)}%`:''}</p></div>${publishMarkup()}<details class="game-review"><summary>푼 문제와 정답 다시 보기</summary><ol>${records().map(answer=>{const q=byId.get(answer.questionId);return `<li><strong>${answer.correct?'✓ 정답':'✕ 오답'} · ${esc(q.name)}</strong><p>${esc(q.condition)}</p><p>내 선택: ${esc(GAME_BINS[answer.bin].label)} · 정답: ${esc(GAME_BINS[q.bin].label)}</p><p>${esc(gameExplanation(q).reasons.join(' '))}</p></li>`;}).join('')}</ol></details><div class="game-actions"><button type="button" class="button primary" id="restart-game">다시 도전</button><a href="#/item-input" class="button secondary">내 물건 판별하기</a></div>`;
+    host.innerHTML=`<div class="game-finish"><span class="game-intro-icon" aria-hidden="true">${right>=10?'🏆':'🌱'}</span><h2 id="game-finished" tabindex="-1">${current()?'시간 종료!':'모든 물건을 분리했어요!'}</h2><p class="game-score">${right}<small>개 분리 성공</small></p><p>도전 ${total}개 · 정답 ${right}개 · 오답 ${total-right}개${total?` · 정답률 ${Math.round(right/total*100)}%`:''}</p></div>${publishMarkup()}<details class="game-review"><summary>푼 문제와 정답 다시 보기</summary><ol>${records().map(answer=>{const q=byId.get(answer.questionId);return `<li><strong>${answer.correct?'✓ 정답':'✕ 오답'} · ${esc(q.name)}</strong><p>${esc(q.condition)}</p><p>내 선택: ${esc(GAME_BINS[answer.bin].label)} · 정답: ${esc(GAME_BINS[q.bin].label)}</p><p>${esc(gameExplanation(q).reasons.join(' '))}</p></li>`;}).join('')}</ol></details><div class="game-actions"><button type="button" class="button primary" id="restart-game">다시 도전</button><button type="button" class="button secondary" id="share-game" data-right="${right}" data-total="${total}">📤 점수 자랑하기</button><a href="#/item-input" class="button secondary">내 물건 판별하기</a></div>`;
     focus('#game-finished');
   }
   function tick(){
@@ -142,6 +142,7 @@ export function bindGame() {
     if(event.target.closest('#start-ranked'))start(true);
     else if(event.target.closest('#start-practice'))start(false);
     else if(event.target.closest('#retry-game-answer'))choose(pendingAnswer?.bin,true);
+    else if(event.target.closest('#share-game')){shareScore(event.target.closest('#share-game'));}
     else if(event.target.closest('#restart-game')){clearEffect();const template=document.createElement('template');template.innerHTML=gamePage();host.innerHTML=template.content.querySelector('#disposal-game').innerHTML;game=null;finished=false;focus('#start-ranked');}
     else {const button=event.target.closest('[data-game-bin]');if(button && host.contains(button))choose(button.dataset.gameBin);}
   }
@@ -163,4 +164,16 @@ export function bindGame() {
   host.addEventListener('click',clicks);host.addEventListener('submit',publish);refresh.addEventListener('click',loadRanking);document.addEventListener('visibilitychange',tick);
   loadRanking();
   return()=>{disposed=true;stopTimer();clearEffect();host.removeEventListener('click',clicks);host.removeEventListener('submit',publish);refresh.removeEventListener('click',loadRanking);document.removeEventListener('visibilitychange',tick);};
+}
+
+// 게임 점수를 친구에게 보냅니다. 공유 기능이 없으면 문구를 복사합니다.
+async function shareScore(button){
+  const text=`60초 분리배출 게임에서 ${button.dataset.total}개 중 ${button.dataset.right}개를 맞혔어요! ♻ 너도 도전해 봐!`;
+  const url=location.origin+location.pathname+'#/game';
+  const status=button.closest('.game-actions');
+  const note=message=>{let p=status.parentElement.querySelector('[data-share-status]');if(!p){p=document.createElement('p');p.className='input-hint';p.setAttribute('role','status');p.dataset.shareStatus='';status.after(p);}p.textContent=message;};
+  try{
+    if(typeof navigator.share==='function'){await navigator.share({title:'분리배출 게임 점수',text,url});return;}
+    await navigator.clipboard.writeText(`${text} ${url}`);note('점수 자랑 문구를 복사했어요. 카카오톡 등에 붙여 넣어 보세요.');
+  }catch(error){if(error?.name!=='AbortError')note('공유하지 못했어요. 화면을 캡처해 자랑해 보세요.');}
 }
