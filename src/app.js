@@ -15,12 +15,15 @@ import { gamePage, bindGame } from './pages/game/game.js';
 import { guidePage, bindGuide, focusGuideSection } from './pages/guide/guide.js';
 import { parseRoute } from './utils/routes.js';
 import { forgotPasswordPage, resetPasswordPage, submitForgotPassword, submitResetPassword } from './pages/password/password.js';
+import { assistancePage, bindAssistance } from './pages/assistance/assistance.js';
 
 const routes = {
   '/': { page: 'main', title: '홈', render: mainPage },
   '/login': { page: 'login', title: '로그인', render: loginPage },
   '/signup': { page: 'signup', title: '회원가입', render: signupPage },
   '/item-input': { page: 'item-input', title: '물건 및 상태 입력', render: itemInputPage },
+  '/describe': { page: 'describe', title: '물건 설명하기', render: () => assistancePage('description') },
+  '/photo': { page: 'photo', title: '사진으로 인식하기', render: () => assistancePage('photo') },
   '/history': { page: 'history', title: '기록 및 통계', render: historyPage },
   '/profile': { page: 'profile', title: '마이페이지', render: profilePage },
   '/game': { page: 'game', title: '게임', render: gamePage },
@@ -44,6 +47,7 @@ function render(moveFocus = false) {
   document.getElementById('app').innerHTML = layout(route.render(member), route.page, member);
   if (route.page === 'main') disposePage = bindMain();
   else if (route.page === 'item-input') disposePage = bindItemInput();
+  else if (route.page === 'describe' || route.page === 'photo') disposePage = bindAssistance(route.page === 'photo' ? 'photo' : 'description');
   else if (route.page === 'history') disposePage = bindHistory();
   else if (route.page === 'profile') bindProfile();
   else if (route.page === 'game') disposePage = bindGame();

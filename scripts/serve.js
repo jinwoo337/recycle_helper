@@ -16,6 +16,15 @@ const server = http.createServer(async (request, response) => {
       await classify({ method: request.method, query: Object.fromEntries(url.searchParams), headers: request.headers }, res);
       return;
     }
+    if (pathname === '/api/assist') {
+      const chunks = []; let size = 0;
+      for await (const chunk of request) { size += chunk.length; if (size <= 2_100_000) chunks.push(chunk); }
+      if (size > 2_100_000) { response.writeHead(413, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ error: 'too_large' })); return; }
+      const { default: assist } = await import('../api/assist.js');
+      const res = { setHeader: (name, value) => response.setHeader(name, value), status(code) { response.statusCode = code; return res; }, send: body => response.end(body) };
+      await assist({ method: request.method, body: Buffer.concat(chunks).toString('utf8'), headers: request.headers }, res);
+      return;
+    }
     const relative = pathname === '/' ? 'index.html' : pathname.slice(1);
     const target = path.resolve(root, relative);
     const safePath = path.relative(root, target);

@@ -6,10 +6,12 @@ import { aiToggleMarkup, bindAiToggle } from '../../components/ai-toggle.js';
 import { tipOfTheDay } from '../../domain/disposal/daily-tips.js';
 import { voiceButtonMarkup, bindVoiceInput } from '../../components/voice-input.js';
 import { getDisposalHistory } from '../../services/disposal-history.js';
+import { inputModesMarkup } from '../../components/input-modes.js';
 export function mainPage(member) {
   return `<section class="container home-page">
     <header class="home-heading"><p class="eyebrow">버리기 전, 한 번만 확인해요</p><h1>이건 어디에 버릴까요?</h1><p>물건 이름으로 찾고, 내 물건의 상태에 맞게 분리배출하세요.</p></header>
     <form id="quick-search" class="quick-search home-search"><label for="quick-item">어떤 물건을 버리려고 하나요?</label><div class="quick-search-row"><div class="item-name-control home-item-control"><input id="quick-item" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="quick-items" aria-expanded="false" aria-describedby="quick-item-status"><div id="quick-items" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div>${voiceButtonMarkup('home-voice')}</div><button class="button primary" type="submit">배출 방법 찾기 <span aria-hidden="true">→</span></button></div><p id="quick-item-status" class="input-hint" role="status" aria-live="polite"></p><div class="example-items" aria-label="자주 찾는 물건"><span>자주 찾아요</span>${['우유팩', '투명생수병', '과자봉지'].map(name => `<button class="history-action" type="button" data-example="${name}">${name}</button>`).join('')}</div>${aiToggleMarkup('home-ai-enabled', { compact: true })}<p class="input-hint">${member ? `${escapeHtml(member.nickname)}님, 실제 물건의 재질과 현재 상태를 확인해 주세요.` : '가입 없이 사용할 수 있어요. 로그인하면 지역과 기록을 계정에 저장해요.'}</p></form>
+    ${inputModesMarkup('name')}
     <section id="home-recent" class="home-recent" aria-labelledby="home-recent-title" hidden><h2 id="home-recent-title">최근 찾은 물건</h2><div class="home-recent-items" id="home-recent-items"></div></section>
     <nav class="home-shortcuts" aria-label="주요 기능 바로가기">
       <a href="#/history" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('history')}</span><div><h2>나의 기록</h2><p>찾아본 물건과 통계를 한눈에</p></div><span aria-hidden="true">↗</span></a>
