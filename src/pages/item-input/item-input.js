@@ -318,7 +318,7 @@ export function bindItemInput() {
     const known = Boolean(lookupItem(name));
     const entry = { status: 'loading', state };
     entry.promise = requestAiGuess(name, undefined, { opinion: known, state })
-      .then(guess => { entry.status = 'done'; entry.guess = guess; if (!state && aiEnabled && !known && guess && form.isConnected && nameInput.value.trim() === name) { applyAiGuess(guess); if (guess.shared) preselectFromShared(guess); } })
+      .then(guess => { entry.status = 'done'; entry.guess = guess; if (!state && aiEnabled && !known && guess && form.isConnected && nameInput.value.trim() === name) { applyAiGuess(guess); preselectFromShared(guess); } })
       .catch(error => { entry.status = 'error'; entry.error = error.message; })
       .finally(() => { if (form.isConnected) refreshAi(); });
     opinions.set(key, entry);
@@ -343,7 +343,8 @@ export function bindItemInput() {
     preselectFromShared(guess);
     refreshAi();
   }
-  // 저장된 답이 대형폐기물이거나 재질이 분명한 재활용 포장재면 종류(와 재질)를 미리 골라 둡니다. 사용자가 바꿀 수 있습니다.
+  // AI 답(저장된 답 포함)이 대형폐기물이거나 재질이 분명한 재활용 포장재면 종류(와 재질)를 미리 골라 둡니다. 사용자가 바꿀 수 있습니다.
+  // 확신이 낮은 답은 검증 단계에서 '판단 어려움'으로 바뀌므로 여기서 고르지 않습니다.
   function preselectFromShared(guess) {
     const category = form.elements.namedItem('category');
     if (category.value || document.getElementById('item-category-section').hidden) return;
