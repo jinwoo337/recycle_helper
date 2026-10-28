@@ -26,7 +26,6 @@ import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
-import { inputModesMarkup } from '../../components/input-modes.js';
 
 let draft = {};
 let componentCount = 1;
@@ -67,7 +66,7 @@ export function itemInputPage() {
   return `<section class="container item-page">
     <a class="back-link" href="#/">← 메인으로</a>
     <header class="item-heading"><p class="eyebrow">나의 물건 살펴보기</p><h1>어떤 물건을 버리려고 하나요?</h1><p>이름을 고르고 현재 상태만 확인해 주세요.</p></header>
-    ${inputModesMarkup('name')}
+
     <p id="catalog-status" class="input-hint" role="status" aria-live="polite"></p>
     <button type="button" id="retry-catalog" class="history-action" hidden>품목 정보 다시 불러오기</button>
     <div class="item-grid"><form id="item-form" class="item-card">
