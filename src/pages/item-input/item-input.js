@@ -5,6 +5,7 @@ import { suggestItemInfo, searchItemNames, lookupItem, normalizeItemName } from 
 import { validateAiGuess } from '../../domain/disposal/ai-classification.js';
 import { requestAiGuess } from '../../services/ai-classify.js';
 import { aiToggleMarkup, bindAiToggle, readAiEnabled } from '../../components/ai-toggle.js';
+import { RECYCLE_MARKS, markById } from '../../domain/disposal/recycle-marks.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { getCatalogMessage, initializeItemCatalog } from '../../services/item-catalog.js';
 import { resultToolsMarkup, bindResultTools } from '../../components/result-tools.js';
@@ -34,13 +35,18 @@ const titles = { material: '주요 재질', type: '세부 종류', contaminated:
 function question(name, title, options = yesNo) {
   return `<fieldset class="item-question"><legend>${title}</legend><div class="choice-row">${options.map(([value, label]) => `<label class="choice"><input type="radio" name="${name}" value="${value}" required><span>${label}</span></label>`).join('')}</div></fieldset>`;
 }
+// 분리배출 표시(마크) 버튼 묶음. 종류 질문과 재질 선택 두 곳에서 같은 버튼을 씁니다.
+function markPicker(titleId, title) {
+  return `<div class="mark-picker" role="group" aria-labelledby="${titleId}"><p class="mark-picker-title" id="${titleId}">${title}</p><div class="mark-picker-grid">${RECYCLE_MARKS.map(mark => `<button type="button" class="recycle-mark" data-mark="${mark.id}" aria-pressed="false"><span class="recycle-mark-symbol" aria-hidden="true">♻</span><strong>${mark.label}</strong><small>${mark.hint}</small></button>`).join('')}</div></div>`;
+}
 function categoryFields() {
-  return `<details id="item-category-section" class="item-category-section" hidden><summary id="item-category-summary">어떤 종류의 물건인가요?</summary><p class="input-hint">목록에 없는 물건도 종류를 알려주면 AI 없이 안내해요. 포장재와 제품 자체는 배출 방법이 다를 수 있어요.</p><div class="category-shortcuts" role="group" aria-label="자주 쓰는 물건 종류">${[['packaging', '포장재·용기'], ['food', '음식물·부산물'], ['unknown', '종류를 모르겠어요']].map(([value, label]) => `<button type="button" class="history-action" data-category-choice="${value}">${label}</button>`).join('')}</div><div class="field"><label for="item-category">물건 종류</label><select id="item-category" name="category" aria-describedby="category-guidance"><option value="">실제 물건에 맞는 종류 선택</option>${ITEM_CATEGORIES.map(([id, label]) => `<option value="${id}">${escapeHtml(label)}</option>`).join('')}</select></div><p id="category-guidance" class="input-hint" role="status"></p></details>`;
+  return `<details id="item-category-section" class="item-category-section" hidden><summary id="item-category-summary">어떤 종류의 물건인가요?</summary><p class="input-hint">목록에 없는 물건도 종류를 알려주면 AI 없이 안내해요. 포장재와 제품 자체는 배출 방법이 다를 수 있어요.</p>${markPicker('category-mark-title', '포장에 분리배출 표시가 있으면 눌러 주세요')}<div class="category-shortcuts" role="group" aria-label="자주 쓰는 물건 종류">${[['packaging', '포장재·용기'], ['food', '음식물·부산물'], ['unknown', '종류를 모르겠어요']].map(([value, label]) => `<button type="button" class="history-action" data-category-choice="${value}">${label}</button>`).join('')}</div><div class="field"><label for="item-category">물건 종류</label><select id="item-category" name="category" aria-describedby="category-guidance"><option value="">실제 물건에 맞는 종류 선택</option>${ITEM_CATEGORIES.map(([id, label]) => `<option value="${id}">${escapeHtml(label)}</option>`).join('')}</select></div><p id="category-guidance" class="input-hint" role="status"></p></details>`;
 }
 function partFields(prefix, label) {
   return `<div class="part-fields" data-prefix="${prefix}">
     ${!prefix ? '<details id="material-editor" class="material-editor" open><summary><span id="material-detected">재질·종류 선택</span><span class="material-edit-label">수정</span></summary><div class="material-controls">' : '<details class="material-editor component-material-editor" open><summary><span class="component-material-summary">재질·종류 선택</span><span class="material-edit-label">수정</span></summary><div class="material-controls">'}
     ${prefix ? `<div class="field component-label-field"><label for="${prefix}label">부속품 이름 (선택)</label><input id="${prefix}label" name="${prefix}label" type="text" maxlength="40" data-optional placeholder="예: 라벨, 뚜껑, 포장 필름"></div>` : ''}
+    ${!prefix ? markPicker('mark-picker-title', '포장의 분리배출 표시를 눌러도 돼요') : ''}
     <div class="field"><label for="${prefix}material">${label}</label><select id="${prefix}material" name="${prefix}material" required><option value="">재질을 선택해 주세요</option>${MATERIALS.map(material => `<option>${material}</option>`).join('')}</select></div>
     <div class="field" data-condition="type" hidden><label for="${prefix}type">세부 종류</label><select id="${prefix}type" name="${prefix}type" required></select></div>
     ${!prefix ? '<label class="auto-fill-choice"><input type="checkbox" id="auto-fill-item"><span>이름에 맞춰 재질 자동 입력</span></label><p id="auto-fill-status" class="input-hint" role="status"></p><details id="preset-info" class="preset-info" hidden><summary id="preset-title">자동 입력 기준 · 수정 가능</summary><p id="preset-note" class="input-hint"></p></details>' : ''}</div></details>
@@ -271,6 +277,7 @@ export function bindItemInput() {
     document.getElementById('components-section').hidden = !components;
     document.querySelectorAll('#component-fields .part-fields').forEach(node => syncPart(node, components));
     const typeLabel = TYPES[value('material')]?.find(([type]) => type === value('type'))?.[1];
+    form.querySelectorAll('[data-mark]').forEach(button => { const mark = markById(button.dataset.mark); button.setAttribute('aria-pressed', String(mark.material === value('material') && mark.type === value('type'))); });
     document.getElementById('material-detected').textContent = [value('material'), typeLabel].filter(Boolean).join(' · ') || '재질·종류를 선택해 주세요';
     document.getElementById('quick-condition').hidden = !hasName || !cleanSingleMaterialInput(collect())
       || ['yes', 'unknown'].includes(value('contaminated')) || ['yes', 'unknown'].includes(value('combined'));
@@ -589,6 +596,19 @@ export function bindItemInput() {
       if (form.isConnected && nameInput.value.trim() === name) askAi(name);
     }, 700);
   }
+  // 분리배출 표시 버튼: 재질·세부 종류를 채우고 상태 질문으로 이어집니다.
+  form.addEventListener('click', event => {
+    const mark = markById(event.target.closest('[data-mark]')?.dataset.mark);
+    if (!mark || saving || deleting) return;
+    // 분리배출 표시가 있는 미등록 물건은 '포장재·용기'로 보고 재질을 채웁니다.
+    const category = form.elements.namedItem('category');
+    if (!document.getElementById('item-category-section').hidden && category.value !== 'packaging') { category.value = 'packaging'; changed({ target: category }); }
+    document.getElementById('item-category-section').open = false;
+    form.querySelectorAll('input[type="radio"]').forEach(control => { control.checked = false; });
+    for (let pass = 0; pass < 3; pass++) { writeValues({ material: mark.material, type: mark.type }); updateConditional(); }
+    draft = collect(); summary.hidden = true;
+    saveStatus.textContent = `‘${mark.label}’ 표시로 ${mark.material}을(를) 골랐어요. 현재 상태를 골라 주세요.`;
+  });
   form.addEventListener('input', changed);
   form.addEventListener('change', changed);
   form.querySelectorAll('[data-category-choice]').forEach(button => button.addEventListener('click', () => {

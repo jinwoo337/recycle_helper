@@ -17,3 +17,14 @@
   .bottom-nav a[aria-current="page"]{color:#2f6b4f;font-weight:700;background:#eef6ec}
   body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 }
+/* 입력: 분리배출 표시(마크) 버튼 */
+.mark-picker{margin:4px 0 14px}
+.mark-picker-title{font-size:14px;font-weight:600;margin:0 0 8px}
+.mark-picker-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.recycle-mark{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;border:1.5px solid #cfd8cb;border-radius:10px;background:#fff;cursor:pointer;text-align:center;min-height:84px}
+.recycle-mark:hover{border-color:#2f6b4f}
+.recycle-mark[aria-pressed="true"]{border-color:#2f6b4f;background:#eaf5ee;box-shadow:inset 0 0 0 1px #2f6b4f}
+.recycle-mark-symbol{font-size:22px;line-height:1;color:#2f6b4f}
+.recycle-mark strong{font-size:14px}
+.recycle-mark small{font-size:11px;color:#5c6b5c;line-height:1.3}
+@media (max-width:480px){.mark-picker-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
