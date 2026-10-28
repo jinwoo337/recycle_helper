@@ -1,7 +1,8 @@
 import { escapeHtml } from '../utils/html.js';
 
-export function bindItemAutocomplete({ input, options, status, search, onSelect, onCompositionEnd }) {
+export function bindItemAutocomplete({ input, options, status, search, onSelect = () => {}, onCompositionEnd = () => {}, noResultsMessage = '등록되지 않은 이름도 아래에서 물건 종류를 선택해 안내받을 수 있어요.' }) {
   let candidates = [], active = -1, dismissedQuery = null, compositionCommitted = false;
+  const optionPrefix = options.id ? `${options.id}-option-` : 'item-option-';
   const listeners = [];
   const listen = (node, event, handler, capture = false) => { node.addEventListener(event, handler, capture); listeners.push(() => node.removeEventListener(event, handler, capture)); };
   function close() {
@@ -12,9 +13,9 @@ export function bindItemAutocomplete({ input, options, status, search, onSelect,
     if (dismissedQuery === input.value) { close(); return; }
     candidates = search(input.value); active = -1;
     input.removeAttribute('aria-activedescendant');
-    options.innerHTML = candidates.map((name, index) => `<button type="button" role="option" tabindex="-1" aria-selected="false" id="item-option-${index}" data-candidate="${index}">${escapeHtml(name)}</button>`).join('');
+    options.innerHTML = candidates.map((name, index) => `<button type="button" role="option" tabindex="-1" aria-selected="false" id="${optionPrefix}${index}" data-candidate="${index}">${escapeHtml(name)}</button>`).join('');
     options.hidden = !candidates.length; input.setAttribute('aria-expanded', String(candidates.length > 0));
-    status.textContent = candidates.length ? `${candidates.length}개 추천 · 방향키와 Enter로 선택할 수 있어요.` : input.value.trim() ? '등록되지 않은 이름도 아래에서 물건 종류를 선택해 안내받을 수 있어요.' : '';
+    status.textContent = candidates.length ? `${candidates.length}개 추천 · 방향키와 Enter로 선택할 수 있어요.` : input.value.trim() ? noResultsMessage : '';
   }
   function select(index) {
     if (!candidates[index]) return;
@@ -43,14 +44,15 @@ export function bindItemAutocomplete({ input, options, status, search, onSelect,
     event.preventDefault();
     active = (active + (event.key === 'ArrowDown' ? 1 : active < 0 ? 0 : -1) + candidates.length) % candidates.length;
     [...options.children].forEach((option, index) => option.setAttribute('aria-selected', String(index === active)));
-    input.setAttribute('aria-activedescendant', `item-option-${active}`);
+    input.setAttribute('aria-activedescendant', `${optionPrefix}${active}`);
     options.children[active].scrollIntoView({ block: 'nearest' });
   });
   listen(input, 'compositionend', () => {
     if (compositionCommitted) { dismissedQuery = input.value; compositionCommitted = false; }
     onCompositionEnd(); show();
   });
-  listen(input.form, 'pointerdown', event => { if (!event.target.closest('.item-name-control')) close(); });
+  const control = input.closest?.('.item-name-control');
+  listen(input.ownerDocument || input.form, 'pointerdown', event => { if (control ? !control.contains(event.target) : !event.target.closest?.('.item-name-control')) close(); });
   listen(input.form, 'invalid', close, true);
   return { close, dispose() { listeners.forEach(remove => remove()); } };
 }

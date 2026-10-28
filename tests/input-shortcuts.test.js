@@ -23,3 +23,9 @@ test('바로가기와 같은 상태를 직접 선택한 판별은 동일하며, 
   const dirty = judgeDisposal({itemName:'과자봉지',material:'비닐',type:'packaging',contaminated:'yes',washed:'yes',removable:'no',combined:'no'});
   assert.equal(dirty.status,'general');
 });
+
+test('깨끗한 상태로 바꾸면 이전 비닐 오염 종류도 함께 제거한다', () => {
+  const input={itemName:'과자봉지',material:'비닐',type:'packaging',contaminated:'yes',washed:'yes',removable:'no',vinylResidue:'solids'};
+  assert.equal(cleanSingleMaterialInput(input).vinylResidue,undefined);
+  assert.equal(input.vinylResidue,'solids');
+});

@@ -5,6 +5,9 @@ import { gameRanking } from '../../services/game-ranking.js';
 import { GAME_BINS, GAME_QUESTIONS, createGame, gameOptions, answerGame, gameExplanation, remainingSeconds, validateRankedGameState, gamePrompt, gameStreak } from '../../domain/disposal/game.js';
 
 const byId = new Map(GAME_QUESTIONS.map(q=>[q.id,q]));
+export const practiceFinishMessage = member => member
+  ? '연습 기록이에요. 공동 랭킹에 참가하려면 다시 도전에서 ‘랭킹 도전’을 선택하세요.'
+  : '연습 기록이에요. 공동 랭킹에 참가하려면 로그인한 뒤 ‘랭킹 도전’을 선택하세요.';
 const binIcon='<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/></svg>';
 export function gamePage() {
   return `<section class="container game-page"><header class="game-heading"><p class="eyebrow">60초 분리배출 대결</p><h1>누가 더 많이 분리할까요?</h1><p>물건 정보를 읽고 4개 배출함 중 하나를 고르세요.</p></header>
@@ -63,7 +66,7 @@ export function bindGame() {
     focus('#game-question');
   }
   function publishMarkup(){
-    return mode==='ranked' && records().length?`<form id="publish-game" class="game-publish"><h3>이 기록으로 랭킹에 참가하기</h3><label for="game-public-name">공개 이름 (2~20자)</label><input id="game-public-name" name="publicName" type="text" minlength="2" maxlength="20" required autocomplete="off" placeholder="예: 분리배출왕"><label class="game-consent"><input type="checkbox" name="consent" required> 이 이름과 정답·오답 수를 전체 랭킹에 공개합니다.</label><p class="input-hint">이메일·실명·연락처 대신 별명을 사용하세요.</p><button type="submit" class="button primary">랭킹 등록</button><p id="publish-status" role="status"></p></form>`:mode==='ranked'?'<p class="input-hint">한 문제 이상 푼 기록부터 랭킹에 등록할 수 있어요.</p>':'<p class="input-hint">연습 기록이에요. 공동 랭킹에 참가하려면 로그인한 뒤 ‘랭킹 도전’을 선택하세요.</p>';
+    return mode==='ranked' && records().length?`<form id="publish-game" class="game-publish"><h3>이 기록으로 랭킹에 참가하기</h3><label for="game-public-name">공개 이름 (2~20자)</label><input id="game-public-name" name="publicName" type="text" minlength="2" maxlength="20" required autocomplete="off" placeholder="예: 분리배출왕"><label class="game-consent"><input type="checkbox" name="consent" required> 이 이름과 정답·오답 수를 전체 랭킹에 공개합니다.</label><p class="input-hint">이메일·실명·연락처 대신 별명을 사용하세요.</p><button type="submit" class="button primary">랭킹 등록</button><p id="publish-status" role="status"></p></form>`:mode==='ranked'?'<p class="input-hint">한 문제 이상 푼 기록부터 랭킹에 등록할 수 있어요.</p>':`<p class="input-hint">${practiceFinishMessage(getCurrentMember())}</p>`;
   }
   function finish(){
     if(finished || !alive())return;

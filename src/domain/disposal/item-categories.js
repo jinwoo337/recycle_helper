@@ -22,3 +22,10 @@ export const ITEM_CATEGORIES = [
 ];
 export const validItemCategory = value => ITEM_CATEGORIES.some(([id]) => id === value);
 export const categoryLabel = value => ITEM_CATEGORIES.find(([id]) => id === value)?.[1] || '';
+
+export const PACKAGING_MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼'];
+export function categoryAllowsMaterial(category, material) {
+  if (category === 'packaging') return PACKAGING_MATERIALS.includes(material) || ['기타', '모르겠어요'].includes(material);
+  if (category === 'food') return material === '음식물류';
+  return true;
+}

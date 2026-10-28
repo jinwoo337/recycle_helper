@@ -14,9 +14,11 @@ const key = () => `recycle-helper.disposal-history.v2.${getCurrentMember()?.id |
 const strings = value => Array.isArray(value) && value.every(item => typeof item === 'string');
 const validOutcome = value => value && ['recycle', 'general', 'check', 'mixed'].includes(value.status)
   && typeof value.method === 'string' && strings(value.steps) && strings(value.reasons);
-const partKeys = ['material', 'type', 'contaminated', 'washed', 'removable', 'combined', 'separable', 'foodSeparated'];
+const partKeys = ['material', 'type', 'contaminated', 'washed', 'removable', 'vinylResidue', 'combined', 'separable', 'foodSeparated'];
 const validPart = part => part && typeof part === 'object' && !Array.isArray(part)
   && (part.category === undefined || validItemCategory(part.category))
+  && (part.categoryOrigin === undefined || ['manual', 'keyword'].includes(part.categoryOrigin))
+  && (part.keywordCategory === undefined || typeof part.keywordCategory === 'boolean')
   && (part.label === undefined || (typeof part.label === 'string' && part.label.length <= 40))
   && partKeys.every(key => part[key] === undefined || typeof part[key] === 'string');
 const validRegional = regional => regional === undefined || (regional && typeof regional === 'object'

@@ -36,6 +36,8 @@ export function bindHistory() {
   let disposeTools = () => {};
   let loadFailure = '';
   let records = [], page = 1, selectedId = null, pending = null, deleting = false, loadVersion = 0;
+  function closeDetail() { selectedId = null; disposeTools(); disposeTools = () => {}; detail.hidden = true; detail.innerHTML = ''; }
+  function closeConfirmation() { if (!deleting) { pending = null; confirmation.hidden = true; } }
 
   function drawStatistics(stats) {
     document.getElementById('statistics-total').innerHTML = `${stats.total}<span>개</span>`;
@@ -51,13 +53,28 @@ export function bindHistory() {
       return;
     }
     const from = document.getElementById('history-from').value, to = document.getElementById('history-to').value;
+    const invalidRange = Boolean(from && to && from > to);
+    for (const id of ['history-from', 'history-to']) {
+      const control = document.getElementById(id);
+      control.setAttribute('aria-invalid', String(invalidRange));
+      control.setAttribute('aria-describedby', 'history-page-status');
+    }
     const activeFilters = [document.getElementById('history-category').value, from, to, document.getElementById('history-sort').value !== 'newest'].filter(Boolean).length;
     document.getElementById('history-filter-count').textContent = activeFilters ? ` · ${activeFilters}개 적용` : '';
+    if (invalidRange) {
+      status.textContent = '시작일이 종료일보다 늦어요. 날짜 범위를 확인해 주세요.';
+      document.getElementById('history-count').textContent = '기간 확인 필요';
+      document.getElementById('history-records').innerHTML = '<p class="input-hint">시작일과 종료일을 올바르게 선택하면 해당 기간의 기록을 보여드려요.</p>';
+      document.getElementById('history-pagination').textContent = '';
+      closeDetail(); closeConfirmation(); return;
+    }
     const filtered = filterDisposalHistory(records, { query: search.value, category: document.getElementById('history-category').value,
       from, to, sort: document.getElementById('history-sort').value });
-    if (from && to && from > to) status.textContent = '시작일이 종료일보다 늦어요. 날짜 범위를 확인해 주세요.';
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
     page = Math.min(page, pageCount);
+    if (selectedId && !filtered.slice((page - 1) * pageSize, page * pageSize).some(record => record.id === selectedId)) {
+      closeDetail();
+    }
     document.getElementById('history-count').textContent = `${filtered.length}개${search.value.trim() ? ' 검색됨' : ' 기록'}`;
     document.getElementById('history-records').innerHTML = filtered.length ? `<ol class="history-record-list">${filtered.slice((page - 1) * pageSize, page * pageSize).map(record => `<li><button type="button" class="history-record-open" data-open-record="${escapeHtml(record.id)}"><strong>${escapeHtml(record.itemName)}</strong><span>${record.legacy ? '이전 이름 기록 · 판별 조건과 결과 없음' : escapeHtml(record.result.method)}</span><small>${record.legacy ? '조건을 새로 입력해 판별해 주세요.' : escapeHtml(new Date(record.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))}</small></button><button type="button" class="history-action" data-remove-record="${escapeHtml(record.id)}" aria-label="${escapeHtml(record.itemName)} 기록 삭제">삭제</button></li>`).join('')}</ol>` : `<div class="history-empty"><strong>${records.length ? '검색한 물품이 없어요.' : '아직 저장한 기록이 없어요.'}</strong><p>${records.length ? '다른 이름으로 검색해 보세요.' : '물품을 판별하면 기록과 통계가 함께 쌓여요.'}</p><a href="#/item-input" class="back-link">분리배출 알아보기 →</a></div>`;
     document.getElementById('history-pagination').innerHTML = pageCount > 1 ? `<button type="button" class="history-action" data-page="previous" ${page === 1 ? 'disabled' : ''}>이전</button><span>${page} / ${pageCount} 페이지</span><button type="button" class="history-action" data-page="next" ${page === pageCount ? 'disabled' : ''}>다음</button>` : '';
@@ -69,6 +86,7 @@ export function bindHistory() {
     detail.innerHTML = record.legacy ? `<p class="eyebrow">이전 이름 기록</p><h2 id="summary-title">${escapeHtml(record.itemName)}</h2><p class="demo-notice">이 기록에는 물품 이름만 저장되어 있어요. 당시 조건과 판별 결과는 없어요.</p><a class="button secondary" href="#/item-input">새로 판별하기</a>` : resultMarkup(record.input, record.result, record.createdAt);
     if (!record.legacy) {
       detail.querySelector('#edit-item').addEventListener('click', () => { queueInput(record.input); location.hash = '/item-input'; });
+      detail.querySelector('#category-other')?.addEventListener('click', () => { queueInput({ ...record.input, category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }); location.hash = '/item-input'; });
       disposeTools = bindResultTools(detail, record.input, record.result, { onNewItem: () => { queueInput({}); location.hash = '/item-input'; } });
     }
     detail.hidden = false;
@@ -96,14 +114,14 @@ export function bindHistory() {
       return false;
     } finally { if (root.isConnected && version === loadVersion) root.removeAttribute('aria-busy'); }
   }
-  search.addEventListener('input', () => { page = 1; drawRecords(); });
+  search.addEventListener('input', () => { page = 1; closeConfirmation(); drawRecords(); });
   root.querySelectorAll('.history-filters input,.history-filters select').forEach(control => control.addEventListener('change', () => {
-    page = 1; status.textContent = ''; drawRecords();
+    page = 1; status.textContent = ''; closeConfirmation(); drawRecords();
   }));
   document.getElementById('reset-history-filters').addEventListener('click', () => {
     search.value = ''; root.querySelectorAll('.history-filters input').forEach(input => { input.value = ''; });
     document.getElementById('history-category').value = ''; document.getElementById('history-sort').value = 'newest';
-    page = 1; status.textContent = '검색과 필터를 초기화했어요.'; drawRecords(); search.focus();
+    page = 1; status.textContent = '검색과 필터를 초기화했어요.'; closeConfirmation(); drawRecords(); search.focus();
   });
   document.getElementById('refresh-history').addEventListener('click', refresh);
   document.getElementById('history-records').addEventListener('click', event => {

@@ -39,7 +39,14 @@ export function detectItemCategory(name) {
   for (const { category, words = [], ends = [] } of RULES) {
     const keyword = words.filter(word => value.includes(word)).sort((a, b) => b.length - a.length)[0]
       || ends.find(word => value.endsWith(word));
-    if (keyword && validItemCategory(category)) return { category, keyword };
+    if (keyword && validItemCategory(category)) {
+      const damage = /부푼|부풀|팽창|누액|새는|샌|터진|파손|깨진|찌그러진|액이새/.exec(value);
+      if (damage && ['battery', 'rechargeable'].includes(category)) {
+        const position = value.indexOf(keyword);
+        return { category: 'damaged-battery', keyword: value.slice(Math.min(position, damage.index), Math.max(position + keyword.length, damage.index + damage[0].length)) };
+      }
+      return { category, keyword };
+    }
   }
   return null;
 }

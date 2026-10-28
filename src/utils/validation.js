@@ -6,7 +6,7 @@ function errorFor(input, form) {
   if (input.id === 'district' && !normalizeRegion({ province: form.elements.namedItem('province').value, district: input.value })) return '관할 시·군·구 이름을 확인해 주세요. 서울·대전은 추천 목록의 자치구를 선택해 주세요.';
   if (input.type === 'email' && input.validity.typeMismatch) return '올바른 이메일 주소를 입력해 주세요.';
   if (input.id === 'nickname' && (input.value.trim().length < 2 || input.value.trim().length > 20)) return '닉네임은 2~20자로 입력해 주세요.';
-  if (input.id === 'password' && form.id === 'signup-form' && input.value.length < 8) return '비밀번호는 8자 이상으로 입력해 주세요.';
+  if (input.id === 'password' && ['signup-form', 'reset-password-form'].includes(form.id) && input.value.length < 8) return '비밀번호는 8자 이상으로 입력해 주세요.';
   if (input.id === 'password-confirm' && input.value !== form.elements.namedItem('password').value) return '비밀번호가 일치하지 않아요.';
   return '';
 }

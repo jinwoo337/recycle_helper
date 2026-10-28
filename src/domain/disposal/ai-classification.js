@@ -71,7 +71,7 @@ export function cleanAiAliases(aliases, itemName) {
   if (!Array.isArray(aliases)) return [];
   const own = normalizeItemName(itemName);
   const seen = new Set([own]);
-  return aliases.map(alias => cleanAiName(alias).replace(/s+/g, '')).filter(alias => {
+  return aliases.map(alias => cleanAiName(alias).replace(/\s+/g, '')).filter(alias => {
     const key = normalizeItemName(alias);
     if (!alias || alias.length > 15 || seen.has(key)) return false;
     seen.add(key); return true;

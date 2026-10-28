@@ -77,11 +77,21 @@ export function applyRegionalRules(input, base) {
       result.parts[0] = { ...result.parts[0], method: result.method, steps: [...result.steps] };
       city(SEOUL_SOURCES.recycle, '깨진 유리는 일반 유리병 수거함에 넣지 말고 양과 구별 수거 기준을 확인해 주세요.', 'glass:seoul-amount');
     } else if (input.material === '비닐' && input.type === 'packaging' && input.combined === 'no' && ['recycle', 'general'].includes(result.status)) {
-      if (result.status === 'general') {
-        // 오염 종류·내용물 잔류를 묻지 않았으므로 재활용으로 확정하지 않습니다.
-        result.status = 'check'; result.method = '비닐의 내용물·고형물 확인 필요 · 서울시 안내';
-        result.steps = ['비닐 속 음식물·부스러기 등 내용물을 모두 비웠는지 확인해 주세요.', '고형물이 남으면 헹궈 제거해 주세요. 기름·물 자국만 남은 경우는 서울시 폐비닐 안내를 따라 분리배출할 수 있어요.'];
-        result.parts[0] = { ...result.parts[0], status: result.status, method: result.method, steps: [...result.steps] };
+      if (input.contaminated === 'yes') {
+        if (input.vinylResidue === 'liquid-only') {
+          result.status = 'recycle'; result.method = '비닐류로 분리배출 · 서울시 공통 안내';
+          result.reasons = ['내용물을 비웠고 고형물 없이 기름·물 자국만 남았다고 확인했어요. 서울시 폐비닐 수거 안내를 적용해요.'];
+          result.steps = ['음식물·소스·부스러기 등 고형물이 없는지 다시 확인해 주세요.', '폐비닐 전용봉투가 있으면 사용하고, 없으면 투명 봉투에 비닐끼리 모아 배출해 주세요.'];
+        } else if (input.vinylResidue === 'solids' && input.removable === 'yes') {
+          result.method = '고형물 제거 후 비닐류로 분리배출 · 서울시 공통 안내';
+          result.reasons = ['고형물이 남아 있어 헹궈 제거한 뒤 배출해야 해요. 기름·물 자국만 남는 것은 수거할 수 있어요.'];
+          result.steps = ['내용물을 비우고 음식물·소스 등 고형물을 물로 헹궈 제거해 주세요.', '고형물을 제거한 뒤 전용봉투 또는 투명 봉투에 비닐끼리 모아 배출해 주세요. 제거되지 않으면 구청·관리사무소에 수거 방법을 확인해 주세요.'];
+        } else {
+          result.status = 'check'; result.method = '비닐의 내용물·고형물 확인 필요 · 서울시 안내';
+          result.reasons = [input.vinylResidue === 'solids' ? '제거하기 어려운 고형물이 남아 있어 구별 수거 기준을 확인해야 해요.' : '남은 오염이 기름·물 자국인지 고형물인지 아직 확인되지 않았어요.'];
+          result.steps = ['‘조건 수정’에서 비닐에 남은 오염 종류를 확인해 주세요.', '음식물·소스·부스러기는 비우거나 헹궈 제거해 주세요. 제거되지 않는 고형물은 구청·관리사무소에 수거 방법을 확인해 주세요.'];
+        }
+        result.parts[0] = { ...result.parts[0], status: result.status, method: result.method, reasons: [...result.reasons], steps: [...result.steps] };
       }
       city(SEOUL_SOURCES.vinyl, SEOUL_VINYL_NOTE, 'vinyl:seoul-expanded');
     } else if (result.status === 'recycle' && input.material === '음식물류' && input.type === 'soft') {
@@ -131,7 +141,7 @@ export function applyRegionalRules(input, base) {
     }
   }
   if (result.regional.coverage === 'verified') {
-    result.steps.push(...result.regional.notes);
+    result.steps = [...new Set([...result.steps, ...result.regional.notes.filter(note => note !== SEOUL_SCOPE_NOTE && !(note === SEOUL_VINYL_NOTE && input.contaminated === 'yes'))])];
     result.reasons.push(result.regional.scope === 'city' ? '서울시 공통 자료를 적용했어요. 해당 자치구의 개별 수거 기준은 별도 확인이 필요해요.' : `${regionLabel(region)} 공식 자료로 확인한 해당 품목의 지역 기준을 적용했어요.`);
     result.notice = result.regional.scope === 'city' ? SEOUL_SCOPE_NOTE : '표시된 품목의 지역 기준을 적용했어요. 배출일·시간·장소는 동별·주택 유형·관리사무소 안내를 확인해 주세요.';
   } else {

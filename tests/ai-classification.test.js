@@ -6,6 +6,10 @@ import { requestAiGuess } from '../src/services/ai-classify.js';
 import handler, { classifyWithGemini, classifyWithRetry, pickModels, chooseModels, readSharedGuess, saveSharedGuess } from '../api/classify.js';
 import { cleanAiAliases } from '../src/domain/disposal/ai-classification.js';
 
+test('AI 별칭은 공백만 제거하고 영문 s와 유니코드 표기는 훼손하지 않는다', () => {
+  assert.deepEqual(cleanAiAliases([' usb 충전기 ', 'usb충전기', 'ＳＳＤ 케이스', '원 래 물 건', ' '], '원래물건'), ['usb충전기', 'SSD케이스']);
+});
+
 const guess = (route, extra = {}) => ({ itemName: '실리콘주걱', material: '기타', type: '', route, confidence: 'high', reason: '실리콘 제품은 재활용 대상이 아니에요.', ...extra });
 
 test('AI 추정값은 허용 목록 안의 값만 받고, 확신이 낮으면 배출 방법을 정하지 않는다', () => {

@@ -1,13 +1,13 @@
 .ai-badge{font-size:14px;background:#eef3fb;border:1px solid #c6d4ea;color:#2f4a6b;border-radius:8px;padding:10px 12px}
 /* AI 안내 켜기/끄기 스위치 */
-.ai-toggle{display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 12px;border:1px solid #dfe7d9;border-radius:10px;background:#fff;cursor:pointer}
-.ai-toggle input{position:absolute;opacity:0;width:1px;height:1px}
-.ai-toggle-track{flex:none;position:relative;width:46px;height:26px;border-radius:13px;background:#c9d1c6;transition:background .15s}
+#item-form .ai-toggle{display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 12px;border:1px solid #dfe7d9;border-radius:10px;background:#fff;cursor:pointer}
+#item-form .ai-toggle input{position:absolute;opacity:0;width:1px;height:1px;min-height:0;padding:0;margin:0;clip-path:inset(50%)}
+.ai-toggle-track{display:block;flex:none;position:relative;width:46px;height:26px;border-radius:13px;background:#c9d1c6;transition:background .15s}
 .ai-toggle-track::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
 .ai-toggle input:checked+.ai-toggle-track{background:#2f6b4f}
 .ai-toggle input:checked+.ai-toggle-track::after{transform:translateX(20px)}
 .ai-toggle input:focus-visible+.ai-toggle-track{outline:3px solid #2f6b4f;outline-offset:2px}
-.ai-toggle-text{display:flex;flex-direction:column;gap:2px}
+.ai-toggle-text{display:flex;flex-direction:column;gap:2px;min-width:0}
 .ai-toggle-text strong{font-size:15px}
 .ai-toggle-text small{font-size:13px;color:#5c6b5c}
 /* AI 의견 상자: 입력란 아래와 결과 카드 안에서 같은 모양 */

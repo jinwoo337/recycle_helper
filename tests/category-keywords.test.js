@@ -28,6 +28,14 @@ test('비슷하지만 다른 물건은 종류를 자동으로 고르지 않는�
   for (const name of notRecognized) assert.equal(detectItemCategory(name), null, name);
 });
 
+test('손상 표현과 전지 이름 사이에 다른 말이 있어도 손상 전지 안내를 우선한다', () => {
+  for (const name of ['부푼 AA 건전지','리튬이온배터리 누액','부풀어 오른 휴대폰 배터리','찌그러진 충전용 건전지','보조배터리에서 액이 새요']) {
+    assert.equal(detectItemCategory(name)?.category,'damaged-battery',name);
+    assert.equal(judgeDisposal({itemName:name}).handling,'damaged-battery',name);
+  }
+  for (const name of ['부푼배터리 포장 상자','파손된 건전지 케이스']) assert.equal(detectItemCategory(name),null,name);
+});
+
 test('판별: 자동 인식한 종류의 전용 안내를 쓰고 AI보다 우선하며, 직접 고른 종류가 가장 우선이다', () => {
   const medicine = judgeDisposal({ itemName: '남은감기약' });
   assert.equal(medicine.handling, 'medicine'); assert.deepEqual(medicine.keywordCategory, { category: 'medicine', keyword: '감기약' });

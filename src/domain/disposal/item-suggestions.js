@@ -31,50 +31,84 @@ export const bundledItemEntries = [
 ];
 
 const localEntries = [...expandedItemEntries, ...bundledItemEntries];
-let entries = localEntries;
-
-export function setItemCatalog(rows) {
-  if (!Array.isArray(rows) || !rows.length || rows.some(row =>
-    typeof row.id !== 'string' || !Array.isArray(row.aliases) || !row.aliases.length ||
-    row.aliases.some(name => typeof name !== 'string' || !name.trim()) ||
-    typeof row.material !== 'string' || typeof row.item_type !== 'string' || typeof row.note !== 'string')) {
-    throw new Error('품목 데이터 형식을 확인해 주세요.');
-  }
-  // 운영 DB의 기존 품목을 유지하고, 이번에 검토한 품목은 보완 목록으로 병합합니다.
-  entries = [...rows.map(row => [row.aliases, row.material, row.item_type, row.note]), ...localEntries];
-}
-
 const aliases = { '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔' };
 export const normalizeItemName = name => {
   const value = typeof name === 'string' ? name.normalize('NFKC').trim().replace(/\s+/g, '').toLowerCase() : '';
   return aliases[value] || value;
 };
 
+function entryIndex(source) {
+  const index = new Map();
+  for (const entry of source) for (const name of entry[0]) {
+    const key = normalizeItemName(name);
+    if (!index.has(key)) index.set(key, entry);
+  }
+  return index;
+}
+const expandedIndex = entryIndex(expandedItemEntries);
+
+function catalogIndex(source) {
+  const index = new Map();
+  for (const [key, entry] of entryIndex(source)) {
+    const local = expandedIndex.get(key);
+    // 검토한 전용 수거 경로를 오래된 DB 값보다 우선하는 기존 정책을 유지합니다.
+    const chosen = local && (local[4]?.handling || !entry[1]) ? local : entry;
+    const [, material, type, note = '실제 재질 표시를 확인해 주세요. 오염과 결합 상태는 직접 선택해 주세요.'] = chosen;
+    const compatible = local && local[1] === material && (!type || local[2] === type || local[4]?.defaults?.type === type);
+    index.set(key, { material, type, note: compatible ? local[3] : note,
+      ...(compatible ? structuredClone(local[4]) : {}),
+      ...(compatible && ITEM_VARIANTS[key] ? { variants: structuredClone(ITEM_VARIANTS[key]) } : {}) });
+  }
+  return index;
+}
+
+function searchIndex(source) {
+  const names = [...new Set([...bundledItemEntries, ...source].flatMap(([names]) => names))];
+  const keys = new Set(names.map(normalizeItemName));
+  const extra = Object.keys(aliases).filter(alias => keys.has(aliases[alias]));
+  return [...new Set([...names, ...extra])].map(name => ({ name, key: normalizeItemName(name) }));
+}
+let items = catalogIndex(localEntries);
+let suggestions = searchIndex(localEntries);
+
+export function setItemCatalog(rows) {
+  if (!Array.isArray(rows) || !rows.length || rows.some(row => !row ||
+    typeof row.id !== 'string' || !Array.isArray(row.aliases) || !row.aliases.length ||
+    row.aliases.some(name => typeof name !== 'string' || !name.trim()) ||
+    typeof row.material !== 'string' || typeof row.item_type !== 'string' || typeof row.note !== 'string')) {
+    throw new Error('품목 데이터 형식을 확인해 주세요.');
+  }
+  const seen = new Map();
+  for (const row of rows) for (const name of row.aliases) {
+    const key = normalizeItemName(name), previous = seen.get(key);
+    if (previous && (previous.material !== row.material || previous.item_type !== row.item_type)) {
+      throw new Error('같은 품목 이름에 서로 다른 재질·종류가 설정되어 있어요.');
+    }
+    seen.set(key, row);
+  }
+  // 조회마다 모든 이름을 정규화하지 않고, DB 갱신 시 한 번만 색인을 구성합니다.
+  const source = [...rows.map(row => [row.aliases.slice(), row.material, row.item_type, row.note]), ...localEntries];
+  const nextItems = catalogIndex(source), nextSuggestions = searchIndex(source);
+  items = nextItems; suggestions = nextSuggestions;
+}
+
 export function lookupItem(name) {
-  const normalized = normalizeItemName(name);
-  const entry = entries.find(([names]) => names.some(alias => normalizeItemName(alias) === normalized));
-  if (!entry) return null;
-  const local = expandedItemEntries.find(([names]) => names.some(alias => normalizeItemName(alias) === normalized));
-  // 검토된 별도 수거 경로는 운영 DB의 오래된 재질 정보가 가리지 않게 합니다.
-  const chosen = local && (local[4]?.handling || !entry[1]) ? local : entry;
-  const [, material, type, note = '실제 재질 표시를 확인해 주세요. 오염과 결합 상태는 직접 선택해 주세요.'] = chosen;
-  const compatible = local && local[1] === material && (!type || local[2] === type || local[4]?.defaults?.type === type);
-  return { material, type, note:compatible ? local[3] : note, ...(compatible ? structuredClone(local[4]) : {}), ...(compatible && ITEM_VARIANTS[normalized] ? {variants:structuredClone(ITEM_VARIANTS[normalized])} : {}) };
+  const item = items.get(normalizeItemName(name));
+  // 호출자가 자동 입력·부속품을 수정해도 다음 검색의 원본은 변하지 않습니다.
+  return item ? structuredClone(item) : null;
 }
 
 // 부분 일치는 추천 전용이며 재질 자동 입력은 정확히 일치하는 이름에만 적용합니다.
 export function searchItemNames(query, limit = 6) {
   const normalized = normalizeItemName(query);
   if (!normalized || !Number.isInteger(limit) || limit < 1) return [];
-  // 같은 길이의 후보는 기존의 익숙한 명칭을 먼저 보여 줍니다.
-  const names = [...bundledItemEntries, ...entries].flatMap(([names]) => names);
-  const extra = Object.keys(aliases).filter(alias => names.some(name => normalizeItemName(name) === aliases[alias]));
-  return [...new Set([...names, ...extra])].filter(name => normalizeItemName(name).includes(normalized) || name.includes(query.trim().toLowerCase()))
-    .sort((a, b) => Number(!normalizeItemName(a).startsWith(normalized)) - Number(!normalizeItemName(b).startsWith(normalized)) || a.length - b.length)
-    .slice(0, Math.min(limit, 10));
+  const raw = query.trim().toLowerCase();
+  return suggestions.filter(entry => entry.key.includes(normalized) || entry.name.includes(raw))
+    .sort((a, b) => Number(!a.key.startsWith(normalized)) - Number(!b.key.startsWith(normalized)) || a.name.length - b.name.length)
+    .slice(0, Math.min(limit, 10)).map(entry => entry.name);
 }
 
 export function suggestItemInfo(name) {
   const item = lookupItem(name);
-  return item?.material ? { ...item, type:item.type || item.defaults?.type || '' } : null;
+  return item?.material ? { ...item, type: item.type || item.defaults?.type || '' } : null;
 }

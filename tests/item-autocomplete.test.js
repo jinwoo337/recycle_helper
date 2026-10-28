@@ -51,3 +51,13 @@ test('입력 오류·외부 클릭·포커스 이탈로 추천을 닫으며 화�
   input.value = '약봉'; event(input, 'input'); event(input, 'blur'); assert.equal(options.hidden, true);
   binding.dispose(); input.value = '새 이름'; event(input, 'input'); assert.equal(options.hidden, true);
 });
+
+test('폼 밖 클릭에서도 추천을 닫고 선택지 ID는 화면별로 구분한다', () => {
+  const input=new Element(),options=new Element(),status=new Element(),doc=new Element(); input.form=new Element(); input.ownerDocument=doc;
+  options.id='quick-items'; input.value='약';
+  const binding=bindItemAutocomplete({input,options,status,search:()=>['약']});
+  event(input,'input'); event(input,'keydown',{key:'ArrowDown'});
+  assert.equal(input.getAttribute('aria-activedescendant'),'quick-items-option-0');
+  event(doc,'pointerdown'); assert.equal(options.hidden,true);
+  binding.dispose(); input.value='새 이름'; event(input,'input'); assert.equal(options.hidden,true);
+});

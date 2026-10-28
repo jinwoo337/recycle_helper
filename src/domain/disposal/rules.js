@@ -3,12 +3,12 @@ import { lookupItem, normalizeItemName } from './item-suggestions.js';
 import { judgeFood, FOOD_SOURCE } from './food.js';
 import { applyRegionalRules } from './regions.js';
 import { specialItemGuide, guideForHandling } from './special-guides.js';
-import { validItemCategory, categoryLabel } from './item-categories.js';
-import { detectItemCategory } from './category-keywords.js';
+import { categoryLabel, categoryAllowsMaterial } from './item-categories.js';
+import { resolveInputCategory } from './input-category.js';
 import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 
-export const RULE_VERSION = '2026-10-27.v8';
+export const RULE_VERSION = '2026-10-28.v11';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -43,6 +43,7 @@ export function normalizePart(part = {}) {
   if (clean.contaminated === 'yes') {
     clean.removable = part.removable || '';
     if (needsWashQuestion(clean)) clean.washed = part.washed || '';
+    if (clean.material === '비닐' && clean.type === 'packaging' && ['liquid-only', 'solids', 'unknown'].includes(part.vinylResidue)) clean.vinylResidue = part.vinylResidue;
   }
   return clean;
 }
@@ -144,9 +145,8 @@ function judgeBaseDisposal(input = {}) {
   const dangerous = /전자제품|전기제품|휴대폰|충전기|배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이|전자담배|이어폰|멀티탭|전기완구|전동/.test(name)
     && !(name === '전자제품포장완충재' && input.material === '스티로폼' && input.type === 'packaging');
   // 종류를 직접 고르지 않았으면 이름 속 낱말로 종류를 알아봅니다. 사용자가 '다른 물건이에요'를 고르면(keywordCategory: false) 건너뜁니다.
-  const detected = !known?.material && input.keywordCategory !== false ? detectItemCategory(input.itemName) : null;
-  const category = !known?.material && validItemCategory(input.category) ? input.category : detected?.category || '';
-  const fromKeyword = detected && detected.category === category;
+  const { category, detected, origin } = resolveInputCategory(input);
+  const fromKeyword = origin === 'keyword';
   const categoryReason = fromKeyword
     ? `이름의 '${detected.keyword}'(으)로 물건 종류(${categoryLabel(category)})를 알아봤어요. 다른 물건이면 종류를 바꿔 주세요.`
     : `직접 선택한 물건 종류(${categoryLabel(category)})를 기준으로 안내해요. 이름으로 확인된 품목은 아니에요.`;
@@ -159,7 +159,13 @@ function judgeBaseDisposal(input = {}) {
   }
   if (category === 'unknown') return finish(outcome('check', '물건 종류·수거처 확인 필요', '이름과 선택한 정보만으로 배출 경로를 확정할 수 없어요.', ['제품 이름·용도와 분리배출 표시를 확인해 주세요.', '제품 사진·설명서를 준비해 제조사나 거주지 폐기물 담당 부서에 수거 경로를 문의해 주세요.']));
   if (category === 'large') return { ...finish(outcome('check', '대형폐기물 품목·접수 조건 확인', fromKeyword ? categoryReason : '가구·큰 생활용품으로 직접 선택했어요.', ['구청 대형폐기물 안내에서 실제 품목·크기에 맞는 접수 대상을 확인해 주세요.', '접수 후 안내받은 필증·배출일·지정 장소에 따라 배출해 주세요.'])), handling: 'large', ...(fromKeyword ? { keywordCategory: { ...detected } } : {}) };
-  const manualMaterial = (category === 'packaging' && ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼'].includes(input.material)) || (category === 'food' && input.material === '음식물류');
+  if (['packaging', 'food'].includes(category) && !categoryAllowsMaterial(category, input.material)) {
+    return finish(outcome('check', '물건 종류와 재질을 다시 확인해 주세요', '선택한 물건 종류에 맞지 않는 재질이에요.', ['포장재·용기는 포장 재질을, 음식물은 음식물류를 선택해 주세요.']));
+  }
+  if (category === 'packaging' && ['기타', '모르겠어요'].includes(input.material)) {
+    return finish(outcome('check', '포장재의 재질·분리배출 표시 확인 필요', '포장재 종류는 확인했지만 재질별 수거 대상을 정할 정보가 부족해요.', ['포장에 적힌 재질·분리배출 표시와 실제 용도를 확인해 주세요.', '표시가 없거나 여러 재질을 구분하기 어려우면 제조사 또는 거주지 폐기물 담당 부서에 수거 방법을 확인해 주세요.']));
+  }
+  const manualMaterial = ['packaging', 'food'].includes(category) && categoryAllowsMaterial(category, input.material);
   const ai = known || category ? null : validateAiGuess(input.aiGuess, input.itemName);
   if (ai && !dangerous && ai.route !== 'recyclable') return finishAi(aiOnlyOutcome(ai), input, ai);
   // AI가 재활용 대상으로 분류한 미등록 품목은 AI 재질을 기준 품목처럼 사용하고 나머지는 규칙으로 판별합니다.

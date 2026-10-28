@@ -1,4 +1,21 @@
 const key = 'recycle-helper.google-login-started';
+const callbackKeys = ['code', 'error', 'error_code', 'error_description', 'access_token', 'refresh_token', 'provider_token', 'provider_refresh_token', 'token_hash', 'token_type', 'expires_in', 'expires_at', 'state'];
+
+export function parseAuthCallback(rawUrl) {
+  const url = new URL(rawUrl), hash = new URLSearchParams(url.hash.slice(1));
+  const error = url.searchParams.has('error') || hash.has('error');
+  const hasCallback = callbackKeys.some(name => url.searchParams.has(name) || hash.has(name));
+  return { url, error, hasCallback };
+}
+
+export function cleanAuthCallbackUrl(rawUrl, { member, google = false, recovery = false, error = false } = {}) {
+  const url = new URL(rawUrl);
+  for (const name of [...callbackKeys, 'type']) url.searchParams.delete(name);
+  if (recovery && member && !error) url.hash = '#/reset-password';
+  else if (google && member && !member.region && !error) url.hash = '#/profile';
+  else if (!url.hash.startsWith('#/')) url.hash = member ? '#/' : '#/login';
+  return url;
+}
 export function rememberGoogleLogin() {
   try { sessionStorage.setItem(key, String(Date.now())); } catch { /* 기본 인증 복귀는 계속 처리 */ }
 }
