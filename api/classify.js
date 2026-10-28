@@ -3,6 +3,7 @@
 import { cleanAiName, cleanAiAliases, validateAiGuess, aiResponseSchema, aiInstruction } from '../src/domain/disposal/ai-classification.js';
 import { lookupItem, normalizeItemName } from '../src/domain/disposal/item-suggestions.js';
 import { detectItemCategory } from '../src/domain/disposal/category-keywords.js';
+import { describeAiState } from '../src/domain/disposal/ai-state.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '../src/services/supabase.js';
 
 // 생각(thinking)하는 모델은 응답이 늦을 수 있어 함수 실행 시간을 늘립니다.
@@ -71,7 +72,7 @@ export async function chooseModels({ apiKey = process.env.GEMINI_API_KEY, fetche
   return { primary, fallback: fallback !== primary ? fallback : '' };
 }
 
-export async function classifyWithGemini(name, { apiKey = process.env.GEMINI_API_KEY, fetcher = fetch, model = DEFAULT_MODEL, timeoutMs = 8_000, signal } = {}) {
+export async function classifyWithGemini(name, { apiKey = process.env.GEMINI_API_KEY, fetcher = fetch, model = DEFAULT_MODEL, timeoutMs = 8_000, signal, state = '' } = {}) {
   const thinking = thinkingFor(model);
   const timeout = AbortSignal.timeout(timeoutMs);
   const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -79,7 +80,8 @@ export async function classifyWithGemini(name, { apiKey = process.env.GEMINI_API
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: aiInstruction() }] },
-      contents: [{ role: 'user', parts: [{ text: `물건 이름: ${JSON.stringify(name)}` }] }],
+      contents: [{ role: 'user', parts: [{ text: `물건 이름: ${JSON.stringify(name)}${state ? `
+현재 상태: ${state}` : ''}` }] }],
       generationConfig: { temperature: 0, maxOutputTokens: 512, responseMimeType: 'application/json', responseSchema: aiResponseSchema(), ...thinking },
     }),
     signal: signal ? AbortSignal.any([timeout, signal]) : timeout,
@@ -91,7 +93,7 @@ export async function classifyWithGemini(name, { apiKey = process.env.GEMINI_API
     if (response.status === 400 && thinking.thinkingConfig && /think/i.test(detail)) {
       // 이 모델이 받지 않는 생각 단계면 한 단계 낮춰 기억하고 다시 부릅니다.
       thinkingStep.set(model, (thinkingStep.get(model) || 0) + 1);
-      return classifyWithGemini(name, { apiKey, fetcher, model, timeoutMs, signal });
+      return classifyWithGemini(name, { apiKey, fetcher, model, timeoutMs, signal, state });
     }
     const error = new Error(`Gemini ${response.status} ${String(detail).slice(0, 300)}`);
     error.status = response.status;
@@ -204,10 +206,13 @@ export default async function handler(req, res) {
   const opinion = (Array.isArray(req.query?.mode) ? req.query.mode[0] : req.query?.mode) === 'opinion';
   const known = Boolean(lookupItem(name));
   if (known && !opinion) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
-  const key = name.toLowerCase();
+  // 상태(오염·결합 등)를 함께 보내면 그 상태를 반영한 답을 받습니다. 상태별 답은 공용 저장소에 넣지 않습니다.
+  const stateCode = Array.isArray(req.query?.state) ? req.query.state[0] : req.query?.state;
+  const state = describeAiState(stateCode);
+  const key = `${name.toLowerCase()}|${state}`;
   if (cache.has(key)) { send(res, 200, cache.get(key), 604800); return; }
   // 미등록 품목은 다른 사용자가 이미 물어본 답이 있으면 AI 없이 바로 돌려줍니다.
-  if (!known) {
+  if (!known && !state) {
     const shared = await readSharedGuess(name);
     if (shared) { const body = { guess: shared, cached: 'shared' }; cache.set(key, body); send(res, 200, body, 604800); return; }
   }
@@ -215,10 +220,10 @@ export default async function handler(req, res) {
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
   if (!allowRequest(ip)) { send(res, 429, { error: 'rate_limited' }); return; }
   try {
-    const answer = await classifyWithRetry(name);
+    const answer = await classifyWithRetry(name, state ? { state } : {});
     const guess = answer && validateAiGuess(answer, name);
     // 등록 품목의 참고 의견은 공용 저장소에 넣지 않습니다.
-    if (answer && !known) await saveSharedGuess(name, answer);
+    if (answer && !known && !state) await saveSharedGuess(name, answer);
     if (guess) cache.set(key, { guess });
     if (cache.size > 2000) cache.delete(cache.keys().next().value);
     send(res, 200, { guess }, guess ? 604800 : 0);

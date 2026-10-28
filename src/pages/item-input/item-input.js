@@ -6,6 +6,7 @@ import { validateAiGuess } from '../../domain/disposal/ai-classification.js';
 import { requestAiGuess } from '../../services/ai-classify.js';
 import { aiToggleMarkup, bindAiToggle, readAiEnabled } from '../../components/ai-toggle.js';
 import { RECYCLE_MARKS, markById } from '../../domain/disposal/recycle-marks.js';
+import { encodeAiState } from '../../domain/disposal/ai-state.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { getCatalogMessage, initializeItemCatalog } from '../../services/item-catalog.js';
 import { resultToolsMarkup, bindResultTools } from '../../components/result-tools.js';
@@ -302,18 +303,20 @@ export function bindItemInput() {
     return `${[guess.material, typeLabel].filter(Boolean).join(' · ')} · ${routeLabels[guess.route]}`;
   };
   // AI 의견은 이름별 참고 정보입니다. 사용자가 선택한 종류와 검토된 품목 경로를 우선합니다.
-  function askAi(name) {
-    const key = normalizeItemName(name);
-    if (!aiEnabled || !key) return Promise.resolve();
+  // state가 있으면(결과 화면의 등록 품목) 입력한 상태까지 반영한 AI 의견을 따로 받습니다.
+  const aiKey = (name, state = '') => `${normalizeItemName(name)}|${state}`;
+  function askAi(name, state = '') {
+    const key = aiKey(name, state);
+    if (!aiEnabled || !normalizeItemName(name)) return Promise.resolve();
     const existing = opinions.get(key);
     if (existing && existing.status !== 'error') {
-      if (existing.status === 'done' && existing.guess && !lookupItem(name) && nameInput.value.trim() === name) applyAiGuess(existing.guess);
+      if (!state && existing.status === 'done' && existing.guess && !lookupItem(name) && nameInput.value.trim() === name) applyAiGuess(existing.guess);
       return existing.promise;
     }
     const known = Boolean(lookupItem(name));
-    const entry = { status: 'loading' };
-    entry.promise = requestAiGuess(name, undefined, { opinion: known })
-      .then(guess => { entry.status = 'done'; entry.guess = guess; if (aiEnabled && !known && guess && form.isConnected && nameInput.value.trim() === name) applyAiGuess(guess); })
+    const entry = { status: 'loading', state };
+    entry.promise = requestAiGuess(name, undefined, { opinion: known, state })
+      .then(guess => { entry.status = 'done'; entry.guess = guess; if (!state && aiEnabled && !known && guess && form.isConnected && nameInput.value.trim() === name) applyAiGuess(guess); })
       .catch(error => { entry.status = 'error'; entry.error = error.message; })
       .finally(() => { if (form.isConnected) refreshAi(); });
     opinions.set(key, entry);
@@ -351,12 +354,14 @@ export function bindItemInput() {
     if (input.contaminated === 'unknown' || input.combined === 'unknown') notes.push('상태를 모름');
     return notes.join(', ');
   }
+  // 결과 화면의 등록 품목은 입력한 상태를 AI에게도 알려 줍니다. 미등록 품목은 AI 답으로 판별하므로 이름만 보냅니다.
+  function shownAiState() { return shownInput && lookupItem(shownInput.itemName) ? encodeAiState(shownInput) : ''; }
   function renderOpinion() {
     const panel = summary.querySelector('#ai-opinion');
     if (!panel || !shownInput) return;
     const name = shownInput.itemName;
     const known = Boolean(lookupItem(name));
-    const entry = shownResult?.aiGuess ? { status: 'done', guess: shownResult.aiGuess } : opinions.get(normalizeItemName(name));
+    const entry = shownResult?.aiGuess ? { status: 'done', guess: shownResult.aiGuess } : opinions.get(aiKey(name, shownAiState()));
     let body;
     if (!entry || entry.status === 'loading') body = '<p class="ai-panel-title">AI에게 물어보고 있어요…</p>';
     else if (entry.status === 'error') body = `<p class="ai-panel-title">AI 의견을 받지 못했어요</p><p class="ai-panel-reason">${escapeHtml(entry.error)}</p><button type="button" class="button secondary" data-ai-retry>다시 묻기</button>`;
@@ -372,7 +377,7 @@ export function bindItemInput() {
         // 등록 품목은 기준 결과가 정답입니다. 다른 이유(입력한 상태)를 알려 주고 AI 의견은 접어 둡니다.
         const state = stateDifference(shownInput);
         body = `<p class="ai-resolve">✅ 위의 <strong>‘${escapeHtml(shownResult.method)}’</strong> 결과대로 버려 주세요.</p>
-          <p class="ai-note">${state ? `AI는 물건 이름만 보고 깨끗한 상태를 가정했어요. 기준 결과는 입력하신 상태(${escapeHtml(state)})까지 반영했어요.` : 'AI는 물건 이름만 보고 판단해요. 등록된 기준 결과가 우선이고, 제품에 분리배출 표시가 있으면 표시를 따라 주세요.'}</p>
+          <p class="ai-note">${entry.state ? 'AI도 입력하신 상태를 보고 답했지만 기준 결과와 달라요. 확인된 기준 결과가 우선이에요.' : state ? `AI는 물건 이름만 보고 깨끗한 상태를 가정했어요. 기준 결과는 입력하신 상태(${escapeHtml(state)})까지 반영했어요.` : 'AI는 물건 이름만 보고 판단해요. 등록된 기준 결과가 우선이고, 제품에 분리배출 표시가 있으면 표시를 따라 주세요.'}</p>
           <details class="ai-detail"><summary>AI 참고 의견 보기</summary>${detail}</details>`;
       } else {
         body = `${detail}
@@ -388,11 +393,11 @@ export function bindItemInput() {
     if (name) askAi(name);
   });
   summary.addEventListener('click', event => {
-    if (event.target.closest('[data-ai-retry]') && shownInput) askAi(shownInput.itemName);
+    if (event.target.closest('[data-ai-retry]') && shownInput) askAi(shownInput.itemName, shownAiState());
   });
   const aiSwitch = bindAiToggle(aiToggle, enabled => {
     aiEnabled = enabled;
-    if (aiEnabled) { const name = nameInput.value.trim(); if (name) askAi(name); if (!summary.hidden && shownInput) { attachOpinionPanel(); askAi(shownInput.itemName); } }
+    if (aiEnabled) { const name = nameInput.value.trim(); if (name) askAi(name); if (!summary.hidden && shownInput) { attachOpinionPanel(); askAi(shownInput.itemName, shownAiState()); } }
     else {
       clearTimeout(prefetchTimer); aiGuess = null;
       if (!shownResult?.aiGuess) summary.querySelector('#ai-opinion')?.remove();
@@ -460,7 +465,7 @@ export function bindItemInput() {
     shownInput = input; shownResult = resultForDisplay(input, result);
     shownRecordId = recordId;
     summary.innerHTML = resultMarkup(input, result, createdAt);
-    if (!createdAt && (aiEnabled || shownResult.aiGuess)) { attachOpinionPanel(); renderOpinion(); if (!shownResult.aiGuess) askAi(input.itemName); }
+    if (!createdAt && (aiEnabled || shownResult.aiGuess)) { attachOpinionPanel(); renderOpinion(); if (!shownResult.aiGuess) askAi(input.itemName, shownAiState()); }
     summary.hidden = false; summary.focus(); summary.scrollIntoView({ behavior: 'auto', block: 'start' });
     document.getElementById('category-other')?.addEventListener('click', () => {
       restore({ ...shownInput, category: '', categoryOrigin: '', keywordCategory: false }); summary.hidden = true; saveStatus.textContent = '실제 물건에 맞는 종류를 골라 주세요.';
