@@ -43,8 +43,3 @@
 .guide-faq details[open] summary{border-bottom:1px solid #eef1ec}
 .guide-faq p{margin:10px 0;line-height:1.6}
 .guide-faq .history-action{margin:0 0 12px}
-/* 글자 크게: 화면 전체를 조금 키웁니다 */
-.text-size-toggle{margin-left:auto;margin-right:8px;min-height:36px;padding:4px 12px;border:1px solid #cfd8cb;border-radius:999px;background:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
-.text-size-toggle[aria-pressed="true"]{background:#2f6b4f;color:#fff;border-color:#2f6b4f}
-html.large-text body{zoom:1.15;width:calc(100vw / 1.15);max-width:calc(100vw / 1.15);overflow-x:hidden}
-@media (max-width:720px){.text-size-toggle{position:absolute;top:12px;right:12px;margin:0}}

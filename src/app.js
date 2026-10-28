@@ -14,7 +14,6 @@ import { consumeGoogleLogin, callbackMessage, parseAuthCallback, cleanAuthCallba
 import { gamePage, bindGame } from './pages/game/game.js';
 import { guidePage, bindGuide, focusGuideSection } from './pages/guide/guide.js';
 import { parseRoute } from './utils/routes.js';
-import { initTextSize, applyTextSize } from './utils/text-size.js';
 import { forgotPasswordPage, resetPasswordPage, submitForgotPassword, submitResetPassword } from './pages/password/password.js';
 
 const routes = {
@@ -43,7 +42,6 @@ function render(moveFocus = false) {
   document.title = `${route.title} | 맞춤형 분리배출 도우미`;
   disposePage?.(); disposePage = undefined;
   document.getElementById('app').innerHTML = layout(route.render(member), route.page, member);
-  applyTextSize();
   if (route.page === 'main') disposePage = bindMain();
   else if (route.page === 'item-input') disposePage = bindItemInput();
   else if (route.page === 'history') disposePage = bindHistory();
@@ -111,4 +109,3 @@ render();
 // 품목 조회가 지연돼도 메인·로그인·기록 화면을 먼저 사용할 수 있습니다.
 initializeItemCatalog();
 
-initTextSize();
