@@ -203,7 +203,15 @@ export default async function handler(req, res) {
   const name = cleanAiName(Array.isArray(req.query?.name) ? req.query.name[0] : req.query?.name);
   if (!name) { send(res, 400, { error: 'invalid_name' }); return; }
   // 등록된 품목은 기존 규칙을 쓰므로 AI를 부르지 않습니다. 단, mode=opinion이면 화면에 참고 의견으로만 보여 줄 AI 답을 받습니다.
-  const opinion = (Array.isArray(req.query?.mode) ? req.query.mode[0] : req.query?.mode) === 'opinion';
+  const mode = Array.isArray(req.query?.mode) ? req.query.mode[0] : req.query?.mode;
+  const opinion = mode === 'opinion';
+  // mode=shared: AI를 부르지 않고 공용 저장소에 있는 답만 찾습니다(AI 안내가 꺼져 있을 때).
+  if (mode === 'shared') {
+    if (lookupItem(name)) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
+    const shared = await readSharedGuess(name);
+    send(res, 200, shared ? { guess: shared, cached: 'shared' } : { guess: null, reason: 'not_found' }, shared ? 3600 : 60);
+    return;
+  }
   const known = Boolean(lookupItem(name));
   if (known && !opinion) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
   // 상태(오염·결합 등)를 함께 보내면 그 상태를 반영한 답을 받습니다. 상태별 답은 공용 저장소에 넣지 않습니다.

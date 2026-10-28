@@ -26,6 +26,7 @@ import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
+import { inputModesMarkup } from '../../components/input-modes.js';
 
 let draft = {};
 let componentCount = 1;
@@ -66,6 +67,7 @@ export function itemInputPage() {
   return `<section class="container item-page">
     <a class="back-link" href="#/">← 메인으로</a>
     <header class="item-heading"><p class="eyebrow">나의 물건 살펴보기</p><h1>어떤 물건을 버리려고 하나요?</h1><p>이름을 고르고 현재 상태만 확인해 주세요.</p></header>
+    ${inputModesMarkup('name')}
     <p id="catalog-status" class="input-hint" role="status" aria-live="polite"></p>
     <button type="button" id="retry-catalog" class="history-action" hidden>품목 정보 다시 불러오기</button>
     <div class="item-grid"><form id="item-form" class="item-card">
@@ -328,19 +330,43 @@ export function bindItemInput() {
     aiGuess = guess;
     draft = collect();
   }
+  // AI가 꺼져 있을 때: 다른 사용자가 AI에게 물어 저장된 답이 있으면 AI 호출 없이 가져와 종류를 골라 둡니다.
+  async function askShared(name) {
+    const key = aiKey(name);
+    if (opinions.get(key)?.status === 'done') return;
+    let guess = null;
+    try { guess = await requestAiGuess(name, undefined, { shared: true }); } catch { return; }
+    if (!guess || !form.isConnected || aiEnabled || nameInput.value.trim() !== name) return;
+    opinions.set(key, { status: 'done', guess, promise: Promise.resolve(guess) });
+    preselectFromShared(guess);
+    refreshAi();
+  }
+  // 저장된 답이 대형폐기물이거나 재질이 분명한 재활용 포장재면 종류(와 재질)를 미리 골라 둡니다. 사용자가 바꿀 수 있습니다.
+  function preselectFromShared(guess) {
+    const category = form.elements.namedItem('category');
+    if (category.value || document.getElementById('item-category-section').hidden) return;
+    const choice = guess.route === 'large' ? 'large' : guess.route === 'recyclable' && categoryAllowsMaterial('packaging', guess.material) && guess.material !== '기타' ? 'packaging' : '';
+    if (!choice) return;
+    category.value = choice; changed({ target: category });
+    if (choice === 'packaging') for (let pass = 0; pass < 3; pass++) { writeValues({ material: guess.material, type: guess.type }); updateConditional(); }
+    document.getElementById('item-category-section').open = false;
+    draft = collect();
+  }
   function refreshAi() { updateAiBox(Boolean(nameInput.value.trim())); renderOpinion(); }
   function updateAiBox(hasName) {
     const name = nameInput.value.trim();
-    aiBox.hidden = !aiEnabled || !hasName;
+    const entry = opinions.get(aiKey(name));
+    // AI가 꺼져 있어도 공용 저장소에 있던 답은 보여 줍니다.
+    aiBox.hidden = !hasName || (!aiEnabled && !entry?.guess?.shared);
     if (aiBox.hidden) return;
-    const entry = opinions.get(normalizeItemName(name));
     aiButton.hidden = entry?.status !== 'error';
     aiBox.classList.toggle('is-loading', !entry || entry.status === 'loading');
     if (!entry || entry.status === 'loading') { aiText.textContent = '🤖 AI에게 물어보고 있어요…'; aiStatus.textContent = ''; }
     else if (entry.status === 'error') { aiText.textContent = '🤖 AI 의견을 받지 못했어요'; aiStatus.textContent = entry.error; }
     else if (!entry.guess) { aiText.textContent = '🤖 AI가 분류하지 못했어요'; aiStatus.textContent = '물건 종류를 직접 골라 안내받을 수 있어요.'; }
     else {
-      aiText.textContent = `🤖 AI 의견: ${aiLine(entry.guess)} (${confidenceLabels[entry.guess.confidence]})`;
+      aiText.textContent = `${entry.guess.shared ? '💾 저장된 답' : '🤖 AI 의견'}: ${aiLine(entry.guess)} (${confidenceLabels[entry.guess.confidence]})`;
+      if (entry.guess.shared && !aiEnabled) aiText.textContent += ' · 다른 사용자가 AI에게 물어본 결과예요';
       aiStatus.textContent = [entry.guess.reason, lookupItem(name) ? '등록된 기준 결과가 우선이에요.' : entry.guess.route === 'recyclable' ? '현재 상태를 골라 주세요.' : ''].filter(Boolean).join(' ');
     }
   }
@@ -465,7 +491,7 @@ export function bindItemInput() {
     shownInput = input; shownResult = resultForDisplay(input, result);
     shownRecordId = recordId;
     summary.innerHTML = resultMarkup(input, result, createdAt);
-    if (!createdAt && (aiEnabled || shownResult.aiGuess)) { attachOpinionPanel(); renderOpinion(); if (!shownResult.aiGuess) askAi(input.itemName, shownAiState()); }
+    if (!createdAt && (aiEnabled || shownResult.aiGuess || opinions.get(aiKey(input.itemName))?.guess?.shared)) { attachOpinionPanel(); renderOpinion(); if (!shownResult.aiGuess) askAi(input.itemName, shownAiState()); }
     summary.hidden = false; summary.focus(); summary.scrollIntoView({ behavior: 'auto', block: 'start' });
     document.getElementById('category-other')?.addEventListener('click', () => {
       restore({ ...shownInput, category: '', categoryOrigin: '', keywordCategory: false }); summary.hidden = true; saveStatus.textContent = '실제 물건에 맞는 종류를 골라 주세요.';
@@ -614,9 +640,10 @@ export function bindItemInput() {
   function scheduleAiPrefetch() {
     clearTimeout(prefetchTimer);
     const name = nameInput.value.trim();
-    if (!aiEnabled || name.length < 1) return;
+    if (name.length < 1) return;
+    if (!aiEnabled && (lookupItem(name) || keywordCategory())) return;
     prefetchTimer = setTimeout(() => {
-      if (form.isConnected && nameInput.value.trim() === name) askAi(name);
+      if (form.isConnected && nameInput.value.trim() === name) { if (aiEnabled) askAi(name); else askShared(name); }
     }, 700);
   }
   // 분리배출 표시 버튼: 재질·세부 종류를 채우고 상태 질문으로 이어집니다.

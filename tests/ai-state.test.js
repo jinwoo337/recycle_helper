@@ -34,3 +34,21 @@ test('서버 함수: 상태를 함께 받으면 프롬프트에 넣고, 공용 �
     for (const [name, value] of [['GEMINI_API_KEY', previous.key], ['SUPABASE_SERVICE_ROLE_KEY', previous.service]]) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
   }
 });
+
+test('서버 함수: mode=shared는 AI 없이 공용 저장소만 찾는다', async () => {
+  const previous = { key: process.env.GEMINI_API_KEY, fetch: globalThis.fetch };
+  const urls = [];
+  process.env.GEMINI_API_KEY = 'test-key';
+  globalThis.fetch = async url => { urls.push(url); return { ok: true, json: async () => (url.includes('%EC%B9%A0%ED%8C%90') ? [{ material: '기타', item_type: '', route: 'large', confidence: 'high', reason: '큰 칠판은 대형폐기물' }] : []) }; };
+  const call = async name => { const res = { setHeader() {}, status(c) { this.statusCode = c; return this; }, send(b) { this.body = JSON.parse(b); } }; await handler({ method: 'GET', query: { name, mode: 'shared' }, headers: {} }, res); return res; };
+  try {
+    const hit = await call('칠판');
+    assert.equal(hit.body.cached, 'shared'); assert.equal(hit.body.guess.route, 'large');
+    const miss = await call('처음보는물건');
+    assert.equal(miss.body.guess, null); assert.equal(miss.body.reason, 'not_found');
+    assert.ok(urls.every(url => !url.includes('generativelanguage')), 'AI를 부르지 않음');
+  } finally {
+    globalThis.fetch = previous.fetch;
+    if (previous.key === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = previous.key;
+  }
+});
