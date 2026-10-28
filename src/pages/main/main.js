@@ -3,10 +3,14 @@ import { queueInput } from '../../services/input-draft.js';
 import { searchItemNames } from '../../domain/disposal/item-suggestions.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { aiToggleMarkup, bindAiToggle } from '../../components/ai-toggle.js';
+import { tipOfTheDay } from '../../domain/disposal/daily-tips.js';
+import { getDisposalHistory } from '../../services/disposal-history.js';
 export function mainPage(member) {
   return `<section class="container home-page">
     <header class="home-heading"><p class="eyebrow">버리기 전, 한 번만 확인해요</p><h1>이건 어디에 버릴까요?</h1><p>물건 이름으로 찾고, 내 물건의 상태에 맞게 분리배출하세요.</p></header>
     <form id="quick-search" class="quick-search home-search"><label for="quick-item">어떤 물건을 버리려고 하나요?</label><div class="quick-search-row"><div class="item-name-control home-item-control"><input id="quick-item" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="quick-items" aria-expanded="false" aria-describedby="quick-item-status"><div id="quick-items" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><button class="button primary" type="submit">배출 방법 찾기 <span aria-hidden="true">→</span></button></div><p id="quick-item-status" class="input-hint" role="status" aria-live="polite"></p><div class="example-items" aria-label="자주 찾는 물건"><span>자주 찾아요</span>${['우유팩', '투명생수병', '과자봉지'].map(name => `<button class="history-action" type="button" data-example="${name}">${name}</button>`).join('')}</div>${aiToggleMarkup('home-ai-enabled', { compact: true })}<p class="input-hint">${member ? `${escapeHtml(member.nickname)}님, 실제 물건의 재질과 현재 상태를 확인해 주세요.` : '가입 없이 사용할 수 있어요. 로그인하면 지역과 기록을 계정에 저장해요.'}</p></form>
+    <section id="home-recent" class="home-recent" aria-labelledby="home-recent-title" hidden><h2 id="home-recent-title">최근 찾은 물건</h2><div class="home-recent-items" id="home-recent-items"></div></section>
+    ${tipCard()}
     <nav class="home-shortcuts" aria-label="주요 기능 바로가기">
       <a href="#/history" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('history')}</span><div><h2>나의 기록</h2><p>찾아본 물건과 통계를 한눈에</p></div><span aria-hidden="true">↗</span></a>
       <a href="#/game" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('game')}</span><div><h2>분리배출 게임</h2><p>60초 도전으로 배우고 대결해요</p></div><span aria-hidden="true">↗</span></a>
@@ -14,6 +18,12 @@ export function mainPage(member) {
     </nav>
     <details class="home-guide"><summary>처음 이용하시나요?</summary><ol><li><strong>물건 이름 찾기</strong><span>추천에서 실제 물건과 맞는 이름을 선택해요.</span></li><li><strong>현재 상태 확인</strong><span>재질과 오염, 다른 재질이 붙어 있는지 확인해요.</span></li><li><strong>배출 방법 확인</strong><span>배출 전 처리 순서와 거주 지역의 기준을 확인해요.</span></li></ol></details>
   </section>`;
+}
+
+// 오늘의 분리배출 팁: 날짜마다 바뀌고, 누르면 그 물건의 배출 방법을 바로 찾아요.
+function tipCard() {
+  const tip = tipOfTheDay();
+  return `<aside class="daily-tip" aria-labelledby="daily-tip-title"><p class="eyebrow">💡 오늘의 분리배출 팁</p><h2 id="daily-tip-title">${escapeHtml(tip.title)}</h2><p>${escapeHtml(tip.body)}</p><button class="history-action" type="button" data-example="${escapeHtml(tip.item)}">‘${escapeHtml(tip.item)}’ 배출 방법 보기 →</button></aside>`;
 }
 
 function homeIcon(name) {
@@ -36,10 +46,28 @@ export function bindMain() {
     if (!input.value.trim()) { input.setCustomValidity('물건 이름을 입력해 주세요.'); input.reportValidity(); return; }
     queueInput({ itemName: input.value.trim() }); location.hash = '/item-input';
   });
-  form.querySelectorAll('[data-example]').forEach(button => button.addEventListener('click', () => {
+  document.querySelectorAll('.home-page [data-example]').forEach(button => button.addEventListener('click', () => {
     input.value = button.dataset.example; input.setCustomValidity(''); form.requestSubmit();
   }));
   const aiSwitch = bindAiToggle(document.getElementById('home-ai-enabled'));
-  return () => { autocomplete.dispose(); aiSwitch.dispose(); };
+  let active = true;
+  renderRecent(form, () => active);
+  return () => { active = false; autocomplete.dispose(); aiSwitch.dispose(); };
+}
+
+// 최근에 찾아본 물건(최대 6개)을 버튼으로 보여 줘서 한 번에 다시 찾게 합니다. 기록이 없거나 불러오지 못하면 숨깁니다.
+async function renderRecent(form, isActive) {
+  let records = [];
+  try { records = await getDisposalHistory(); } catch { return; }
+  const section = document.getElementById('home-recent');
+  if (!isActive() || !section) return;
+  const names = [...new Set(records.map(record => record.itemName).filter(Boolean))].slice(0, 6);
+  if (!names.length) return;
+  const list = document.getElementById('home-recent-items');
+  list.innerHTML = names.map(name => `<button class="history-action" type="button">🕘 ${escapeHtml(name)}</button>`).join('');
+  list.querySelectorAll('button').forEach((button, index) => button.addEventListener('click', () => {
+    form.elements.itemName.value = names[index]; form.requestSubmit();
+  }));
+  section.hidden = false;
 }
 
