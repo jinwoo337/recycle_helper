@@ -13,7 +13,7 @@ class Control extends EventTarget {
 }
 const delayed=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
-const answer={itemName:'용기',identification:'설명에 적힌 용기예요.',method:'오염과 표시를 확인해 주세요.',confidence:'medium',steps:['상태를 확인해 주세요.'],markings:[],cautions:[],questions:[]};
+const answer={itemName:'용기',identification:'설명에 적힌 용기예요.',method:'오염과 표시를 확인해 주세요.',confidence:'medium',evidence:'object',steps:['상태를 확인해 주세요.'],markings:[],cautions:[],questions:[]};
 
 function setup(mode, options={}) {
   const form=new Control(),description=new Control(),submit=new Control(),cancel=new Control(),result=new Control(),status=new Control(),camera=new Control(),gallery=new Control(),remove=new Control(),preview=new Control(),image=new Control(),photoMessage=new Control(),photoStatus=new Control(),count=new Control(),previouslyDisabled=new Control();

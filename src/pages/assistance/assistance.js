@@ -16,6 +16,7 @@ export function assistanceResultMarkup(answer, region) {
   return `<p class="eyebrow">AI 참고 안내 · ${escapeHtml(regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
     <p class="assist-identification">${escapeHtml(answer.identification)}</p>
+    ${answer.evidence === 'markings' ? '<p class="assist-notice">표시는 읽었지만 실제 물건은 확인하지 못했어요. 물건 전체 사진이나 용도 설명을 더해 주세요.</p>' : ''}
     <p class="assist-confidence">인식 확실성: ${{ high: '높음', medium: '보통 · 실제 물건을 확인해 주세요', low: '낮음 · 추가 정보가 필요해요' }[answer.confidence]}</p>
     ${answer.markings.length ? `<h3>읽은 표시 · 실제 표시와 비교해 주세요</h3>${list(answer.markings)}` : ''}
     <div class="assist-method"><h3>${escapeHtml(answer.method)}</h3></div>

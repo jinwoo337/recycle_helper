@@ -10,7 +10,7 @@ import { layout } from '../src/layouts/layout.js';
 const input = { mode: 'description', description: '배달 음식이 담겼던 PP 용기인데 기름기가 남아 있어요.', region: { province: '서울특별시', district: '강남구' } };
 const image = { mimeType: 'image/jpeg', data: Buffer.from([255,216,255,224,0,0,0,0]).toString('base64') };
 const answer = (extra = {}) => ({ itemName: '배달용기', identification: '설명에 PP 표시와 기름기가 있다고 적었어요.', markings: ['몸체: PP (사용자 설명)'], method: '내용물과 오염 제거 여부를 확인한 뒤 플라스틱류 배출을 확인해 주세요.',
-  steps: ['내용물을 비우고 오염이 지워지는지 확인해 주세요.', '분리한 뚜껑은 별도 표시를 확인해 주세요.'], cautions: [], questions: ['기름기를 씻어낼 수 있나요?'], confidence: 'medium', ...extra });
+  steps: ['내용물을 비우고 오염이 지워지는지 확인해 주세요.', '분리한 뚜껑은 별도 표시를 확인해 주세요.'], cautions: [], questions: ['기름기를 씻어낼 수 있나요?'], confidence: 'medium', evidence: 'object', ...extra });
 const response = () => ({ headers: {}, code: 0, setHeader(k,v) { this.headers[k]=v; }, status(n) { this.code=n; return this; }, send(body) { this.body=JSON.parse(body); } });
 const request = (body = input) => ({ method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8', 'x-forwarded-for': 'test' }, body });
 const providerResponse = value => ({ok:true,status:200,json:async()=>({candidates:[{content:{parts:[{text:JSON.stringify(value)}]}}]})});
@@ -37,6 +37,9 @@ test('AI 답의 구조를 검증하고 인식 확실성이 낮으면 확정 배�
   assert.equal(validateAssistance(answer({questions:Array(5).fill('질문')})),null);
   const uncertain=validateAssistance(answer({confidence:'low',questions:[],steps:['아무 쓰레기통에 넣으세요.']}));
   assert.deepEqual(uncertain.steps,[]); assert.match(uncertain.method,/추가 확인/); assert.equal(uncertain.questions.length,1);
+  const markings=validateAssistance(answer({evidence:'markings',confidence:'high'}));
+  assert.equal(markings.confidence,'low'); assert.deepEqual(markings.steps,[],'마크만 읽었을 때 물건 전체를 추정하여 배출을 확정하지 않음');
+  assert.match(assistanceResultMarkup(markings,input.region),/실제 물건은 확인하지 못했어요/);
   assert.ok(assistanceSchema().required.includes('markings'));
 });
 
