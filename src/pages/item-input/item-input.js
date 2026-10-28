@@ -317,7 +317,7 @@ export function bindItemInput() {
     const known = Boolean(lookupItem(name));
     const entry = { status: 'loading', state };
     entry.promise = requestAiGuess(name, undefined, { opinion: known, state })
-      .then(guess => { entry.status = 'done'; entry.guess = guess; if (!state && aiEnabled && !known && guess && form.isConnected && nameInput.value.trim() === name) applyAiGuess(guess); })
+      .then(guess => { entry.status = 'done'; entry.guess = guess; if (!state && aiEnabled && !known && guess && form.isConnected && nameInput.value.trim() === name) { applyAiGuess(guess); if (guess.shared) preselectFromShared(guess); } })
       .catch(error => { entry.status = 'error'; entry.error = error.message; })
       .finally(() => { if (form.isConnected) refreshAi(); });
     opinions.set(key, entry);
@@ -750,5 +750,7 @@ export function bindItemInput() {
   window.addEventListener('storage', storageChanged);
   window.addEventListener('focus', renderRecent);
   window.addEventListener('favorites-changed', renderFavorites);
+  // 홈 검색·기록에서 이름을 가져온 경우에도 저장된 답(또는 AI 의견)을 바로 찾아봅니다.
+  if (nameInput.value.trim()) scheduleAiPrefetch();
   return () => { aiSwitch.dispose(); submissions.dispose(); recentVersion++; favoriteVersion++; clearTimeout(prefetchTimer); autocomplete.dispose(); disposeResultTools(); window.removeEventListener('favorites-changed', renderFavorites); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', renderRecent); };
 }
