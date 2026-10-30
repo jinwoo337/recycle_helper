@@ -29,7 +29,7 @@
 .material-editor > summary { padding:12px; color:var(--green); cursor:pointer; font-size:13px; min-height:44px; box-sizing:border-box; }
 .material-edit-label { float:right; margin-left:10px; font-size:12px; text-decoration:underline; }
 .material-controls { padding:4px 12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
-.material-controls > .auto-fill-choice,.material-controls > p { grid-column:1/-1; }
+.material-controls > .auto-fill-choice,.material-controls > p,.material-controls > .mark-picker { grid-column:1/-1; }
 .material-controls > .auto-fill-choice { font-size:12px; }
 .quick-condition { grid-column:1/-1; padding:12px; border:1px solid #c5d7ba; border-radius:9px; margin:0 0 18px; background:#f4f8ef; }
 .quick-condition button { width:100%; color:var(--green); border-color:#a3b99d; background:white; white-space:normal; line-height:1.5; }
