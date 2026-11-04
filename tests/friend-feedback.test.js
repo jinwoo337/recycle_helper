@@ -82,8 +82,7 @@ import { queueDescription, takeQueuedDescription } from '../src/services/input-d
 test('전용 수거처 물건은 수거함이 놓인 실제 장소(행정복지센터·약국 등)를 지도에서 찾게 한다', () => {
   const help = collectionPointHelp(judge('건전지', gangnam));
   assert.equal(help.targets[0].query, '서울 강남구 행정복지센터');
-  assert.match(help.targets[0].kakaoUrl, /^https:\/\/map\.kakao\.com\/\?q=/);
-  assert.match(help.targets[0].naverUrl, /^https:\/\/map\.naver\.com\/p\/search\//);
+  assert.match(help.targets[0].mapUrl, /^https:\/\/www\.google\.com\/maps\/search\//);
   assert.ok(help.targets.every(target => !/수거함/.test(target.query)), '지도에 없는 "수거함" 낱말로 검색하지 않음');
   assert.match(help.hours, /운영시간/);
   assert.deepEqual(collectionPointHelp(judge('감기약', gangnam)).targets.map(t => t.search), ['약국', '보건소', '행정복지센터']);
