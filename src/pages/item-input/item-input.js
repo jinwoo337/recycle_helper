@@ -12,7 +12,7 @@ import { getCatalogMessage, initializeItemCatalog } from '../../services/item-ca
 import { resultToolsMarkup, bindResultTools } from '../../components/result-tools.js';
 import { memberTools } from '../../services/member-tools.js';
 import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel } from '../../domain/disposal/regions.js';
-import { takeQueuedInput } from '../../services/input-draft.js';
+import { takeQueuedInput, queueDescription } from '../../services/input-draft.js';
 import { cleanSingleMaterialInput } from '../../domain/disposal/input-shortcuts.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
@@ -27,6 +27,7 @@ import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
 import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
+import { collectionPointHelp, nearbyMapUrl } from '../../domain/disposal/collection-points.js';
 import { stepListMarkup } from '../../components/step-list.js';
 import { inputModeSelectMarkup, photoShortcutMarkup, bindInputModeSelect } from '../../components/input-modes.js';
 import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
@@ -58,6 +59,7 @@ function partFields(prefix, label) {
     ${!prefix ? '<div class="quick-condition" id="quick-condition" hidden><button class="button secondary" type="button" id="clean-shortcut">깨끗하고 다른 재질도 없어요 → 결과 보기</button><p class="input-hint">내용물·오염·라벨·빨대 등 다른 재질이 모두 없을 때만 선택해 주세요.</p></div>' : ''}
     <div data-condition="state" hidden>
       <div class="current-state">${question(`${prefix}currentState`, '지금 물건 상태는 어떤가요?', [['clean', '깨끗해요'], ['dirty', '아직 안 씻었어요'], ['washed-dirty', '씻어도 오염이 남아요'], ['unknown', '모르겠어요']])}</div>
+      ${!prefix ? '<p class="describe-instead">보기 중에 딱 맞는 상태가 없나요? <button type="button" class="history-action" data-describe-instead>✍️ 내 물건 상태를 글로 설명하기</button></p>' : ''}
       <div class="state-storage" hidden>${question(`${prefix}contaminated`, '현재 오염 여부')}
       <div data-condition="washed" hidden>${question(`${prefix}washed`, '세척 여부', [['yes', '세척했어요'], ['no', '아직 안 했어요']])}</div></div>
       <div data-condition="removable" hidden>${question(`${prefix}removable`, '남은 오염을 제거할 수 있나요?')}</div>
@@ -103,6 +105,24 @@ export function itemInputPage() {
     </div></section>`;
 }
 
+// 아직 지역 기준을 확인하지 못한 지역(서울·대전 외 전국)은 전국 공통 기준으로 안내하고, 그 지역 공식 안내로 바로 연결합니다.
+export function localGuideMarkup(result) {
+  const region = result.region;
+  if (!region || result.regional?.coverage === 'verified') return '';
+  const place = [region.province, region.district].filter(Boolean).join(' ');
+  const url = `https://search.naver.com/search.naver?query=${encodeURIComponent(`${place} 분리배출 방법 배출 요일`)}`;
+  return `<p class="local-guide-line">🗺️ ${escapeHtml(place)} 기준은 아직 확인하지 못해 <strong>전국 공통 기준</strong>으로 안내했어요. <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(region.district || region.province)} 공식 안내 찾기 ↗</a></p>`;
+}
+export function collectionPointMarkup(result) {
+  const help = collectionPointHelp(result);
+  if (!help) return '';
+  const link = (url, text) => `<a class="button secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+  return `<section class="collection-help" aria-labelledby="collection-title"><h3 id="collection-title">📍 가까운 ${escapeHtml(help.keyword.replace(/ 수거함$/, ''))} 수거처 찾기</h3>
+    <p class="input-hint">주로 있는 곳: ${escapeHtml(help.places)}</p>
+    <div class="collection-links"><button type="button" class="button primary" data-nearby-map="${escapeHtml(help.keyword)}">📍 내 위치 주변 지도</button>${link(help.kakaoUrl, `카카오맵에서 ${help.place ? escapeHtml(help.place) + ' ' : ''}찾기 ↗`)}${link(help.naverUrl, '네이버 지도 ↗')}${help.pickup ? link(help.pickup.url, `${escapeHtml(help.pickup.label)} ↗`) : ''}</div>
+    <p class="input-hint" data-nearby-status role="status" aria-live="polite"></p>
+    <p class="input-hint">🕘 ${escapeHtml(help.hours)}</p></section>`;
+}
 export function largeWasteMarkup(result) {
   const help = largeWasteHelp(result);
   if (!help) return '';
@@ -142,8 +162,10 @@ export function resultMarkup(input, result, createdAt) {
     <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}"><span class="result-badge">${input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status]}</span><h3>${escapeHtml(result.method)}</h3></div>
     <p class="result-region input-hint">${result.regional ? `${escapeHtml(result.regional.label)} · ${result.regional.coverage === 'verified' ? result.regional.scope === 'city' ? '서울시 공통 안내 · 구별 수거 확인 필요' : '해당 품목 지역 기준 적용' : '기본 안내 · 지역 기준 확인 필요'}` : '지역 미기록 · 지역을 설정하고 다시 판별해 주세요.'}</p>
     ${sourceLineMarkup(result, sources)}
+    ${localGuideMarkup(result)}
     <h3>이렇게 배출하세요</h3>${stepListMarkup(result.steps)}
     ${largeWasteMarkup(result)}
+    ${collectionPointMarkup(result)}
     ${result.parts.length > 1 ? `<h3>재질별 처리</h3><div class="result-parts">${result.parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${stepListMarkup(part.steps, 'part-steps')}</article>`).join('')}</div>` : ''}
     ${regionalComparisonMarkup(input, result)}
     <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${list(result.reasons)}${result.regional ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">확인일 ${escapeHtml(result.checkedAt || '미기록')} · ${escapeHtml(result.ruleVersion)} · ${sources.map(url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url === RULE_SOURCE ? '분리배출 지침' : escapeHtml(CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a>`).join(' · ')}</p></details>
@@ -157,6 +179,13 @@ export function bindItemInput() {
   const queued = takeQueuedInput(); if (queued) draft = queued;
   const form = document.getElementById('item-form');
   const disposeModeSelect = bindInputModeSelect(form);
+  // 상태 보기가 실제 물건과 맞지 않으면, 이름을 들고 설명하기 화면으로 넘어갑니다(질문을 더 늘리지 않음).
+  form.addEventListener('click', event => {
+    if (!event.target.closest('[data-describe-instead]')) return;
+    const name = form.elements.namedItem('itemName')?.value.trim();
+    queueDescription(name ? `${name}인데, 상태는 ` : '');
+    location.hash = '/describe';
+  });
   const judgementRegion = bindJudgementRegion(form, readJudgementRegion(getCurrentMember()), {
     onChange: region => rememberJudgementRegion(region, getCurrentMember()),
   });
@@ -442,6 +471,8 @@ export function bindItemInput() {
   summary.addEventListener('click', event => {
     if (event.target.closest('[data-ai-retry]') && shownInput) askAi(shownInput.itemName, shownAiState());
     if (event.target.closest('[data-ai-report]') && shownInput) reportWrongAi(shownInput.itemName);
+    const nearby = event.target.closest('[data-nearby-map]');
+    if (nearby) openNearbyMap(nearby);
   });
   const aiSwitch = bindAiToggle(aiToggle, enabled => {
     aiEnabled = enabled;
@@ -452,6 +483,21 @@ export function bindItemInput() {
     }
     refreshAi();
   });
+  // 위치 권한을 허락하면 내 주변 지도를, 아니면 지역 이름으로 검색한 지도를 엽니다. 위치는 저장하지 않습니다.
+  function openNearbyMap(button) {
+    const keyword = button.dataset.nearbyMap;
+    const status = summary.querySelector('[data-nearby-status]');
+    const fallback = button.parentElement.querySelector('a[href*="map.kakao.com"]')?.href;
+    const win = window.open('about:blank', '_blank');
+    const go = url => { if (win) { win.opener = null; win.location.href = url; } else window.location.href = url; };
+    if (!navigator.geolocation) { if (status) status.textContent = '이 브라우저는 위치를 지원하지 않아 지역 이름으로 찾았어요.'; go(fallback); return; }
+    if (status) status.textContent = '위치를 확인하고 있어요…';
+    navigator.geolocation.getCurrentPosition(
+      position => { if (status) status.textContent = ''; go(nearbyMapUrl(keyword, position.coords.latitude, position.coords.longitude)); },
+      () => { if (status) status.textContent = '위치를 쓸 수 없어서 지역 이름으로 찾았어요.'; go(fallback); },
+      { timeout: 8000, maximumAge: 300000 },
+    );
+  }
   async function reportWrongAi(name) {
     const key = normalizeItemName(name);
     if (!key || reports.get(key) === 'sending' || reports.get(key) === 'done') return;

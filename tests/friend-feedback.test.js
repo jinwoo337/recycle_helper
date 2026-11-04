@@ -74,3 +74,37 @@ test('신고한 이름은 브라우저 캐시를 피해 새로 묻는다', async
   assert.equal(urls.length, 3, '신고 후에는 기억한 답을 쓰지 않음');
   assert.ok(new URL(urls[2].url, 'https://e.com').searchParams.get('r'));
 });
+
+import { collectionPointHelp, nearbyMapUrl } from '../src/domain/disposal/collection-points.js';
+import { normalizeCollectionDays, collectionSummary, buildCollectionIcs } from '../src/domain/disposal/collection-days.js';
+import { queueDescription, takeQueuedDescription } from '../src/services/input-draft.js';
+
+test('전용 수거처 물건은 지역 이름으로 지도 검색 링크와 운영시간 안내를 준다', () => {
+  const help = collectionPointHelp(judge('건전지', gangnam));
+  assert.equal(help.query, '서울 강남구 폐건전지 수거함');
+  assert.match(help.kakaoUrl, /^https:\/\/map\.kakao\.com\/\?q=/);
+  assert.match(help.naverUrl, /^https:\/\/map\.naver\.com\/p\/search\//);
+  assert.match(help.hours, /운영시간/);
+  assert.equal(collectionPointHelp(judge('감기약', gangnam)).keyword, '폐의약품 수거함');
+  assert.ok(collectionPointHelp(judge('드라이기', null)).pickup);
+  assert.equal(collectionPointHelp(judge('페트병', gangnam)), null);
+  assert.equal(nearbyMapUrl('폐건전지 수거함', 37.5, 127.03), 'https://www.google.com/maps/search/%ED%8F%90%EA%B1%B4%EC%A0%84%EC%A7%80%20%EC%88%98%EA%B1%B0%ED%95%A8/@37.50000,127.03000,15z');
+});
+test('수거 요일: 오늘·내일 안내와 매주 반복 알림 캘린더 파일', () => {
+  const settings = normalizeCollectionDays({ days: { recycle: [2, '4', 9], food: [3] }, hour: 20 });
+  assert.deepEqual(settings.days, { recycle: [2, 4], general: [], food: [3] });
+  const tuesday = new Date(2026, 10, 3); // 화요일
+  assert.match(collectionSummary(settings, tuesday).text, /^오늘\(화\)은 ♻️ 재활용품/);
+  assert.match(collectionSummary(settings, new Date(2026, 10, 2)).text, /^내일\(화\)/);
+  assert.equal(collectionSummary(normalizeCollectionDays(null), tuesday), null);
+  const ics = buildCollectionIcs(settings, tuesday);
+  assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 3);
+  assert.match(ics, /RRULE:FREQ=WEEKLY;BYDAY=TU/);
+  assert.match(ics, /DTSTART;TZID=Asia\/Seoul:20261105T200000/);
+  assert.match(ics, /BEGIN:VALARM/);
+});
+test('상태 대신 설명하기로 넘어갈 때 물건 이름을 미리 적어 둔다', () => {
+  queueDescription('컵라면 용기인데, 상태는 ');
+  assert.equal(takeQueuedDescription(), '컵라면 용기인데, 상태는 ');
+  assert.equal(takeQueuedDescription(), '');
+});

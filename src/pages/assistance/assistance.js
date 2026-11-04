@@ -7,7 +7,7 @@ import { regionLabel } from '../../domain/disposal/regions.js';
 import { requestAssistance } from '../../services/ai-assistance.js';
 import { stepListMarkup } from '../../components/step-list.js';
 import { prepareAssistancePhoto, PHOTO_ACCEPT } from '../../services/assistance-photo.js';
-import { queueInput } from '../../services/input-draft.js';
+import { queueInput, takeQueuedDescription } from '../../services/input-draft.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
 
@@ -77,6 +77,8 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   const gate = createOperationGate();
   let image = null, photoRevision = 0, preparing = false, busy = false, disposed = false, controller, answer, answered = [];
   const region = bindRegion(form, readJudgementRegion(getCurrentMember()), { onChange(value) { rememberJudgementRegion(value, getCurrentMember()); clearResult(); } });
+  const queuedDescription = takeQueuedDescription();
+  if (queuedDescription && description && !description.value) { description.value = queuedDescription; description.focus(); description.setSelectionRange(queuedDescription.length, queuedDescription.length); }
   const alive = () => !disposed && root.isConnected;
   function clearResult() { answer = null; answered = []; result.hidden = true; status.textContent = ''; }
   function setStatus(message) {

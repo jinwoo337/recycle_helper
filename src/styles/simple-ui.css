@@ -158,3 +158,10 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .part-steps.icon-steps > li { padding:8px 10px; }
 .part-steps.icon-steps .step-icon { width:34px; height:34px; font-size:18px; }
 .part-steps.icon-steps .step-text { padding-top:4px; font-size:14px; }
+.collection-help { margin:0 0 22px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:#f1f7fb; }
+.collection-help h3 { margin:0 0 6px; font-size:16px; }
+.collection-links { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 6px; }
+.collection-links .button { font-size:13px; min-height:40px; }
+.local-guide-line { margin:-14px 0 20px; font-size:13px; color:var(--muted); }
+.local-guide-line a { color:var(--green); text-decoration:underline; }
+.describe-instead { margin:10px 0 4px; font-size:13px; color:var(--muted); display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
