@@ -108,3 +108,12 @@ test('상태 대신 설명하기로 넘어갈 때 물건 이름을 미리 적어
   assert.equal(takeQueuedDescription(), '컵라면 용기인데, 상태는 ');
   assert.equal(takeQueuedDescription(), '');
 });
+
+import { inferCollectionHandling } from '../src/domain/disposal/collection-points.js';
+test('종류 정보가 없는 AI 설명·사진 결과도 이름과 안내 문장으로 수거처 안내를 붙인다', () => {
+  assert.equal(inferCollectionHandling({ itemName: '타이레놀', method: '폐의약품 수거함에 배출', steps: [] }), 'medicine');
+  assert.equal(inferCollectionHandling({ itemName: '식용유', method: '추가 확인 필요', steps: [] }), 'cooking-oil');
+  assert.equal(inferCollectionHandling({ itemName: '리모컨 건전지', method: '', steps: [] }), 'battery');
+  assert.equal(inferCollectionHandling({ itemName: '컵라면 용기', method: '플라스틱으로 배출', steps: ['내용물을 비워 주세요.'] }), null);
+  assert.equal(inferCollectionHandling({ handling: 'large', itemName: '소파' }), null);
+});

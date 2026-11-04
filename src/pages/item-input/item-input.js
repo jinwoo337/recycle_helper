@@ -27,7 +27,7 @@ import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
 import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
-import { collectionPointHelp, nearbyMapUrl } from '../../domain/disposal/collection-points.js';
+import { collectionPointMarkup } from '../../components/collection-help.js';
 import { stepListMarkup } from '../../components/step-list.js';
 import { inputModeSelectMarkup, photoShortcutMarkup, bindInputModeSelect } from '../../components/input-modes.js';
 import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
@@ -113,16 +113,6 @@ export function localGuideMarkup(result) {
   const url = `https://search.naver.com/search.naver?query=${encodeURIComponent(`${place} 분리배출 방법 배출 요일`)}`;
   return `<p class="local-guide-line">🗺️ ${escapeHtml(place)} 기준은 아직 확인하지 못해 <strong>전국 공통 기준</strong>으로 안내했어요. <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(region.district || region.province)} 공식 안내 찾기 ↗</a></p>`;
 }
-export function collectionPointMarkup(result) {
-  const help = collectionPointHelp(result);
-  if (!help) return '';
-  const link = (url, text) => `<a class="button secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
-  return `<section class="collection-help" aria-labelledby="collection-title"><h3 id="collection-title">📍 가까운 ${escapeHtml(help.keyword.replace(/ 수거함$/, ''))} 수거처 찾기</h3>
-    <p class="input-hint">주로 있는 곳: ${escapeHtml(help.places)}</p>
-    <div class="collection-links"><button type="button" class="button primary" data-nearby-map="${escapeHtml(help.keyword)}">📍 내 위치 주변 지도</button>${link(help.kakaoUrl, `카카오맵에서 ${help.place ? escapeHtml(help.place) + ' ' : ''}찾기 ↗`)}${link(help.naverUrl, '네이버 지도 ↗')}${help.pickup ? link(help.pickup.url, `${escapeHtml(help.pickup.label)} ↗`) : ''}</div>
-    <p class="input-hint" data-nearby-status role="status" aria-live="polite"></p>
-    <p class="input-hint">🕘 ${escapeHtml(help.hours)}</p></section>`;
-}
 export function largeWasteMarkup(result) {
   const help = largeWasteHelp(result);
   if (!help) return '';
@@ -165,7 +155,7 @@ export function resultMarkup(input, result, createdAt) {
     ${localGuideMarkup(result)}
     <h3>이렇게 배출하세요</h3>${stepListMarkup(result.steps)}
     ${largeWasteMarkup(result)}
-    ${collectionPointMarkup(result)}
+    ${collectionPointMarkup({ ...result, itemName: input.itemName })}
     ${result.parts.length > 1 ? `<h3>재질별 처리</h3><div class="result-parts">${result.parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${stepListMarkup(part.steps, 'part-steps')}</article>`).join('')}</div>` : ''}
     ${regionalComparisonMarkup(input, result)}
     <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${list(result.reasons)}${result.regional ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">확인일 ${escapeHtml(result.checkedAt || '미기록')} · ${escapeHtml(result.ruleVersion)} · ${sources.map(url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url === RULE_SOURCE ? '분리배출 지침' : escapeHtml(CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a>`).join(' · ')}</p></details>
@@ -471,8 +461,6 @@ export function bindItemInput() {
   summary.addEventListener('click', event => {
     if (event.target.closest('[data-ai-retry]') && shownInput) askAi(shownInput.itemName, shownAiState());
     if (event.target.closest('[data-ai-report]') && shownInput) reportWrongAi(shownInput.itemName);
-    const nearby = event.target.closest('[data-nearby-map]');
-    if (nearby) openNearbyMap(nearby);
   });
   const aiSwitch = bindAiToggle(aiToggle, enabled => {
     aiEnabled = enabled;
@@ -483,21 +471,6 @@ export function bindItemInput() {
     }
     refreshAi();
   });
-  // 위치 권한을 허락하면 내 주변 지도를, 아니면 지역 이름으로 검색한 지도를 엽니다. 위치는 저장하지 않습니다.
-  function openNearbyMap(button) {
-    const keyword = button.dataset.nearbyMap;
-    const status = summary.querySelector('[data-nearby-status]');
-    const fallback = button.parentElement.querySelector('a[href*="map.kakao.com"]')?.href;
-    const win = window.open('about:blank', '_blank');
-    const go = url => { if (win) { win.opener = null; win.location.href = url; } else window.location.href = url; };
-    if (!navigator.geolocation) { if (status) status.textContent = '이 브라우저는 위치를 지원하지 않아 지역 이름으로 찾았어요.'; go(fallback); return; }
-    if (status) status.textContent = '위치를 확인하고 있어요…';
-    navigator.geolocation.getCurrentPosition(
-      position => { if (status) status.textContent = ''; go(nearbyMapUrl(keyword, position.coords.latitude, position.coords.longitude)); },
-      () => { if (status) status.textContent = '위치를 쓸 수 없어서 지역 이름으로 찾았어요.'; go(fallback); },
-      { timeout: 8000, maximumAge: 300000 },
-    );
-  }
   async function reportWrongAi(name) {
     const key = normalizeItemName(name);
     if (!key || reports.get(key) === 'sending' || reports.get(key) === 'done') return;

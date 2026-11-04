@@ -1,4 +1,5 @@
 import { normalizeRegion } from './regions.js';
+import { detectItemCategory } from './category-keywords.js';
 
 // 전용 수거처가 필요한 물건은 지도에서 가까운 수거함·회수처를 바로 찾을 수 있게 합니다.
 // 수거처 위치·운영시간은 지도 앱의 장소 정보가 가장 최신이라 지도 검색으로 연결합니다.
@@ -22,8 +23,26 @@ export const PICKUP_SERVICE = { label: '폐가전 무상 방문수거 예약', u
 
 const shortPlace = region => region ? [region.province.replace(/특별시|광역시|특별자치시|특별자치도/, ''), region.district].filter(Boolean).join(' ') : '';
 
+// 종류 정보가 없는 결과(AI 설명·사진 안내, AI 추정)는 물건 이름과 안내 문장으로 수거처 종류를 알아냅니다.
+const TEXT_RULES = [
+  [/의약품|약국|보건소|알약|물약/, 'medicine'],
+  [/건전지|폐전지|보조배터리|충전지/, 'battery'],
+  [/형광등/, 'fluorescent'],
+  [/폐식용유|식용유/, 'cooking-oil'],
+  [/폐가전|소형가전|소형 가전|전기·전자제품/, 'electronic'],
+  [/의류수거함|의류 수거함|헌옷/, 'clothing'],
+];
+export function inferCollectionHandling(result) {
+  if (POINTS[result?.handling]) return result.handling;
+  if (result?.handling) return null;
+  const byName = detectItemCategory(result?.itemName || '')?.category;
+  if (POINTS[byName]) return byName;
+  const text = [result?.itemName, result?.method, ...(result?.steps || [])].filter(Boolean).join(' ');
+  return TEXT_RULES.find(([pattern]) => pattern.test(text))?.[1] || null;
+}
+
 export function collectionPointHelp(result, regionValue = result?.region) {
-  const point = POINTS[result?.handling];
+  const point = POINTS[inferCollectionHandling(result)];
   if (!point) return null;
   const place = shortPlace(normalizeRegion(regionValue));
   const query = [place, point.keyword].filter(Boolean).join(' ');
