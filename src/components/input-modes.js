@@ -17,3 +17,8 @@ export function bindInputModeSelect(root) {
   select.addEventListener('change', changed);
   return () => select.removeEventListener('change', changed);
 }
+
+// 친구들이 사진 기능을 못 찾아서, 이름 입력 바로 아래에 사진으로 찾기 버튼을 따로 보여 줍니다.
+export function photoShortcutMarkup() {
+  return '<a class="photo-shortcut" href="#/photo"><span aria-hidden="true">📷</span> 사진으로 찾기</a>';
+}

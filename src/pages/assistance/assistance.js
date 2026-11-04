@@ -5,6 +5,7 @@ import { getCurrentMember } from '../../services/auth.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
 import { regionLabel } from '../../domain/disposal/regions.js';
 import { requestAssistance } from '../../services/ai-assistance.js';
+import { stepListMarkup } from '../../components/step-list.js';
 import { prepareAssistancePhoto, PHOTO_ACCEPT } from '../../services/assistance-photo.js';
 import { queueInput } from '../../services/input-draft.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
@@ -39,7 +40,7 @@ export function assistanceResultMarkup(answer, region, { mode = 'photo', answers
     <p class="assist-confidence">인식 확실성: ${{ high: '높음', medium: '보통 · 실제 물건을 확인해 주세요', low: '낮음 · 추가 정보가 필요해요' }[answer.confidence]}</p>
     ${answer.markings.length ? `<h3>읽은 표시 · 실제 표시와 비교해 주세요</h3>${list(answer.markings)}` : ''}
     <div class="assist-method"><h3>${escapeHtml(answer.method)}</h3></div>
-    ${answer.steps.length ? `<h3>이렇게 배출해 보세요</h3>${list(answer.steps, true)}` : ''}
+    ${answer.steps.length ? `<h3>이렇게 배출해 보세요</h3>${stepListMarkup(answer.steps)}` : ''}
     ${mode === 'description' && answers.length ? `<details class="assist-answer-history"><summary>지금까지 답한 내용 ${answers.length}개</summary><dl>${answers.map(pair => `<dt>${escapeHtml(pair.question)}</dt><dd>${escapeHtml(pair.answer)}</dd>`).join('')}</dl></details>` : ''}
     ${answer.questions.length ? mode === 'description' ? followUpMarkup(answer, answers) : `<section class="assist-questions"><h3>배출 전에 확인해 주세요</h3>${list(answer.questions)}<p>아래 버튼으로 설명에 답을 덧붙이거나 사진을 바꾼 뒤 다시 물어볼 수 있어요.</p><button type="button" class="button secondary" data-assist-refine>설명 보완하기</button></section>` : ''}
     ${answer.cautions.length ? `<h3>주의할 점</h3>${list(answer.cautions)}` : ''}

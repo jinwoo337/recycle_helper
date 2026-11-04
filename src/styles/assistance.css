@@ -28,3 +28,6 @@
 .assist-answer-history{margin:20px 0;padding:14px 16px;border:1px solid var(--line);border-radius:10px;font-size:14px}.assist-answer-history summary{cursor:pointer;font-weight:600}.assist-answer-history dt{font-weight:600;margin-top:12px}.assist-answer-history dd{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:600px){.assist-followup-actions>.primary{width:100%}.assist-questions{padding:16px}.assist-followup-field>input{font-size:16px}}
 @media(max-width:600px){.input-modes{gap:6px}.input-modes a{padding:12px 8px;text-align:center}.input-modes a[aria-current]{padding:11px 7px}.input-modes a strong{font-size:13px}.input-modes a span{display:none}.assist-description-meta{flex-direction:column;gap:4px}.assist-description-meta span{text-align:right}.assist-form .assist-submit-row>.primary{width:100%}.assist-page{padding-top:20px}.assist-result-actions{flex-direction:column}.assist-result-actions .button{width:100%}}
+.ai-mode-controls{flex-wrap:wrap}
+.photo-shortcut{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:8px 16px;border:1.5px solid var(--green);border-radius:999px;background:#fff;color:var(--green);font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap}
+.photo-shortcut:hover,.photo-shortcut:focus-visible{background:#eef5e9}
