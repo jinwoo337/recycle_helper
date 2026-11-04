@@ -48,8 +48,8 @@ export function inferCollectionHandling(result) {
   return TEXT_RULES.find(([pattern]) => pattern.test(text))?.[1] || null;
 }
 
-export const kakaoSearchUrl = query => `https://map.kakao.com/?q=${encodeURIComponent(query)}`;
-export const naverSearchUrl = query => `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
+// 카카오맵·네이버 지도 웹 링크는 내 위치를 넘길 수 없어서 Google 지도만 씁니다.
+export const googleSearchUrl = query => `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
 
 export function collectionPointHelp(result, regionValue = result?.region) {
   const point = POINTS[inferCollectionHandling(result)];
@@ -59,7 +59,7 @@ export function collectionPointHelp(result, regionValue = result?.region) {
     name: point.name, note: point.note, place, hours: COLLECTION_HOURS_NOTE,
     targets: point.targets.map(target => {
       const query = [place, target.search].filter(Boolean).join(' ');
-      return { ...target, query, kakaoUrl: kakaoSearchUrl(query), naverUrl: naverSearchUrl(query) };
+      return { ...target, query, mapUrl: googleSearchUrl(query) };
     }),
     pickup: point.pickup ? PICKUP_SERVICE : null,
   };

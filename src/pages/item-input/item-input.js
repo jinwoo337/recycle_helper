@@ -91,7 +91,7 @@ export function itemInputPage() {
         <p class="input-hint" id="combination-hint">종이팩 코팅층은 그대로, 빨대·뚜껑만 확인해 주세요.</p>
         <div id="separable-question" hidden>${question('separable', '결합된 재질을 분리할 수 있나요?')}</div>
         </div></details>
-        <div id="components-section" hidden><details class="component-help"><summary>부속품 입력 도움말</summary><p class="input-hint">분리한 부속품도 상태를 확인해 주세요. 같은 재질·상태는 묶어 최대 5개까지 입력할 수 있어요. 복합재질 부속품은 ‘기타’를 선택하고, 페트병 뚜껑은 본체 처리 안내를 따라 주세요.</p></details><div id="component-fields"></div><button class="button secondary" type="button" id="add-component">부속품 추가</button></div>
+        <div id="components-section" hidden><details id="components-details" class="material-editor components-details"><summary><span id="components-detected">부속품</span><span class="material-edit-label">수정</span></summary><p class="input-hint">부속품 상태는 위에서 고른 상태와 같게 적용해요. 다르면 여기서 바꿔 주세요.</p><details class="component-help"><summary>부속품 입력 도움말</summary><p class="input-hint">분리한 부속품도 상태를 확인해 주세요. 같은 재질·상태는 묶어 최대 5개까지 입력할 수 있어요. 복합재질 부속품은 ‘기타’를 선택하고, 페트병 뚜껑은 본체 처리 안내를 따라 주세요.</p></details><div id="component-fields"></div><button class="button secondary" type="button" id="add-component">부속품 추가</button></details></div>
       </section>
       <details class="selected-conditions"><summary>선택한 조건 보기</summary><p id="selection-summary" class="selection-summary" aria-live="polite"></p></details>
       <div class="form-actions"><button type="submit" class="button primary">분리배출 방법 알아보기 <span aria-hidden="true">→</span></button><button type="button" class="button secondary" id="reset-item">새로 입력</button></div>
@@ -263,6 +263,34 @@ export function bindItemInput() {
       if (!show) { if (control.type === 'radio') control.checked = false; else control.value = ''; }
     });
   }
+  // 부속품은 본체와 같은 상태로 자동 적용하고, 사용자가 부속품 상태를 직접 바꾼 경우에만 따로 둡니다.
+  const separateComponentState = new Set();
+  function componentSummaryText() {
+    const names = Array.from({ length: componentCount }, (_, index) => {
+      const material = value(`part${index}-material`);
+      const type = TYPES[material]?.find(([id]) => id === value(`part${index}-type`))?.[1];
+      return type ? `${material}(${type.split('·')[0].trim()})` : material;
+    }).filter(Boolean);
+    const linked = Array.from({ length: componentCount }, (_, index) => index).every(index => !separateComponentState.has(index));
+    return names.length ? `부속품: ${names.join(', ')}${linked ? ' · 상태는 본체와 같게 적용' : ''}` : '부속품 재질을 골라 주세요';
+  }
+  function linkComponentStates() {
+    const answer = value('currentState');
+    if (!answer) return;
+    for (let index = 0; index < componentCount; index++) {
+      if (separateComponentState.has(index)) continue;
+      const prefix = `part${index}-`;
+      const radios = [...form.querySelectorAll(`[name="${prefix}currentState"]`)];
+      const pick = radios.find(radio => radio.value === answer && !radio.disabled) || (answer === 'washed-dirty' ? radios.find(radio => radio.value === 'dirty' && !radio.disabled) : null);
+      if (!pick) continue;
+      pick.checked = true;
+      writeValues(stateAnswers(pick.value, needsWashQuestion(partValue(prefix))), prefix);
+      // 오염이 있을 때 이어지는 "남은 오염을 제거할 수 있나요?"도 본체 답을 같이 씁니다.
+      const removable = value('removable');
+      const follow = removable && form.querySelector(`[name="${prefix}removable"][value="${removable}"]`);
+      if (follow) follow.checked = true;
+    }
+  }
   function syncPart(node, active = true) {
     const prefix = node.dataset.prefix;
     const materialSelect = form.elements.namedItem(`${prefix}material`);
@@ -341,6 +369,7 @@ export function bindItemInput() {
     document.getElementById('composition-detected').textContent = value('combined') === 'no' ? '다른 재질 없음' : combined
       ? `다른 재질 있음 · ${value('separable') === 'yes' ? '분리 가능' : value('separable') === 'no' ? '분리 어려움' : '분리 가능 여부 확인'}` : '다른 재질이 붙어 있나요?';
     document.getElementById('components-section').hidden = !components;
+    document.getElementById('components-detected').textContent = componentSummaryText();
     document.querySelectorAll('#component-fields .part-fields').forEach(node => syncPart(node, components));
     const typeLabel = TYPES[value('material')]?.find(([type]) => type === value('type'))?.[1];
     form.querySelectorAll('[data-mark]').forEach(button => { const mark = markById(button.dataset.mark); button.setAttribute('aria-pressed', String(mark.material === value('material') && mark.type === value('type'))); });
@@ -542,7 +571,7 @@ export function bindItemInput() {
     const region = Object.hasOwn(input, 'region') ? input.region : judgementRegion.get();
     closeSuggestions(); nameStatus.textContent = '';
     document.getElementById('preset-info').hidden = true;
-    form.reset(); componentCount = Math.max(1, input.components?.length || 0); drawComponents();
+    form.reset(); componentCount = Math.max(1, input.components?.length || 0); drawComponents(); separateComponentState.clear(); document.getElementById('components-details').open = false;
     judgementRegion.set(region);
     aiGuess = validateAiGuess(input.aiGuess, input.itemName);
     autoFill.checked = autoFillEnabled; aiSwitch.sync(aiEnabled);
@@ -648,6 +677,8 @@ export function bindItemInput() {
     // 이름을 바꾸면 이전 물품의 상태와 부속품 답변을 새 물품에 사용하지 않습니다.
     form.querySelectorAll('input[type="radio"]').forEach(control => { control.checked = false; });
     componentCount = Math.max(1, preset.components?.length || 0); drawComponents();
+    separateComponentState.clear();
+    document.getElementById('components-details').open = !preset.components?.length;
     form.elements.namedItem('material').value = preset.material;
     form.elements.namedItem('type').value = '';
     for (let pass = 0; pass < 3; pass++) {
@@ -689,7 +720,12 @@ export function bindItemInput() {
     if (event.target.name?.endsWith('currentState')) {
       const prefix = event.target.closest('.part-fields').dataset.prefix;
       writeValues(stateAnswers(event.target.value, needsWashQuestion(partValue(prefix))), prefix);
+      const part = /^part(\d+)-$/.exec(prefix);
+      if (part) separateComponentState.add(Number(part[1]));
+      else { updateConditional(); linkComponentStates(); }
     }
+    if (event.target.name === 'removable') { updateConditional(); linkComponentStates(); }
+    if (/^part(\d+)-removable$/.test(event.target.name || '')) separateComponentState.add(Number(/^part(\d+)-/.exec(event.target.name)[1]));
     nameInput.setCustomValidity(''); saveStatus.textContent = '';
     if (event.target === nameInput && !aiMatches(nameInput.value.trim())) aiGuess = null;
     // 브라우저가 체크 상태를 복원해도 실제 화면의 선택과 일치시킵니다.
@@ -752,11 +788,12 @@ export function bindItemInput() {
   document.getElementById('add-component').addEventListener('click', () => {
     const input = collect(); if (componentCount >= 5) return;
     input.components = [...(input.components || []), {}]; restore(input); summary.hidden = true;
+    document.getElementById('components-details').open = true;
     form.elements.namedItem(`part${componentCount - 1}-material`).focus();
   });
   document.getElementById('component-fields').addEventListener('click', event => {
     const button = event.target.closest('[data-remove]'); if (!button) return;
-    const input = collect(); input.components.splice(Number(button.dataset.remove), 1); restore(input); summary.hidden = true;
+    const input = collect(); input.components.splice(Number(button.dataset.remove), 1); restore(input); summary.hidden = true; document.getElementById('components-details').open = true;
   });
   document.getElementById('recent-items-content').addEventListener('click', event => {
     if (event.target.closest('#retry-history')) { renderRecent(); return; }
