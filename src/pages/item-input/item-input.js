@@ -26,6 +26,7 @@ import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
+import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
 import { inputModeSelectMarkup, bindInputModeSelect } from '../../components/input-modes.js';
 import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
 
@@ -101,6 +102,24 @@ export function itemInputPage() {
     </div></section>`;
 }
 
+export function largeWasteMarkup(result) {
+  const help = largeWasteHelp(result);
+  if (!help) return '';
+  return `<section class="large-waste-help" aria-labelledby="large-waste-title"><h3 id="large-waste-title">🪑 대형폐기물 신고하기${help.place ? ` · ${escapeHtml(help.place)}` : ''}</h3>
+    <ol>${help.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>
+    <p class="input-hint">💰 ${escapeHtml(help.feeNote)}</p>
+    <div class="large-waste-links">${help.homepage ? `<a class="button secondary" href="${escapeHtml(help.homepage)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.place.split(' ').pop())}청 누리집 ↗</a>` : ''}<a class="button secondary" href="${escapeHtml(help.searchUrl)}" target="_blank" rel="noopener noreferrer">신고 페이지 찾기 ↗</a></div>
+    ${help.place ? '' : '<p class="input-hint">판별 지역을 고르면 우리 구 신고 페이지로 바로 안내해요.</p>'}</section>`;
+}
+const sourceLabel = url => url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url);
+// 결과를 펼치지 않아도 어떤 기준(공식 출처·확인일)으로 판단했는지 한 줄로 보여 줍니다.
+export function sourceLineMarkup(result, sources) {
+  const regionalUrls = Object.values(REGIONAL_SOURCES);
+  const primary = sources.find(url => regionalUrls.includes(url)) || sources.find(url => url !== RULE_SOURCE) || sources[0];
+  const checkedAt = result.regional?.checkedAt || result.checkedAt;
+  if (!primary && !checkedAt) return '';
+  return `<p class="result-source-line">📌 ${checkedAt ? `${escapeHtml(checkedAt)} 확인한 기준` : '참고한 기준'}${primary ? ` · <a href="${escapeHtml(primary)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel(primary))} ↗</a>` : ''}</p>`;
+}
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
 export function resultMarkup(input, result, createdAt) {
   const updated = result.ruleVersion !== RULE_VERSION;
@@ -121,7 +140,9 @@ export function resultMarkup(input, result, createdAt) {
     ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
     <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}"><span class="result-badge">${input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status]}</span><h3>${escapeHtml(result.method)}</h3></div>
     <p class="result-region input-hint">${result.regional ? `${escapeHtml(result.regional.label)} · ${result.regional.coverage === 'verified' ? result.regional.scope === 'city' ? '서울시 공통 안내 · 구별 수거 확인 필요' : '해당 품목 지역 기준 적용' : '기본 안내 · 지역 기준 확인 필요'}` : '지역 미기록 · 지역을 설정하고 다시 판별해 주세요.'}</p>
+    ${sourceLineMarkup(result, sources)}
     <h3>이렇게 배출하세요</h3><ol class="action-steps">${result.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>
+    ${largeWasteMarkup(result)}
     ${result.parts.length > 1 ? `<h3>재질별 처리</h3><div class="result-parts">${result.parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${list(part.steps)}</article>`).join('')}</div>` : ''}
     ${regionalComparisonMarkup(input, result)}
     <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${list(result.reasons)}${result.regional ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">확인일 ${escapeHtml(result.checkedAt || '미기록')} · ${escapeHtml(result.ruleVersion)} · ${sources.map(url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url === RULE_SOURCE ? '분리배출 지침' : escapeHtml(CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a>`).join(' · ')}</p></details>

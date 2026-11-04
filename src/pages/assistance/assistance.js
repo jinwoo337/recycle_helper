@@ -5,7 +5,7 @@ import { getCurrentMember } from '../../services/auth.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
 import { regionLabel } from '../../domain/disposal/regions.js';
 import { requestAssistance } from '../../services/ai-assistance.js';
-import { prepareAssistancePhoto } from '../../services/assistance-photo.js';
+import { prepareAssistancePhoto, PHOTO_ACCEPT } from '../../services/assistance-photo.js';
 import { queueInput } from '../../services/input-draft.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
@@ -56,8 +56,8 @@ export function assistancePage(mode = 'description') {
     <form class="item-card assist-form" data-assist-form>
       ${judgementRegionMarkup(readJudgementRegion(getCurrentMember()))}
       ${photo ? `<section class="assist-photo" aria-labelledby="assist-photo-title"><h2 id="assist-photo-title">1. 사진 선택</h2><p class="input-hint">한 번에 물건 하나를 밝은 곳에서 찍어 주세요. 마크를 찍을 때는 몸체·뚜껑 등 부위 이름까지 보이면 좋아요.</p>
-        <div class="assist-photo-buttons"><label class="button secondary assist-file-label">사진 촬영<input type="file" name="camera" accept="image/jpeg,image/png,image/webp" capture="environment" aria-label="물건 사진 촬영"></label><label class="button secondary assist-file-label">사진 선택<input type="file" name="gallery" accept="image/jpeg,image/png,image/webp" aria-label="저장된 사진 선택"></label></div>
-        <p class="input-hint">JPG·PNG·WebP · 12MB 이하 · 사진은 이 화면을 떠나면 지워져요.</p>
+        <div class="assist-photo-buttons"><label class="button secondary assist-file-label">사진 촬영<input type="file" name="camera" accept="${PHOTO_ACCEPT}" capture="environment" aria-label="물건 사진 촬영"></label><label class="button secondary assist-file-label">사진 선택<input type="file" name="gallery" accept="${PHOTO_ACCEPT}" aria-label="저장된 사진 선택"></label></div>
+        <p class="input-hint">JPG·PNG·WebP·HEIC(아이폰 사진) · 12MB 이하 · 사진은 이 화면을 떠나면 지워져요.</p>
         <figure class="assist-preview" data-assist-preview hidden><img data-assist-image alt="분석할 물건 사진 미리보기"><figcaption><span data-assist-photo-status></span><button type="button" class="history-action" data-assist-remove>사진 지우기</button></figcaption></figure>
         <p class="assist-photo-message" data-assist-photo-message role="status" aria-live="polite"></p></section>` : ''}
       <div class="field"><label for="assist-description">${photo ? '2. 사진 설명 또는 추가 정보 (선택)' : '어떤 물건인가요?'}</label><textarea id="assist-description" name="description" rows="6" maxlength="2000" ${photo ? '' : 'minlength="10" required'} aria-describedby="assist-description-hint assist-count" placeholder="예: 배달 음식이 담겼던 검은 용기예요. 바닥에 PP라고 적혀 있고, 기름기가 남아 있어요. 뚜껑은 투명하고 분리할 수 있어요."></textarea><div class="assist-description-meta"><p id="assist-description-hint" class="input-hint">${photo ? '사진에서 안 보이는 내용물·손상·오염 상태를 알려주면 도움이 돼요.' : '용도·재질 표시·크기·오염·붙어 있는 부속품을 알려주세요. 10자 이상 입력해 주세요.'}</p><span id="assist-count" data-assist-count>0 / 2,000자</span></div></div>
