@@ -118,3 +118,17 @@ test('종류 정보가 없는 AI 설명·사진 결과도 이름과 안내 문�
   assert.equal(inferCollectionHandling({ itemName: '컵라면 용기', method: '플라스틱으로 배출', steps: ['내용물을 비워 주세요.'] }), null);
   assert.equal(inferCollectionHandling({ handling: 'large', itemName: '소파' }), null);
 });
+
+import { sourceLineMarkup, localGuideMarkup } from '../src/pages/item-input/item-input.js';
+test('대전 유성구에서 약을 찾으면 서울시 자료를 대표 출처로 쓰지 않고, 지역 자료가 없는 이유를 정확히 말한다', () => {
+  const yuseong = { province: '대전광역시', district: '유성구' };
+  const result = judge('약', yuseong);
+  const line = sourceLineMarkup(result, result.sourceUrls);
+  assert.doesNotMatch(line, /서울/);
+  const guide = localGuideMarkup(result, '약');
+  assert.match(guide, /유성구 자료에는 이 물건의 배출 방법이 따로 나와 있지 않아/);
+  assert.doesNotMatch(guide, /확인하지 못해/);
+  const seoul = judge('약', gangnam);
+  assert.match(sourceLineMarkup(seoul, seoul.sourceUrls), /서울시/);
+  assert.match(localGuideMarkup(judge('약', { province: '경기도', district: '수원시' }), '약'), /아직 지역 자료를 모으지 못해/);
+});
