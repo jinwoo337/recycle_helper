@@ -24,17 +24,23 @@ export const LARGE_WASTE_FEE_NOTE = '수수료는 구마다, 품목·크기마�
 export const LARGE_WASTE_STEPS = ['구청 누리집이나 동 주민센터에서 대형폐기물 배출을 신고해요.', '안내받은 수수료를 내고 신고필증(스티커·번호)을 받아요.', '필증을 물건에 붙이거나 번호를 적어 정해진 날짜·장소에 내놓아요.'];
 
 const LARGE_HANDLINGS = ['large', 'large-electronic'];
-const mentionsLargeWaste = result => [result.method, ...(result.steps || [])].some(text => String(text || '').includes('대형폐기물'));
+// 이불·베개 같은 침구는 크기에 따라 대형폐기물일 수 있어 "크면" 안내로 붙입니다.
+const MAYBE_LARGE_HANDLINGS = ['bedding'];
+// 종류 정보가 없는 결과(AI 추정 등)는 결과 제목에 대형폐기물이 있을 때만 붙입니다.
+// 옷·도자기처럼 단계 문장에 "대형폐기물 기준 확인"이 한 번 나오는 물건에는 붙이지 않습니다.
+const titleMentionsLargeWaste = result => !result.handling && String(result.method || '').includes('대형폐기물');
 
 // 대형폐기물 신고가 필요할 수 있는 결과에만 신고 경로를 붙입니다.
 export function largeWasteHelp(result, regionValue = result?.region) {
-  if (!result || !(LARGE_HANDLINGS.includes(result.handling) || mentionsLargeWaste(result))) return null;
+  if (!result) return null;
+  const maybe = MAYBE_LARGE_HANDLINGS.includes(result.handling);
+  if (!(LARGE_HANDLINGS.includes(result.handling) || maybe || titleMentionsLargeWaste(result))) return null;
   const region = normalizeRegion(regionValue);
   const place = region ? [region.province.replace(/특별시|광역시|특별자치시|특별자치도/, ''), region.district].filter(Boolean).join(' ') : '';
   const homepage = region ? DISTRICT_HOMEPAGES[region.province]?.[region.district] || null : null;
   const query = `${place ? `${place} ` : ''}대형폐기물 배출 신고`;
   return {
-    place, homepage, query,
+    place, homepage, query, maybe,
     searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`,
     feeNote: LARGE_WASTE_FEE_NOTE, steps: LARGE_WASTE_STEPS,
   };
