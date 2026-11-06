@@ -35,6 +35,20 @@ export function regionalSourceLabel(url) {
   return url === REGIONAL_SOURCES.geumcheonFood ? '금천구 음식물 안내 (기본 참고 자료)'
     : url === REGIONAL_SOURCES.gimpoWaste ? '김포시 생활폐기물 안내' : '김포시 재활용 안내';
 }
+// 재활용 품목의 재질·세부 종류에 맞는 서울시 공통 안내 문장 이름(SEOUL_RECYCLE_NOTES의 키)입니다.
+function seoulRecycleKey({ material, type }) {
+  if (material === '종이') return ({ paper: 'paper', carton: 'carton', cup: 'cup' })[type] || null;
+  if (material === '페트병' && type === 'clear-drink') return 'pet';
+  if (material === '스티로폼') return 'foam';
+  return ['플라스틱', '페트병', '유리', '금속·캔'].includes(material) ? 'container' : null;
+}
+// 대전 구청 자료에서 재질에 맞는 안내 문장을 고릅니다. 자료가 없으면 null입니다.
+function daejeonRecycleNote(guide, { material, type }) {
+  const key = material === '종이' ? (type === 'carton' ? 'carton' : type === 'paper' ? 'paper' : null)
+    : material === '비닐' ? 'vinyl' : ['플라스틱', '페트병', '유리', '금속·캔', '스티로폼'].includes(material) ? 'container' : null;
+  if (!key) return null;
+  return guide[key] || (key === 'carton' ? guide.container : null) || null;
+}
 // 지역·품목별로 검증한 규칙만 적용합니다. 위험 품목/이름 충돌/미등록 품목의 판단을 뒤집지 않습니다.
 export function applyRegionalRules(input, base) {
   const region = normalizeRegion(input.region);
@@ -99,9 +113,7 @@ export function applyRegionalRules(input, base) {
     } else if (result.status === 'general' && input.material === '음식물류' && ['excluded', 'fibrous'].includes(input.type)) {
       city(SEOUL_SOURCES.recycle, '단단한 뼈·껍데기와 질긴 뿌리 등은 음식물 수거에 섞지 말고 일반폐기물 배출 기준을 확인해 주세요.');
     } else if (result.status === 'recycle' && input.combined === 'no') {
-      const key = input.material === '종이' ? ({ paper: 'paper', carton: 'carton', cup: 'cup' })[input.type]
-        : input.material === '페트병' && input.type === 'clear-drink' ? 'pet'
-        : input.material === '스티로폼' ? 'foam' : ['플라스틱', '페트병', '유리', '금속·캔'].includes(input.material) ? 'container' : null;
+      const key = seoulRecycleKey(input);
       if (key) city(SEOUL_SOURCES.recycle, SEOUL_RECYCLE_NOTES[key], key === 'carton' ? 'carton:seoul-separated' : undefined);
     }
   }
@@ -135,9 +147,27 @@ export function applyRegionalRules(input, base) {
     } else if (result.status === 'general' && input.material === '비닐' && input.type === 'packaging' && input.combined === 'no' && region.district === '유성구') {
       set(daejeon.recycle, daejeon.vinyl);
     } else if (result.status === 'recycle' && input.combined === 'no') {
-      const key = input.material === '종이' ? (input.type === 'carton' ? 'carton' : input.type === 'paper' ? 'paper' : null)
-        : input.material === '비닐' ? 'vinyl' : ['플라스틱', '페트병', '유리', '금속·캔', '스티로폼'].includes(input.material) ? 'container' : null;
-      if (key && (daejeon[key] || (key === 'carton' && daejeon.container))) set(daejeon.recycle, daejeon[key] || daejeon.container);
+      const note = daejeonRecycleNote(daejeon, input);
+      if (note) set(daejeon.recycle, note);
+    }
+  }
+  // 라벨·뚜껑을 떼어 각각 분리배출하는 물건(예: 라벨 붙은 생수병)도 본체에는 지역 기준을 붙입니다.
+  // 부속품마다 다른 지역 문장을 섞으면 헷갈리므로 본체 재질의 문장 하나만 더합니다.
+  const separated = input.combined === 'yes' && input.separable === 'yes' && input.components?.length
+    && result.status === 'recycle' && result.parts[0]?.label === '본체' && result.parts[0].status === 'recycle';
+  if (separated && result.regional.coverage !== 'verified') {
+    if (region?.province === '서울특별시') {
+      const key = seoulRecycleKey(input);
+      if (key) {
+        set(SEOUL_SOURCES.recycle, SEOUL_RECYCLE_NOTES[key]);
+        result.regional.scope = 'city';
+        result.regional.notes.push(SEOUL_SCOPE_NOTE);
+        result.regional.sources.push(SEOUL_SOURCES.scope);
+        result.sourceUrls = [...new Set([...result.sourceUrls, SEOUL_SOURCES.scope])];
+      }
+    } else if (daejeon && input.material !== '비닐') {
+      const note = daejeonRecycleNote(daejeon, input);
+      if (note) set(daejeon.recycle, note);
     }
   }
   if (result.regional.coverage === 'verified') {
