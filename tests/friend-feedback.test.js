@@ -131,3 +131,49 @@ test('대전 유성구에서 약을 찾으면 서울시 자료를 대표 출처�
   assert.match(sourceLineMarkup(seoul, seoul.sourceUrls), /서울시/);
   assert.match(localGuideMarkup(judge('약', { province: '경기도', district: '수원시' }), '약'), /아직 지역 자료를 모으지 못해/);
 });
+
+test('대형폐기물 신고 안내는 큰 물건에만 붙고 옷·도자기에는 붙이지 않는다', () => {
+  for (const name of ['티셔츠', '운동화', '도자기컵']) assert.equal(largeWasteHelp(judge(name, gangnam)), null, name);
+  const bedding = largeWasteHelp(judge('이불', gangnam));
+  assert.ok(bedding?.maybe, '침구는 "봉투에 안 들어가면" 안내');
+  assert.equal(largeWasteHelp(judge('소파', gangnam)).maybe, false);
+  // 종류 정보가 없는 AI 추정 결과는 제목에 대형폐기물이 있을 때만
+  assert.ok(largeWasteHelp({ method: '대형폐기물 신고 후 배출 · AI 추정', steps: [] }));
+  assert.equal(largeWasteHelp({ method: '종량제봉투로 배출', steps: ['크면 대형폐기물 기준을 확인해 주세요.'] }), null);
+});
+
+test('서울은 시 전체 자료라서 "서울시 자료"라고 말한다', () => {
+  const guide = localGuideMarkup(judge('약', gangnam), '약');
+  if (guide) { assert.match(guide, /서울시 자료에는/); assert.doesNotMatch(guide, /강남구 자료에는/); assert.match(guide, /강남구 공식 안내 찾기/); }
+});
+
+import { stepIcon } from '../src/components/step-list.js';
+test('단계 아이콘은 동작에 맞게 붙는다', () => {
+  const icon = text => stepIcon(text).icon;
+  assert.equal(icon('제품 이름·용도와 분리배출 표시를 확인해 주세요.'), '🔍');
+  assert.equal(icon('다른 재질의 부속품을 본체에서 분리해 주세요.'), '✂️');
+  assert.equal(icon('구청 대형폐기물 안내에서 실제 품목·크기에 맞는 접수 대상을 확인해 주세요.'), '🔍');
+  assert.equal(icon('구청·주민센터 또는 지자체 누리집에서 대형폐기물 배출을 신고해 주세요.'), '📝');
+  assert.equal(icon('크기·소재에 따라 지역의 종량제봉투 또는 대형폐기물 접수 기준을 확인해 주세요.'), '🔍');
+  assert.equal(icon('신고 후 받은 스티커(필증)를 붙여 지정 장소에 배출해 주세요.'), '📝');
+  assert.equal(icon('안쪽의 음식물·기름·이물질을 확인하고 다시 판별해 주세요.'), '🔍');
+  assert.equal(icon('거주지의 음식물 전용 봉투·전용 용기·RFID 수거 방식에 맞춰 배출해 주세요.'), '🍂');
+  assert.equal(icon('지역 묶음 접수 조건을 확인해 주세요.'), '🔍');
+  assert.equal(icon('끈으로 묶어 배출해 주세요.'), '📦');
+  assert.equal(icon('남은 내용물을 비워 주세요.'), '📤');
+  assert.equal(icon('불에 태우지 마세요.'), '🚫');
+});
+
+import { aiOpinionNeedsReview } from '../src/domain/disposal/ai-classification.js';
+test('AI도 대형폐기물이라고 한 대형 물건 결과에는 "기준과 달라요" 경고를 띄우지 않는다', () => {
+  assert.equal(aiOpinionNeedsReview({ status: 'check', handling: 'large' }, { route: 'large' }), false);
+  assert.equal(aiOpinionNeedsReview({ status: 'check', handling: 'large' }, { route: 'general' }), true);
+});
+
+test('부속품이 있는 물건은 "지역 자료에 없다"가 아니라 부속품 때문에 공통 기준을 썼다고 말한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  const input = { itemName: '투명생수병', material: '페트병', type: 'clear-drink', currentState: 'clean', contaminated: 'no', combined: 'yes', separable: 'yes', components: [{ label: '라벨', material: '비닐', type: 'packaging', currentState: 'clean', contaminated: 'no' }], region };
+  const guide = localGuideMarkup(applyRegionalRules(input, judgeDisposal(input)), '투명생수병');
+  assert.match(guide, /부속품이 함께 있는 물건이라 유성구 기준 대신/);
+  assert.doesNotMatch(guide, /나와 있지 않아/);
+});

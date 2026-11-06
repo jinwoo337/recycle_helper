@@ -114,18 +114,23 @@ export function localGuideMarkup(result, itemName = '') {
   const region = result.region;
   if (!region || result.regional?.coverage === 'verified') return '';
   const place = [region.province, region.district].filter(Boolean).join(' ');
-  const local = region.district || region.province;
+  // 서울은 시 전체 자료라서 구 이름 대신 "서울시 자료"라고 씁니다. 대전은 구별 자료가 있습니다.
+  const local = region.province === '서울특별시' ? '서울시' : region.district || region.province;
   const supported = SUPPORTED_PROVINCES.includes(region.province);
   const url = `https://search.naver.com/search.naver?query=${encodeURIComponent(`${place} ${supported && itemName ? `${itemName} 버리는 방법` : '분리배출 방법 배출 요일'}`)}`;
+  // 지역 기준은 재질 하나짜리 물건에만 붙이므로, 라벨·뚜껑 같은 부속품이 함께 있으면 그 이유를 말합니다.
+  const withParts = (result.parts?.length || 0) > 1;
   const text = supported
-    ? `${escapeHtml(local)} 자료에는 이 물건의 배출 방법이 따로 나와 있지 않아 <strong>전국 공통 기준</strong>으로 안내했어요.`
+    ? withParts
+      ? `부속품이 함께 있는 물건이라 ${escapeHtml(local)} 기준 대신 재질별 <strong>전국 공통 기준</strong>으로 안내했어요.`
+      : `${escapeHtml(local)} 자료에는 이 물건의 배출 방법이 따로 나와 있지 않아 <strong>전국 공통 기준</strong>으로 안내했어요.`
     : `${escapeHtml(place)}는 아직 지역 자료를 모으지 못해 <strong>전국 공통 기준</strong>으로 안내했어요.`;
-  return `<p class="local-guide-line">🗺️ ${text} <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(local)} 공식 안내 찾기 ↗</a></p>`;
+  return `<p class="local-guide-line">🗺️ ${text} <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(region.district || region.province)} 공식 안내 찾기 ↗</a></p>`;
 }
 export function largeWasteMarkup(result) {
   const help = largeWasteHelp(result);
   if (!help) return '';
-  return `<section class="large-waste-help" aria-labelledby="large-waste-title"><h3 id="large-waste-title">🪑 대형폐기물 신고하기${help.place ? ` · ${escapeHtml(help.place)}` : ''}</h3>
+  return `<section class="large-waste-help" aria-labelledby="large-waste-title"><h3 id="large-waste-title">🪑 ${help.maybe ? '봉투에 안 들어가면 ' : ''}대형폐기물 신고하기${help.place ? ` · ${escapeHtml(help.place)}` : ''}</h3>
     <ol>${help.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>
     <p class="input-hint">💰 ${escapeHtml(help.feeNote)}</p>
     <div class="large-waste-links">${help.homepage ? `<a class="button secondary" href="${escapeHtml(help.homepage)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.place.split(' ').pop())}청 누리집 ↗</a>` : ''}<a class="button secondary" href="${escapeHtml(help.searchUrl)}" target="_blank" rel="noopener noreferrer">신고 페이지 찾기 ↗</a></div>
@@ -698,8 +703,15 @@ export function bindItemInput() {
       ? '이름에 맞는 정보를 채웠어요. 실제 제품과 다르면 수정해 주세요.'
       : nameInput.value.trim() ? '자동 입력할 수 있는 이름이 아니에요. 실제 재질과 세부 종류를 직접 선택해 주세요.' : '물건 이름을 입력하면 알려진 품목의 재질 정보를 채워요.';
   }
+  // 이름 칸을 벗어날 때 생기는 change는 입력 때 이미 처리한 값이면 건너뜁니다.
+  // (다시 처리하면 AI·저장된 답으로 골라 둔 종류와 답한 상태가 지워져 판별 버튼이 막혔습니다.)
+  let handledName = null;
   function changed(event) {
     if (event.isComposing) return;
+    if (event.target === nameInput) {
+      if (event.type === 'change' && nameInput.value === handledName) return;
+      handledName = nameInput.value;
+    }
     inputRevision++;
     // 사전에 없는 이름이면 이름 속 낱말로 물건 종류를 자동으로 골라 둡니다. 사용자가 바꿀 수 있습니다.
     if (event.target === nameInput) {
