@@ -170,10 +170,31 @@ test('AI도 대형폐기물이라고 한 대형 물건 결과에는 "기준과 �
   assert.equal(aiOpinionNeedsReview({ status: 'check', handling: 'large' }, { route: 'general' }), true);
 });
 
-test('부속품이 있는 물건은 "지역 자료에 없다"가 아니라 부속품 때문에 공통 기준을 썼다고 말한다', () => {
+test('라벨을 떼어 버리는 생수병도 본체에는 서울·대전 지역 기준을 붙인다', () => {
+  const pet = region => ({ itemName: '투명생수병', material: '페트병', type: 'clear-drink', currentState: 'clean', contaminated: 'no', combined: 'yes', separable: 'yes', components: [{ label: '라벨', material: '비닐', type: 'packaging', currentState: 'clean', contaminated: 'no' }], region });
+  const yuseong = pet({ province: '대전광역시', district: '유성구' });
+  const result = applyRegionalRules(yuseong, judgeDisposal(yuseong));
+  assert.equal(result.regional.coverage, 'verified');
+  assert.ok(result.steps.includes('용기의 이물질을 제거하고 다른 재질과 분리해 배출해 주세요.'));
+  assert.equal(localGuideMarkup(result, '투명생수병'), '');
+  const seoulInput = pet(gangnam);
+  const seoul = applyRegionalRules(seoulInput, judgeDisposal(seoulInput));
+  assert.equal(seoul.regional.scope, 'city');
+  assert.ok(seoul.steps.some(step => step.startsWith('무색 생수·음료 페트병만')));
+});
+
+test('유성구 용기 안내에 스티로폼 문장이 캔·페트병까지 붙지 않는다', () => {
+  const input = { itemName: '콜라캔', material: '금속·캔', type: 'food-can', combined: 'no', contaminated: 'no', region: { province: '대전광역시', district: '유성구' } };
+  const result = applyRegionalRules(input, judgeDisposal(input));
+  assert.equal(result.regional.coverage, 'verified');
+  assert.ok(result.steps.every(step => !step.includes('스티로폼')));
+});
+
+test('부속품이 있는데 본체에 맞는 지역 자료가 없으면 부속품 때문에 공통 기준을 썼다고 말한다', () => {
   const region = { province: '대전광역시', district: '유성구' };
-  const input = { itemName: '투명생수병', material: '페트병', type: 'clear-drink', currentState: 'clean', contaminated: 'no', combined: 'yes', separable: 'yes', components: [{ label: '라벨', material: '비닐', type: 'packaging', currentState: 'clean', contaminated: 'no' }], region };
-  const guide = localGuideMarkup(applyRegionalRules(input, judgeDisposal(input)), '투명생수병');
+  const input = { itemName: '종이컵', material: '종이', type: 'cup', contaminated: 'no', combined: 'yes', separable: 'yes', components: [{ label: '뚜껑', material: '플라스틱', type: 'container', contaminated: 'no' }], region };
+  const result = applyRegionalRules(input, judgeDisposal(input));
+  assert.notEqual(result.regional.coverage, 'verified');
+  const guide = localGuideMarkup(result, '종이컵');
   assert.match(guide, /부속품이 함께 있는 물건이라 유성구 기준 대신/);
-  assert.doesNotMatch(guide, /나와 있지 않아/);
 });
