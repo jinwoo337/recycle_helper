@@ -44,7 +44,7 @@
 .history-toolbar{display:flex;justify-content:flex-end;margin-top:12px}
 .auto-fill-choice{display:flex;align-items:center;gap:9px;font-size:14px;cursor:pointer;color:var(--green);font-weight:600}
 .auto-fill-choice input{width:17px;height:17px;accent-color:var(--green);margin:0}.auto-fill-status{margin-bottom:20px}
-.item-name-control{position:relative}.item-name-options{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:10;background:white;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px #253b3120;max-height:264px;overflow:auto;padding:4px}
+.item-name-control{position:relative}.item-name-options{margin-top:4px;background:white;border:1px solid var(--line);border-radius:8px;max-height:186px;overflow:auto;padding:4px}
 .item-name-options button{display:block;width:100%;min-height:44px;border:0;border-radius:5px;background:white;color:var(--green);text-align:left;padding:10px 12px;font:inherit;font-size:14px;cursor:pointer}
 .item-name-options button:hover,.item-name-options [aria-selected="true"]{background:#edf5e9}.item-name-options button:focus-visible{outline:2px solid #bd831c;outline-offset:-2px}
 #item-name-status:empty{display:none}

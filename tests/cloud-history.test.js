@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCloudHistoryRepository } from '../src/services/cloud-history.js';
-import { validRecord } from '../src/services/disposal-history.js';
+import { getDisposalHistory, validRecord } from '../src/services/disposal-history.js';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { categoryOf } from '../src/domain/disposal/statistics.js';
 import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
@@ -88,6 +88,10 @@ test('클라우드: 1,000개가 넘는 기록과 최근 8개 밖의 통계를 �
   const db = fakeDatabase(Array.from({ length: 1205 }, () => row(makeRecord())));
   db.rows.push({ ...row(makeRecord()), user_id: 'other' });
   const repository = createCloudHistoryRepository(db, owner, () => ({ id: owner }), validRecord);
+  const recent = await getDisposalHistory(repository);
+  assert.equal(recent.length, 8);
+  assert.deepEqual(db.calls.map(({ table, start, end }) => ({ table, start, end })), [{ table: 'disposal_records', start: 0, end: 7 }]);
+  db.calls.length = 0;
   assert.equal((await repository.list()).length, 1205);
   assert.ok(db.calls.filter(call => call.table === 'disposal_records').every(call => call.filters.some(([key, value]) => key === 'user_id' && value === owner)));
   assert.equal((await repository.statistics()).total, 1205);

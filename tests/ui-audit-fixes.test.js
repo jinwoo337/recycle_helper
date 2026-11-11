@@ -61,6 +61,29 @@ test('서울 비닐은 액체 자국·고형물·미확인을 구분하고 이�
   assert.equal(judgeDisposal({ ...vinyl, itemName: '새약품용기', vinylResidue: 'liquid-only' }).status, 'check');
 });
 
+test('서울 비닐의 기름 자국만 확인되면 제거 가능 여부를 추가로 요구하지 않는다', () => {
+  const input = { ...vinyl, vinylResidue: 'liquid-only', removable: '' };
+  const result = judgeDisposal(input);
+  assert.equal(result.status, 'recycle');
+  assert.doesNotMatch(result.steps.join(' '), /이물질을 제거할 수 있는지/);
+  const comparison = compareRegionalDisposal(input, result);
+  assert.ok(comparison.groups.some(group => group.regions.some(region => region.district === '유성구')));
+  assert.equal(judgeDisposal({ ...input, vinylResidue: 'unknown' }).pendingCondition, 'vinyl-residue');
+  assert.equal(judgeDisposal({ ...input, combined: 'yes', separable: 'no' }).status, 'check');
+});
+
+test('복사 결과는 공통 준비와 부속품별 처리 단계를 빠짐없이 담고 중복하지 않는다', () => {
+  const input = { itemName: '투명생수병', material: '페트병', type: 'clear-drink', contaminated: 'no', combined: 'yes', separable: 'yes',
+    components: [{ label: '분리한 라벨', material: '비닐', type: 'packaging', contaminated: 'no' }] };
+  const result = judgeDisposal(input);
+  const text = resultToText(input, result);
+  assert.match(text, /먼저 할 일\n1\. 다른 재질/);
+  assert.match(text, /분리한 라벨 \(비닐\)/);
+  for (const part of result.parts) {
+    for (const step of part.steps) assert.equal(text.split(step).length - 1, 1, step);
+  }
+});
+
 test('비닐 오염 답변은 해당 질문에서만 유지하고 저장·복원된다', async () => {
   const input = { ...vinyl, vinylResidue: 'liquid-only' };
   assert.equal(normalizePart(input).vinylResidue, 'liquid-only');

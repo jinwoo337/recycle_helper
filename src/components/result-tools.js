@@ -2,11 +2,9 @@ import { memberTools } from '../services/member-tools.js';
 import { getCurrentMember } from '../services/auth.js';
 import { lookupItem, normalizeItemName } from '../domain/disposal/item-suggestions.js';
 import { resultToText } from '../domain/disposal/result-text.js';
-import { bindRegionalComparison } from './regional-comparison.js';
-import { inputForDisplay } from '../domain/disposal/result-display.js';
 
 export function resultToolsMarkup(input) {
-  return `<div class="result-actions"><button type="button" class="button secondary" data-share-result hidden>📤 공유하기</button><button type="button" class="button secondary" data-copy-result>결과 복사</button><button type="button" class="button secondary" data-favorite aria-pressed="false">즐겨찾기</button><button type="button" class="button secondary" data-new-item>다른 물품 검색</button></div>
+  return `<div class="result-actions"><button type="button" class="history-action" data-share-result hidden>공유하기</button><button type="button" class="history-action" data-copy-result>결과 복사</button><button type="button" class="history-action" data-favorite aria-pressed="false">즐겨찾기</button></div>
     <p class="input-hint" data-result-tools-status role="status" aria-live="polite"></p>
     <textarea class="copy-fallback" data-copy-fallback aria-label="복사할 판별 결과" readonly hidden></textarea>
     <details class="feedback-panel"><summary>결과 오류 또는 미등록 품목 제보</summary>
@@ -16,7 +14,6 @@ export function resultToolsMarkup(input) {
 }
 
 export function bindResultTools(root, input, result, { onNewItem, tools = memberTools } = {}) {
-  const disposeComparison = bindRegionalComparison(root, inputForDisplay(input, result));
   const status = root.querySelector('[data-result-tools-status]');
   const favorite = root.querySelector('[data-favorite]');
   let selected = false, disposed = false, loaded = false, busy = false, refreshVersion = 0;
@@ -82,5 +79,5 @@ export function bindResultTools(root, input, result, { onNewItem, tools = member
   });
   window.addEventListener('favorites-changed', refreshFavorite);
   refreshFavorite();
-  return () => { disposed = true; refreshVersion++; disposeComparison(); window.removeEventListener('favorites-changed', refreshFavorite); };
+  return () => { disposed = true; refreshVersion++; window.removeEventListener('favorites-changed', refreshFavorite); };
 }

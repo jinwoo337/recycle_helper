@@ -1,7 +1,9 @@
 import { getCurrentMember } from './auth.js';
 let pending;
-export function queueInput(input) { pending = { owner: getCurrentMember()?.id || 'guest', input: structuredClone(input) }; }
-export function takeQueuedInput() {
+export function queueInput(input, route = '/item-input') {
+  pending = { owner: getCurrentMember()?.id || 'guest', route, input: structuredClone(input) };
+}
+export function takeQueuedInput(route = '/item-input') {
   const value = pending; pending = undefined;
-  return value?.owner === (getCurrentMember()?.id || 'guest') ? value.input : null;
+  return value?.route === route && value.owner === (getCurrentMember()?.id || 'guest') ? value.input : null;
 }

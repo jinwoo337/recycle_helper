@@ -11,3 +11,9 @@ export function inputForDisplay(input, savedResult) {
   const { aiGuess, ...confirmedInput } = input;
   return confirmedInput;
 }
+
+export function resultStepsForDisplay(result) {
+  const parts = result.parts.length > 1 ? result.parts.map(part => ({ ...part, steps: [...new Set(part.steps)] })) : [];
+  const partSteps = new Set(parts.flatMap(part => part.steps));
+  return { parts, steps: [...new Set(result.steps)].filter(step => !partSteps.has(step)) };
+}

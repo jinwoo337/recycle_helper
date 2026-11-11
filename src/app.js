@@ -45,6 +45,10 @@ function render(moveFocus = false) {
   document.title = `${route.title} | 맞춤형 분리배출 도우미`;
   disposePage?.(); disposePage = undefined;
   document.getElementById('app').innerHTML = layout(route.render(member), route.page, member);
+  if (moveFocus) {
+    document.getElementById('main-content').focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }
   if (route.page === 'main') disposePage = bindMain();
   else if (route.page === 'item-input') disposePage = bindItemInput();
   else if (route.page === 'describe' || route.page === 'photo') disposePage = bindAssistance(route.page === 'photo' ? 'photo' : 'description');
@@ -65,10 +69,6 @@ function render(moveFocus = false) {
     catch (error) { showAuthNotice(error.message); }
     finally { button.disabled = false; }
   });
-  if (moveFocus) {
-    document.getElementById('main-content').focus({ preventScroll: true });
-    window.scrollTo(0, 0);
-  }
   if (route.page === 'guide' && section) focusGuideSection(section);
 }
 let ready = false;

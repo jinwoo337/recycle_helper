@@ -18,7 +18,8 @@ const providerResponse = value => ({ok:true,status:200,json:async()=>({candidate
 test('설명과 사진 모드는 이름 40자 제한과 구분하고 입력·지역·용량·형식을 검증한다', () => {
   assert.deepEqual(parseAssistanceInput(input),input);
   assert.ok(parseAssistanceInput({...input,description:'가'.repeat(2000)}));
-  for (const raw of [null, [], {...input,mode:'name'}, {...input,description:'짧음'}, {...input,description:' '.repeat(12)}, {...input,description:'가'.repeat(2001)}, {...input,region:{province:'서울특별시',district:'없는구'}}, {...input,image}]) assert.equal(parseAssistanceInput(raw),null);
+  assert.equal(parseAssistanceInput({...input,description:'옷'}).description, '옷');
+  for (const raw of [null, [], {...input,mode:'name'}, {...input,description:' '.repeat(12)}, {...input,description:'가'.repeat(2001)}, {...input,region:{province:'서울특별시',district:'없는구'}}, {...input,image}]) assert.equal(parseAssistanceInput(raw),null);
   const photo={mode:'photo',description:'',region:null,image};
   assert.deepEqual(parseAssistanceInput(photo),photo);
   for (const bad of [null, {mimeType:'image/svg+xml',data:image.data}, {...image,data:'https://example.com/x.jpg'}, {...image,data:'data:image/jpeg;base64,'+image.data}, {...image,data:'a===a==='}, {...image,data:'AAAA='}, {...image,data:Buffer.alloc(ASSIST_IMAGE_MAX+1).toString('base64')}]) assert.equal(parseAssistanceInput({...photo,image:bad}),null);
@@ -32,11 +33,16 @@ test('설명과 사진 모드는 이름 40자 제한과 구분하고 입력·지
 test('AI 답의 구조를 검증하고 인식 확실성이 낮으면 확정 배출 순서를 보여주지 않는다', () => {
   assert.deepEqual(validateAssistance(answer()),answer());
   assert.equal(validateAssistance(answer({confidence:'certain'})),null);
-  assert.equal(validateAssistance(answer({steps:[]})),null);
+  const questionOnly = validateAssistance(answer({steps:[]}));
+  assert.deepEqual(questionOnly.steps, []);
+  assert.match(questionOnly.method, /추가 확인/);
+  assert.equal(validateAssistance(answer({steps:[],questions:[]})),null);
   assert.equal(validateAssistance(answer({cautions:['x'.repeat(301)]})),null);
   assert.equal(validateAssistance(answer({questions:Array(5).fill('질문')})),null);
-  const uncertain=validateAssistance(answer({confidence:'low',questions:[],steps:['아무 쓰레기통에 넣으세요.']}));
+  const uncertain=validateAssistance(answer({confidence:'low',questions:[],steps:['아무 쓰레기통에 넣으세요.'],cautions:['종량제봉투에 넣으세요.']}));
   assert.deepEqual(uncertain.steps,[]); assert.match(uncertain.method,/추가 확인/); assert.equal(uncertain.questions.length,1);
+  assert.deepEqual(uncertain.cautions,[]);
+  assert.doesNotMatch(assistanceResultMarkup(uncertain,input.region),/data-assist-check|아무 쓰레기통|종량제봉투에 넣으세요/);
   const markings=validateAssistance(answer({evidence:'markings',confidence:'high'}));
   assert.equal(markings.confidence,'low'); assert.deepEqual(markings.steps,[],'마크만 읽었을 때 물건 전체를 추정하여 배출을 확정하지 않음');
   assert.match(assistanceResultMarkup(markings,input.region),/실제 물건은 확인하지 못했어요/);
@@ -109,33 +115,36 @@ test('브라우저 서비스는 새 POST 경로·취소 신호를 사용하며 �
 test('세 가지 찾기 모드를 구분하고 사진의 명시적 전송·촬영·선택과 AI 결과 표시를 제공한다', () => {
   const modes=inputModesMarkup('photo');assert.match(modes,/#\/item-input/);assert.match(modes,/#\/describe/);assert.match(modes,/#\/photo" aria-current="page"/);
   const description=assistancePage('description'),photo=assistancePage('photo');
-  assert.match(description,/minlength="10" required/);assert.doesNotMatch(description,/type="file"/);
-  assert.match(photo,/capture="environment"/);assert.match(photo,/name="gallery"/);assert.match(photo,/원본 메타데이터/);assert.match(photo,/Google Gemini/);
-  assert.doesNotMatch(photo,/minlength="10" required/);
+  assert.match(description,/name="description"[^>]*required/);assert.doesNotMatch(description,/type="file"/);
+  assert.match(photo,/capture="environment"/);assert.match(photo,/name="gallery"/);assert.match(photo,/원본 촬영 정보/);assert.match(photo,/Google Gemini/);
+  assert.doesNotMatch(photo,/name="description"[^>]*required/);
   const html=assistanceResultMarkup(answer({itemName:'<img src=x onerror=alert(1)>',steps:['<script>bad()</script>']}),input.region);
-  assert.ok(!html.includes('<script>'));assert.ok(!html.includes('<img src=x'));assert.match(html,/&lt;script&gt;/);assert.match(html,/실시간으로 조회한 결과가 아니/);
+  assert.ok(!html.includes('<script>'));assert.ok(!html.includes('<img src=x'));assert.match(html,/&lt;script&gt;/);assert.match(html,/거주지 수거 기준/);
   assert.match(layout('', 'photo', null),/href="#\/item-input" aria-current="page"/);
 });
 
-test('설명 모드는 질문별 선택지를 검증하고 사진 모드의 기존 질문 형식은 유지한다',()=>{
+test('사진과 설명에 선택지와 직접 입력을 지원하고 기존 질문 형식도 해석한다',()=>{
   const raw=answer({questions:[{text:'책상 몸체는 어떤 재질인가요?',options:['철제','나무']},{text:'대략 크기는요?',options:[]}]});
   const parsed=validateAssistance(raw);
   assert.deepEqual(parsed.questions,['책상 몸체는 어떤 재질인가요?','대략 크기는요?']);assert.deepEqual(parsed.questionChoices,[['철제','나무'],[]]);
   assert.deepEqual(validateAssistance(parsed),parsed,'서버에서 정리한 선택지를 브라우저 재검증에서도 유지');
   assert.equal(validateAssistance({...raw,questions:[{text:'재질?',options:['x'.repeat(41)]}]}),null);
   assert.equal(validateAssistance({...parsed,questionChoices:[]}),null);
-  assert.equal(assistanceSchema('description').properties.questions.items.type,'OBJECT');
-  assert.equal(assistanceSchema('photo').properties.questions.items.type,'STRING');
-  assert.doesNotMatch(assistanceInstruction('photo'),/이전 질문과 사용자의 짧은 답변/);
-  const html=assistanceResultMarkup(parsed,input.region,{mode:'description'});
-  assert.match(html,/name="answer0"/);assert.match(html,/name="answer1"/);assert.match(html,/철제/);assert.match(html,/모르겠어요/);assert.match(html,/답변 반영해 다시 안내/);
-  assert.doesNotMatch(assistanceResultMarkup(parsed,input.region,{mode:'photo'}),/data-assist-followup-form/);
+  assert.equal(assistanceSchema().properties.questions.items.type,'OBJECT');
+  assert.match(assistanceInstruction(),/이전 질문과 사용자의 짧은 답변/);
+  const html=assistanceResultMarkup(parsed,input.region);
+  assert.match(html,/name="answer0"/);assert.match(html,/name="answer1"/);assert.match(html,/철제/);assert.match(html,/모르겠어요/);assert.match(html,/답변 반영하기/);
+  assert.ok(html.indexOf('data-assist-followup-form') < html.indexOf('현재 정보로 본 참고 안내'));
+  assert.deepEqual(validateAssistance(answer({ questions: ['기존 질문'] })).questions, ['기존 질문']);
 });
 
 test('최초 설명과 누적 질문·답변을 분리해 전송하고 잘못된 후속 답변은 거절한다',()=>{
   const answers=[{question:'재질은?',answer:'철제'}],raw={...input,answers};
   assert.deepEqual(parseAssistanceInput(raw),raw);
   const sent=JSON.parse(assistanceParts(raw)[0].text);assert.equal(sent.description,input.description);assert.deepEqual(sent.answers,answers);
+  const photo = parseAssistanceInput({ ...raw, mode: 'photo', image });
+  assert.deepEqual(JSON.parse(assistanceParts(photo)[0].text).answers, answers);
+  assert.deepEqual(assistanceParts(photo)[1].inlineData, image);
   assert.deepEqual(mergeAssistanceAnswers(answers,[{question:'재질은?',answer:'나무'},{question:'크기는?',answer:'120cm'}]),[{question:'재질은?',answer:'나무'},{question:'크기는?',answer:'120cm'}]);
   for(const bad of ['bad',Array(21).fill(answers[0]),[{question:'',answer:'철제'}],[{question:'재질은?',answer:' '}],[{question:'재질은?',answer:'가'.repeat(301)}]])assert.equal(parseAssistanceInput({...input,answers:bad}),null);
   const escaped=assistanceResultMarkup(answer({questions:['<img onerror=alert(1)>']}),input.region,{mode:'description',answers:[{question:'<script>질문</script>',answer:'" onfocus="alert(1)'}]});

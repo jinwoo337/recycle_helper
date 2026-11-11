@@ -1,8 +1,10 @@
+import { MEDICINE_SAFETY_STEPS } from './medicine-guide.js';
+
 // 2026-10-27 확인: 분리배출 지침 별표 1 전지류·전기전자제품·조명제품.
 // 수거 장소와 손상 여부가 미확인이므로 status=check를 유지합니다.
 const batterySteps = ['일반 종량제봉투나 금속캔 수거함에 섞지 마세요.', '기기에서 쉽게 분리되는 전지만 꺼내고, 내장 전지는 임의로 분해하지 마세요.', '분리된 전지의 노출 단자는 절연테이프로 보호하거나 비닐팩에 밀봉해 주세요.', '정상 전지는 전지 전용 수거함 또는 지역이 안내하는 회수처로 배출해 주세요. 손상·팽창·누액이 있으면 먼저 담당 기관에 문의해 주세요.'];
 const guides = {
-  medicine: ['폐의약품 전용 수거처로 배출', '남은 의약품은 재질별 재활용품과 구분해 전용 수거 경로로 처리해요.', ['일반 쓰레기·음식물·재활용품에 섞거나 싱크대·변기에 버리지 마세요.', '종류가 다른 약을 섞거나 용기에서 쏟지 말고 새지 않게 보관해 주세요.', '거주지 보건소·주민센터 또는 참여 약국의 폐의약품 수거함 위치와 접수 여부를 확인해 주세요. 모든 약국이 수거하는 것은 아니에요.', '알약·가루약의 포장 유지 여부와 물약·연고의 용기 배출 방법은 지역 수거처 안내를 따라 주세요. 개인정보가 적힌 겉봉투는 따로 처리해 주세요.']],
+  medicine: ['폐의약품 전용 수거처로 배출', '남은 의약품은 재질별 재활용품과 구분해 전용 수거 경로로 처리해요.', [...MEDICINE_SAFETY_STEPS, '거주지 보건소·주민센터 또는 참여 약국의 폐의약품 수거함을 찾아 주세요.', '가져가기 전에 이 약의 포장 처리 방법과 접수 여부를 수거처에 확인해 주세요.']],
   'stationery-general': ['필기구·소형 문구류는 종량제봉투로 배출', '여러 재질·심·잉크 등이 포함된 소형 필기구는 일반 포장 용기처럼 재활용하기 어려워요.', ['전기·배터리를 쓰는 제품인지 확인해 주세요. 전동 제품은 전자제품으로 다시 선택해 주세요.', '날카로운 심·부품이 드러나지 않게 보호하고 일반 소량 필기구는 종량제봉투로 배출해 주세요.', '학교·지역에서 별도 회수 사업을 운영하면 접수 대상을 확인해 이용할 수 있어요. 다량의 분필 등은 지역의 불연성 폐기물 기준도 확인해 주세요.'],'general'],
   'stationery-check': ['소형 복합 문구류 · 지역 종량제 기준 확인', '복합 재질 문구류는 일반 플라스틱 용기로 분류하지 않아요.', ['전동·전지 사용 제품이면 전자제품으로 확인해 주세요.', '작고 복잡하게 결합된 부품은 억지로 분해하지 마세요.', '지역의 종량제봉투 배출 기준 또는 학교의 별도 회수 사업 접수 대상을 확인해 주세요.']],
   'mixed-product': ['복합제품 분리·크기별 지역 배출 기준 확인', '여러 재질이나 부속품이 결합된 제품은 일반 포장 용기로 단정하지 않아요.', ['손쉽게 분리되는 부분의 재질만 확인하고 날카롭거나 단단히 결합된 부분은 억지로 분해하지 마세요.', '일반 재활용 수거 대상인지, 종량제봉투 또는 대형폐기물 접수가 필요한지 지역 기준을 확인해 주세요.', '의류 수거함의 제외 품목이나 크기가 큰 제품은 수거함에 임의로 넣지 말고 담당 부서에 확인해 주세요.']],
@@ -23,13 +25,38 @@ const guides = {
   electronic: ['소형 폐가전 별도 수거 · 접수 조건 확인', '전기·전자제품은 재질별 일반 포장재 수거와 구분해요.', ['내장 배터리나 회로를 임의로 분해하지 마세요.', '기기에서 쉽게 분리되는 전지는 전지류로 따로 배출하고, 분리되지 않으면 제품 그대로 회수처 안내를 따라 주세요.', '지역 소형 폐가전 전용 수거함 또는 폐가전 회수 서비스의 대상 품목·접수 조건을 확인해 주세요.', '휴대폰 등 개인정보가 있는 기기는 반납 전에 데이터를 정리해 주세요.']],
   'large-electronic': ['폐가전 회수·대형폐기물 경로 확인', '전기·전자제품은 판매처 회수·폐가전 방문수거·지자체 수거 경로를 확인해야 해요.', ['일반 재활용 수거함에 넣거나 본체·배터리·회로를 임의로 분해하지 마세요.', '판매처의 회수 서비스, 폐가전 방문수거 또는 지자체 대형폐기물 접수 중 이용 가능한 경로를 확인해 주세요.', '수거 대상·단품 및 묶음 접수 조건·설치 제품 철거·운반 조건을 접수처에 확인해 주세요. 모든 제품이 무료 방문수거되는 것은 아니에요.', '저장장치가 있는 제품은 개인정보를 정리하고, 배터리가 손상·팽창된 제품은 그 상태를 접수처에 알려 주세요.']],
 };
+
+const clothingCondition = { title: '의류·잡화 상태는 어떤가요?', options: [['reusable', '깨끗하고 다시 쓸 수 있어요'], ['unusable', '심하게 오염됐거나 훼손됐어요'], ['unknown', '모르겠어요']] };
+const batteryCondition = { title: '전지가 부풀거나 새거나 깨졌나요?', options: [['undamaged', '손상이 없어요'], ['damaged', '손상이 있어요'], ['unknown', '모르겠어요']] };
+
+export function handlingConditionQuestion(handling) {
+  if (handling === 'clothing') return clothingCondition;
+  if (handling === 'battery' || handling === 'rechargeable') return batteryCondition;
+  return null;
+}
+
 export function specialItemGuide(known, input) {
   if (!known?.handling || input.material !== known.material || input.type !== known.type) return null;
-  return guideForHandling(known.handling);
+  return guideForHandling(known.handling, input.handlingCondition);
 }
-export function guideForHandling(handling) {
-  const guide = Object.hasOwn(guides, handling) ? guides[handling] : null;
+export function guideForHandling(handling, condition) {
+  const damaged = (handling === 'battery' || handling === 'rechargeable') && condition === 'damaged';
+  const guide = damaged ? guides['damaged-battery'] : Object.hasOwn(guides, handling) ? guides[handling] : null;
   if (!guide) return null;
-  const [method, reason, steps, status='check'] = guide;
+  let [method, reason, steps, status = 'check'] = guide;
+  if (handling === 'clothing' && condition === 'reusable') {
+    method = '재사용 가능한 의류·잡화 · 전용 수거함 확인';
+    reason = '깨끗하고 다시 쓸 수 있는 상태로 입력했어요.';
+    steps = ['주머니를 비우고 물기에 젖지 않게 모아 주세요.', '지역 의류 수거함에서 이 품목을 받는지 표시를 확인한 뒤 배출해 주세요.'];
+  }
+  if (handling === 'clothing' && condition === 'unusable') {
+    method = '훼손·오염된 의류·잡화 · 지역 배출 방법 확인';
+    reason = '재사용하기 어려운 상태로 입력했어요.';
+    steps = ['재사용 의류 수거함에 넣지 말고 따로 모아 주세요.', '제품의 종류와 크기에 맞는 종량제봉투 또는 대형폐기물 배출 기준을 지역 안내에서 확인해 주세요.'];
+  }
+  if (handling === 'battery' && condition === 'undamaged') {
+    reason = '손상이 없는 전지로 입력했어요.';
+    steps = [batterySteps[0], batterySteps[2], '가까운 전지 전용 수거함이나 지정 회수처에 배출해 주세요.'];
+  }
   return {status, method, reasons:[reason, '수거 장소·제품 상태·지역별 접수 조건은 최종 확인이 필요해요.'], steps:[...steps]};
 }

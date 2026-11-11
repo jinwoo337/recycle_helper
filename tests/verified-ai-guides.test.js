@@ -18,6 +18,21 @@ test('옷의 기준 안내는 상태별 의류 수거를 유지하고 AI 종량�
   assert.equal(aiOpinionNeedsReview({status:'check'},{route:'unknown'}),false);
 });
 
+test('사용자가 확인한 상태는 의류와 전지의 전용 안내에 반영된다', () => {
+  const reusable = judgeDisposal({ itemName: '옷', handlingCondition: 'reusable' });
+  assert.match(reusable.method, /재사용 가능한 의류/);
+  assert.doesNotMatch(reusable.steps.join(' '), /종량제/);
+  const unusable = judgeDisposal({ itemName: '낡은 천 소재 물건', category: 'clothing', categoryOrigin: 'manual', handlingCondition: 'unusable' });
+  assert.match(unusable.method, /훼손·오염된 의류/);
+  assert.match(unusable.steps[0], /수거함에 넣지 말고/);
+  for (const itemName of ['건전지', '보조배터리']) {
+    const damaged = judgeDisposal({ itemName, handlingCondition: 'damaged' });
+    assert.match(damaged.method, /손상 전지/);
+    assert.match(damaged.steps.join(' '), /정상 전지 수거함에 임의로 넣지/);
+  }
+  assert.doesNotMatch(judgeDisposal({ itemName: '약', handlingCondition: 'damaged' }).method, /손상 전지/);
+});
+
 test('검토된 전용 품목에는 AI·공용 AI 캐시를 읽지 않고 기존 안내를 사용한다',async()=>{
   let calls=0;
   for(const name of ['옷','겨울옷','약','남은약','건전지','부푼 AA 건전지','휴대폰']){

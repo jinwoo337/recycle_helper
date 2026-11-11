@@ -7,4 +7,3 @@
 
 .social-login{margin:20px 0}.google-login{background:#fff;color:#1f1f1f;border:1px solid #747775;display:flex;align-items:center;justify-content:center;gap:12px;min-height:48px;font-weight:600}.google-login:hover{background:#f7f9f7}.google-login svg{flex:none}.google-login[disabled]{opacity:.65}.auth-divider{display:flex;align-items:center;gap:14px;color:#59655b;font-size:13px;margin:14px 0}.auth-divider:before,.auth-divider:after{content:"";height:1px;background:var(--line);flex:1}.social-login .form-status:empty{display:none}
 .home-item-control{flex:1;min-width:0}.home-item-control input{width:100%}#quick-item-status:empty{display:none}
-@media(max-width:700px){.home-item-control .item-name-options{position:static;margin-top:4px;max-height:220px;box-shadow:none}}

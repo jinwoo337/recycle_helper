@@ -35,13 +35,13 @@
 .quick-condition button { width:100%; color:var(--green); border-color:#a3b99d; background:white; white-space:normal; line-height:1.5; }
 .quick-condition p { margin-top:8px; }
 .part-fields > [data-condition="food"] { grid-column:1/-1; }
-.selected-conditions { margin-block:14px; }
-.selected-conditions summary { min-height:40px; align-content:center; font-size:13px; cursor:pointer; color:var(--muted); }
 .saved-tools { border:1px solid var(--line); background:white; padding:0 16px; border-radius:12px; }
 .saved-tools > summary { min-height:52px; align-content:center; cursor:pointer; font-weight:600; font-size:14px; color:var(--green); }
 .saved-tools .item-sidebar { grid-column:auto; grid-row:auto; grid-template-columns:1fr; padding-bottom:14px; }
 .saved-tools .recent-items,.saved-tools .item-help { padding:14px; }
-.result-region { margin:-4px 0 20px; }
+.result-region { display:flex; align-items:center; gap:0 10px; flex-wrap:wrap; margin:-4px 0 14px; }
+.result-region > p { margin:0; }
+.result-region > button { min-height:44px; color:var(--green); }
 .item-summary .action-steps { margin-bottom:22px; }
 .result-evidence,.input-details { border-top:1px solid var(--line); margin:12px 0; padding-top:4px; }
 .result-evidence > summary,.input-details > summary { cursor:pointer; min-height:44px; align-content:center; font-size:14px; font-weight:600; }
@@ -97,8 +97,6 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 #item-form .item-question { margin-bottom:10px; }
 #item-form .item-question legend { line-height:1.5; margin-bottom:6px; }
 #item-form .choice { min-height:44px; box-sizing:border-box; padding:8px 10px; }
-#item-form .selected-conditions { margin:4px 0; }
-#item-form .selected-conditions > summary { min-height:36px; }
 #item-form .form-actions { margin-top:6px; }
 #item-form .button { padding:10px 14px; }
 #item-form .component-card { padding:12px; margin-block:10px; }

@@ -21,17 +21,68 @@
 /* 입력: 분리배출 표시(마크) 버튼 */
 .mark-picker{margin:4px 0 14px}
 .mark-picker-title{font-size:14px;font-weight:600;margin:0 0 8px}
+.mark-picker > summary {
+  min-height: 44px;
+  align-content: center;
+  margin: 0;
+  color: var(--green);
+  cursor: pointer;
+}
+.mark-picker[open] > summary { margin-bottom: 8px; }
+.material-controls > .mark-picker { grid-column: 1 / -1; }
+.category-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+.category-suggestion p { margin: 0; font-size: 13px; }
+.item-page:has(#item-summary:not([hidden])) .item-heading { display: none; }
+#item-form .field-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #90391e;
+}
+#item-form .choice:has([aria-invalid="true"]), #item-form select[aria-invalid="true"] {
+  border-color: #a54727;
+}
+.result-next-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.result-next-actions .button { margin: 0; }
+.item-summary .result-actions, .history-detail .result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.item-summary .result-verdict h3:first-child, .history-detail .result-verdict h3:first-child { margin-top: 0; }
+.item-summary .action-steps, .item-summary .result-parts, .history-detail .action-steps, .assist-result .action-steps { word-break: keep-all; overflow-wrap: anywhere; }
+[data-record-save-status]:empty, [data-result-tools-status]:empty { display: none; }
+@media (max-width: 520px) {
+  .result-next-actions > .button { flex: 1 1 auto; }
+  #item-form #item-name, #quick-search #quick-item { font-size: 16px; }
+}
 .mark-picker-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .recycle-mark{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;border:1.5px solid #cfd8cb;border-radius:10px;background:#fff;cursor:pointer;text-align:center;min-height:84px}
 .recycle-mark:hover{border-color:#2f6b4f}
 .recycle-mark[aria-pressed="true"]{border-color:#2f6b4f;background:#eaf5ee;box-shadow:inset 0 0 0 1px #2f6b4f}
-.recycle-mark-symbol{font-size:22px;line-height:1;color:#2f6b4f}
 .recycle-mark strong{font-size:14px}
 .recycle-mark small{font-size:11px;color:#5c6b5c;line-height:1.3}
 @media (max-width:480px){.mark-picker-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* 말로 입력(음성 검색) 버튼: 검색창 오른쪽 안쪽 */
 .home-item-control{position:relative}
-.voice-button{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;border-radius:50%;background:#eef3ec;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.voice-button{position:absolute;right:6px;top:4px;width:40px;height:40px;border:0;border-radius:50%;background:#eef3ec;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.home-search .quick-search-row > .button{align-self:flex-start;min-height:48px}
+.home-search #quick-item[aria-invalid=true]{border-color:#a54727}
 .voice-button[hidden]{display:none}
 .voice-button.is-listening{background:#d9534f;animation:voice-pulse 1s infinite}
 .home-item-control:has(.voice-button:not([hidden])) input{padding-right:52px}
@@ -44,7 +95,5 @@
 .guide-faq details[open] summary{border-bottom:1px solid #eef1ec}
 .guide-faq p{margin:10px 0;line-height:1.6}
 .guide-faq .history-action{margin:0 0 12px}
-/* 지역 비교: 내 지역 결과를 분명히, 다른 지역은 참고용 회색 카드 */
-.comparison-follow{margin:8px 0 0;padding:8px 10px;border-radius:8px;background:#fff;color:#1f4d36;font-weight:700}
 .comparison-card{background:#f5f6f4;border-color:#e1e4df;color:#3d463d}
 .comparison-card .comparison-label{color:#6b736b}

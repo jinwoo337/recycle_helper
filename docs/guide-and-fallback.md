@@ -23,7 +23,7 @@
 
 - 서울 25개 구: [서울시 공통 분리배출 안내](https://news.seoul.go.kr/env/archives/564022), [폐비닐 가이드라인](https://news.seoul.go.kr/env/archives/1895), [자치구별 수거 여건 확인 안내](https://news.seoul.go.kr/env/archives/558699), [음식물 RFID](https://news.seoul.go.kr/env/archives/74584). 서울시 공통 자료와 자치구별 검증을 구분해 표시합니다. 구청별 모든 품목·시간표를 검증한 것은 아닙니다.
 - 대전 5개 구: 기존 `daejeon-guides.js`의 공식 구별 자료를 유지합니다. 구별 음식물 용기·스티로폼 색상·깨진 유리 등 확인된 차이를 비교합니다. 자세한 원문은 [지역 안내](regional-guide.md)를 참조합니다.
-- 약: [서울시 폐의약품 수거 안내](https://news.seoul.go.kr/env/archives/564807). 포장 해체 방법은 지역마다 다를 수 있으므로 다른 지역에 서울 방식을 강제하지 않습니다. 모든 약국의 수거를 보장하지 않고 실제 수거처·접수 조건을 확인하도록 합니다.
+- 약은 서울시와 대전시의 수거 안내를 비교할 수 있습니다. 대전 동구는 알약·가루약의 포장 기준이 확인된 경우 그 안내를 적용합니다. 다른 대전 지역은 포장 처리와 접수 여부를 수거처에 확인하도록 안내합니다. [서울시 폐의약품 수거 안내](https://news.seoul.go.kr/env/archives/564807), [대전시 가정 내 폐의약품 안내](https://www.daejeon.go.kr/drh/depart/board/boardNormalView.do?boardId=normal_0096&menuSeq=1631&ntatcSeq=1438964404), [대전 동구 배출 안내](https://www.donggu.go.kr/dg/kor/article/noticeDong13/142796)
 - 별도 수거 품목은 대상·상태·접수처가 확인되지 않은 경우 `추가 확인 필요`를 유지합니다.
 
 ## 자동완성

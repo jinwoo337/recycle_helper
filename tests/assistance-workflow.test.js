@@ -21,7 +21,7 @@ const answer={itemName:'용기',identification:'설명에 적힌 용기예요.',
 function setup(mode, options={}) {
   const form=new Control(),description=new Control(),submit=new Control(),cancel=new Control(),result=new Control(),status=new Control(),camera=new Control(),gallery=new Control(),remove=new Control(),preview=new Control(),image=new Control(),photoMessage=new Control(),photoStatus=new Control(),count=new Control(),previouslyDisabled=new Control();
   previouslyDisabled.disabled=true;
-  const nodes={'[data-assist-form]':form,'[data-assist-status]':status,'[data-assist-result]':result,'[data-assist-cancel]':cancel,'[data-assist-preview]':preview,'[data-assist-image]':image,'[data-assist-remove]':remove,'[data-assist-photo-message]':photoMessage,'[data-assist-photo-status]':photoStatus,'[data-assist-count]':count};
+  const nodes={'[data-assist-form]':form,'[data-assist-status]':status,'[data-assist-result]':result,'[data-assist-cancel]':cancel,'[data-assist-preview]':preview,'[data-assist-image]':image,'[data-assist-remove]':remove,'[data-assist-photo-message]':photoMessage,'[data-assist-photo-status]':photoStatus,'[data-assist-count]':count,'#assist-description-error':new Control()};
   const root={isConnected:true,querySelector:key=>nodes[key]};
   form.elements={namedItem:key=>({description,camera,gallery})[key]};
   form.querySelector=()=>submit;
@@ -51,6 +51,26 @@ test('설명 모드는 중복 전송을 막고 취소 뒤 늦은 응답이 새 �
     second.resolve(answer);await flush();assert.equal(ui.submit.disabled,false);assert.match(ui.result.innerHTML,/용기/);assert.equal(ui.result.hidden,false);
     ui.description.dispatchEvent(new Event('input'));assert.equal(ui.result.hidden,true,'설명을 고치면 이전 결과는 숨김');
   }finally{ui.dispose();}
+});
+
+test('등록된 전용 품목명은 AI 없이 안내하고, AI가 확인한 품목도 등록된 배출 기준을 우선한다', async () => {
+  let calls = 0;
+  const ui = setup('description', { request: async () => {
+    calls++;
+    return { ...answer, itemName: '옷', method: '종량제봉투에 넣으세요', cautions: ['옷은 항상 종량제로 배출해요.'] };
+  } });
+  try {
+    ui.description.value = '약';
+    ui.send(); await flush();
+    assert.equal(calls, 0);
+    assert.match(ui.result.innerHTML, /등록 품목 안내.*폐의약품 전용 수거처로 배출/s);
+    ui.description.value = '깨끗하고 더 입을 수 있는 천으로 된 바지예요.';
+    ui.description.dispatchEvent(new Event('input'));
+    ui.send(); await flush();
+    assert.equal(calls, 1);
+    assert.match(ui.result.innerHTML, /의류·잡화 수거 대상과 상태 확인/);
+    assert.doesNotMatch(ui.result.innerHTML, /종량제봉투에 넣으세요|옷은 항상/);
+  } finally { ui.dispose(); }
 });
 
 test('질문마다 짧게 답하고 처음 설명·이전 답변을 유지하며 다음 질문으로 이어간다',async()=>{
@@ -103,4 +123,38 @@ test('사진은 선택만으로 전송하지 않고 교체·삭제 뒤 오래된
     ui.send();await flush();assert.equal(calls,1);assert.equal(captured.image.data,'new');
     ui.remove.dispatchEvent(new Event('click'));ui.send();assert.equal(calls,1);assert.equal(ui.preview.hidden,true);
   }finally{ui.dispose();}
+});
+
+test('잘못된 새 사진은 기존 사진을 지우지 않고 사진 후속 질문에도 답할 수 있다', async () => {
+  const question = '내용물이 남아 있나요?';
+  const calls = [];
+  const image = { mimeType: 'image/jpeg', data: 'sample' };
+  let attempts = 0;
+  const ui = setup('photo', {
+    preparePhoto: async () => {
+      if (++attempts > 1) throw new Error('사진을 열 수 없어요.');
+      return { image, preview: 'original' };
+    },
+    request: async input => {
+      calls.push(input);
+      return { ...answer, questions: calls.length > 1 ? ['내용물이 남아 있나요？'] : [question] };
+    },
+  });
+  try {
+    ui.gallery.files = [{ type: 'image/jpeg', size: 123 }];
+    ui.gallery.dispatchEvent(new Event('change'));
+    await flush();
+    ui.gallery.dispatchEvent(new Event('change'));
+    await flush();
+    assert.equal(ui.image.src, 'original');
+    assert.match(ui.photoMessage.textContent, /기존 사진을 유지/);
+    ui.send();
+    await flush();
+    assert.equal(ui.form.hidden, true);
+    ui.followup(['비웠어요']).send();
+    await flush();
+    assert.deepEqual(calls[1].image, image);
+    assert.deepEqual(calls[1].answers, [{ question, answer: '비웠어요' }]);
+    assert.doesNotMatch(ui.result.innerHTML, /data-assist-followup-form/);
+  } finally { ui.dispose(); }
 });

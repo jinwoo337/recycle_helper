@@ -58,6 +58,7 @@ test('폼 밖 클릭에서도 추천을 닫고 선택지 ID는 화면별로 구�
   const binding=bindItemAutocomplete({input,options,status,search:()=>['약']});
   event(input,'input'); event(input,'keydown',{key:'ArrowDown'});
   assert.equal(input.getAttribute('aria-activedescendant'),'quick-items-option-0');
-  event(doc,'pointerdown'); assert.equal(options.hidden,true);
+  event(doc,'pointerdown'); event(input,'blur'); assert.equal(options.hidden,false,'바깥 버튼을 누르는 동안 추천을 접어 버튼 위치를 바꾸지 않는다');
+  event(doc,'pointerup'); event(doc,'click'); assert.equal(options.hidden,true);
   binding.dispose(); input.value='새 이름'; event(input,'input'); assert.equal(options.hidden,true);
 });

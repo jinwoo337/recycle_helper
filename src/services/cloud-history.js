@@ -42,7 +42,7 @@ export function createCloudHistoryRepository(client, owner, getMember, validate)
   }
   return {
     cloud: true,
-    async list() {
+    async list({ limit = Infinity } = {}) {
       await ready();
       const records = [];
       let cursor;
@@ -51,24 +51,25 @@ export function createCloudHistoryRepository(client, owner, getMember, validate)
         let query = client.from('disposal_records').select(fields).eq('user_id', owner)
           .order('created_at', { ascending: false }).order('id', { ascending: false });
         if (cursor) query = query.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);
-        const { data, error } = await query.range(0, 199);
+        const pageSize = Math.min(200, limit - records.length);
+        const { data, error } = await query.range(0, pageSize - 1);
         checkOwner();
         if (error) throw databaseError(error, '기록을 불러오');
-        if (!Array.isArray(data) || !data.every(row => validate(fromRow(row)))) throw new Error('저장된 기록의 형식을 확인하지 못했어요.');
+        const page = Array.isArray(data) ? data.map(fromRow) : null;
+        if (!page?.every(validate)) throw new Error('저장된 기록의 형식을 확인하지 못했어요.');
         if (data.length && cursor && data.at(-1).id === cursor.id) throw new Error('기록 페이지를 불러오지 못했어요. 다시 시도해 주세요.');
-        records.push(...data);
-        if (data.length < 200) break;
+        records.push(...page);
+        if (records.length === limit) return records;
+        if (data.length < pageSize) break;
         cursor = data.at(-1);
       }
       const legacy = await readAllPages(() => client.from('disposal_legacy_names')
         .select('item_name').eq('user_id', owner).order('item_name'));
       checkOwner();
-      const mapped = records.map(fromRow);
-      if (!mapped.every(validate)) throw new Error('저장된 기록의 형식을 확인하지 못했어요.');
-      const names = new Set(mapped.map(record => record.itemName));
-      return [...mapped, ...legacy.filter(row => !names.has(row.item_name)).map(row => ({
+      const names = new Set(records.map(record => record.itemName));
+      return [...records, ...legacy.filter(row => !names.has(row.item_name)).map(row => ({
         id: `legacy-${encodeURIComponent(row.item_name)}`, itemName: row.item_name, legacy: true,
-      }))];
+      }))].slice(0, limit);
     },
     async save(record) {
       await ready();

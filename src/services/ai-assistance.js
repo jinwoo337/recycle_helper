@@ -3,7 +3,7 @@ import { parseAssistanceInput, validateAssistance } from '../domain/disposal/ai-
 
 export async function requestAssistance(raw, { signal, fetcher = fetchWithTimeout } = {}) {
   const input = parseAssistanceInput(raw);
-  if (!input) throw new Error('설명은 10~2,000자로 입력하고, 사진 모드에서는 사진을 선택해 주세요.');
+  if (!input) throw new Error(raw?.mode === 'photo' ? '분석할 사진과 입력 내용을 확인해 주세요.' : '물건 설명을 2,000자 이내로 입력해 주세요.');
   let response;
   try {
     response = await fetcher('/api/assist', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(input), signal }, 30_000);
