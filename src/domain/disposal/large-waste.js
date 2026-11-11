@@ -1,4 +1,5 @@
 import { normalizeRegion } from './regions.js';
+import { METRO_GUIDES } from './metro-guides.js';
 
 // 구청 누리집 주소(지원 지역). 신고 메뉴 주소는 구청 개편 때마다 자주 바뀌어서
 // 누리집 첫 화면과 "구 이름 + 대형폐기물 신고" 검색 링크를 함께 보여 줍니다.
@@ -37,10 +38,13 @@ export function largeWasteHelp(result, regionValue = result?.region) {
   if (!(LARGE_HANDLINGS.includes(result.handling) || maybe || titleMentionsLargeWaste(result))) return null;
   const region = normalizeRegion(regionValue);
   const place = region ? [region.province.replace(/특별시|광역시|특별자치시|특별자치도/, ''), region.district].filter(Boolean).join(' ') : '';
-  const homepage = region ? DISTRICT_HOMEPAGES[region.province]?.[region.district] || null : null;
+  const metroDistrict = region ? METRO_GUIDES[region.province]?.districts[region.district] : null;
+  const homepage = region ? DISTRICT_HOMEPAGES[region.province]?.[region.district] || metroDistrict?.home || null : null;
+  // 광역시 구·군청의 대형폐기물 안내 페이지를 찾았으면 바로 연결합니다.
+  const reportUrl = metroDistrict?.large || null;
   const query = `${place ? `${place} ` : ''}대형폐기물 배출 신고`;
   return {
-    place, homepage, query, maybe,
+    place, homepage, reportUrl, query, maybe,
     searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`,
     feeNote: LARGE_WASTE_FEE_NOTE, steps: LARGE_WASTE_STEPS,
   };

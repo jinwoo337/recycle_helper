@@ -3,6 +3,11 @@ export const SEOUL_DISTRICTS = '종로구 중구 용산구 성동구 광진구 �
 export { DAEJEON_DISTRICTS } from './daejeon-guides.js';
 import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES } from './daejeon-guides.js';
 import { SEOUL_SOURCES, SEOUL_RECYCLE_NOTES, SEOUL_SCOPE_NOTE, SEOUL_VINYL_NOTE } from './seoul-guides.js';
+import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } from './metro-guides.js';
+export { METRO_DISTRICTS } from './metro-guides.js';
+// 구·군을 목록에서 고르는 시·도(서울·대전·광역시)의 구·군 이름입니다. 다른 시·도는 직접 입력합니다.
+export const districtsFor = province => province === '서울특별시' ? SEOUL_DISTRICTS
+  : province === '대전광역시' ? DAEJEON_DISTRICTS : METRO_DISTRICTS[province] || [];
 export const COMPARISON_REGIONS = [
   ...SEOUL_DISTRICTS.map(district => ({ province: '서울특별시', district })),
   ...DAEJEON_DISTRICTS.map(district => ({ province: '대전광역시', district })),
@@ -14,6 +19,12 @@ export function normalizeRegion(value) {
   if (value.province !== '세종특별자치시' && (!/^[가-힣 ]{2,20}$/.test(district) || !/[시군구]$/.test(district))) return null;
   if (value.province === '서울특별시' && !SEOUL_DISTRICTS.includes(district)) return null;
   if (value.province === '대전광역시' && !DAEJEON_DISTRICTS.includes(district)) return null;
+  const metro = METRO_GUIDES[value.province];
+  if (metro) {
+    // 행정구역 개편 전 이름으로 저장된 지역은 새 이름으로 옮깁니다(예: 인천 서구 → 서해구).
+    const current = metro.renamed?.[district] || district;
+    return metro.districts[current] ? { province: value.province, district: current } : null;
+  }
   return { province: value.province, district };
 }
 export const regionLabel = value => { const region = normalizeRegion(value); return region ? [region.province, region.district].filter(Boolean).join(' ') : '지역 미설정'; };
@@ -21,6 +32,7 @@ export const regionLabel = value => { const region = normalizeRegion(value); ret
 export const REGIONAL_SOURCES = {
   ...Object.fromEntries(Object.entries(SEOUL_SOURCES).map(([key, url]) => [`seoul${key}`, url])),
   ...Object.fromEntries(DAEJEON_SOURCES.map((url, index) => [`daejeon${index}`, url])),
+  ...Object.fromEntries(METRO_CITY_SOURCES.map((url, index) => [`metro${index}`, url])),
   gimpoWaste: 'https://m.gimpo.go.kr/portal/contents.do?key=2723',
   gimpoRecycle: 'https://gimpo.go.kr/portal/contents.do?key=1435',
   geumcheonFood: 'https://geumcheon.go.kr/portal/contents.do?key=818',
@@ -32,6 +44,10 @@ export function regionalSourceLabel(url) {
     if (url === guide.recycle) return `대전 ${district} 재활용 안내`;
     if (url === guide.food) return `대전 ${district} 음식물 안내`;
   }
+  for (const guide of Object.values(METRO_GUIDES)) {
+    if (url === guide.city?.recycle) return `${guide.city.label} 분리배출 안내`;
+    if (url === guide.city?.food) return `${guide.city.label} 음식물 안내`;
+  }
   return url === REGIONAL_SOURCES.geumcheonFood ? '금천구 음식물 안내 (기본 참고 자료)'
     : url === REGIONAL_SOURCES.gimpoWaste ? '김포시 생활폐기물 안내' : '김포시 재활용 안내';
 }
@@ -41,6 +57,16 @@ function seoulRecycleKey({ material, type }) {
   if (material === '페트병' && type === 'clear-drink') return 'pet';
   if (material === '스티로폼') return 'foam';
   return ['플라스틱', '페트병', '유리', '금속·캔'].includes(material) ? 'container' : null;
+}
+// 광역시(대구·광주·울산) 시청 공통 안내에서 재질에 맞는 문장 이름을 고릅니다.
+function metroRecycleKey({ material, type }) {
+  if (material === '종이') return ({ paper: 'paper', carton: 'carton' })[type] || null;
+  if (material === '페트병') return type === 'clear-drink' ? 'pet' : 'container';
+  if (material === '플라스틱') return 'container';
+  if (material === '금속·캔') return 'can';
+  if (material === '유리') return type === 'bottle' ? 'glass' : null;
+  if (material === '비닐') return type === 'packaging' ? 'vinyl' : null;
+  return material === '스티로폼' ? 'foam' : null;
 }
 // 대전 구청 자료에서 재질에 맞는 안내 문장을 고릅니다. 자료가 없으면 null입니다.
 function daejeonRecycleNote(guide, { material, type }) {
@@ -80,7 +106,7 @@ export function applyRegionalRules(input, base) {
   if (region?.province === '서울특별시' && single && result.parts.length === 1 && result.parts[0].label === '본체' && !geumcheonFood) {
     const city = (url, note, key) => {
       set(url, note, key);
-      result.regional.scope = 'city';
+      result.regional.scope = 'city'; result.regional.cityLabel = '서울시';
       result.regional.notes.push(SEOUL_SCOPE_NOTE);
       result.regional.sources.push(SEOUL_SOURCES.scope);
       result.sourceUrls = [...new Set([...result.sourceUrls, SEOUL_SOURCES.scope])];
@@ -160,7 +186,7 @@ export function applyRegionalRules(input, base) {
       const key = seoulRecycleKey(input);
       if (key) {
         set(SEOUL_SOURCES.recycle, SEOUL_RECYCLE_NOTES[key]);
-        result.regional.scope = 'city';
+        result.regional.scope = 'city'; result.regional.cityLabel = '서울시';
         result.regional.notes.push(SEOUL_SCOPE_NOTE);
         result.regional.sources.push(SEOUL_SOURCES.scope);
         result.sourceUrls = [...new Set([...result.sourceUrls, SEOUL_SOURCES.scope])];
@@ -170,10 +196,31 @@ export function applyRegionalRules(input, base) {
       if (note) set(daejeon.recycle, note);
     }
   }
+  // 광역시(대구·광주·울산): 시청 공통 안내 문장을 붙입니다. 구·군별 수거 요일·장소는 구청 안내를 따릅니다.
+  const metro = METRO_GUIDES[region?.province]?.city;
+  if (metro && result.regional.coverage !== 'verified' && result.parts[0]?.label === '본체') {
+    const bodyRecyclable = result.status === 'recycle' && (input.combined === 'no' || separated);
+    const notes = [];
+    const isFood = single && result.status === 'recycle' && input.material === '음식물류' && input.type === 'soft' && Boolean(metro.foodNote);
+    if (isFood) notes.push(metro.foodNote);
+    else if (bodyRecyclable && !(input.material === '비닐' && input.contaminated === 'yes')) {
+      const note = metro.notes[metroRecycleKey(input)];
+      if (note) notes.push(note, ...(metro.notes.where ? [metro.notes.where] : []));
+    }
+    if (notes.length) {
+      const scopeNote = `${metro.label} 공통 안내예요. 구·군마다 수거 요일·장소가 다를 수 있으니 구청·관리사무소 안내를 함께 확인해 주세요.`;
+      for (const note of notes) set(isFood ? metro.food || metro.recycle : metro.recycle, note);
+      result.regional.scope = 'city'; result.regional.cityLabel = metro.label; result.regional.scopeNote = scopeNote; result.regional.checkedAt = METRO_CHECKED_AT;
+      result.regional.notes.push(scopeNote);
+      if (isFood) result.steps = result.steps.filter(step => !step.includes('전용 봉투·전용 용기·RFID'));
+    }
+  }
   if (result.regional.coverage === 'verified') {
-    result.steps = [...new Set([...result.steps, ...result.regional.notes.filter(note => note !== SEOUL_SCOPE_NOTE && !(note === SEOUL_VINYL_NOTE && input.contaminated === 'yes'))])];
-    result.reasons.push(result.regional.scope === 'city' ? '서울시 공통 자료를 적용했어요. 해당 자치구의 개별 수거 기준은 별도 확인이 필요해요.' : `${regionLabel(region)} 공식 자료로 확인한 해당 품목의 지역 기준을 적용했어요.`);
-    result.notice = result.regional.scope === 'city' ? SEOUL_SCOPE_NOTE : '표시된 품목의 지역 기준을 적용했어요. 배출일·시간·장소는 동별·주택 유형·관리사무소 안내를 확인해 주세요.';
+    const scopeNotes = [SEOUL_SCOPE_NOTE, result.regional.scopeNote].filter(Boolean);
+    const cityLabel = result.regional.cityLabel || '서울시';
+    result.steps = [...new Set([...result.steps, ...result.regional.notes.filter(note => !scopeNotes.includes(note) && !(note === SEOUL_VINYL_NOTE && input.contaminated === 'yes'))])];
+    result.reasons.push(result.regional.scope === 'city' ? `${cityLabel} 공통 자료를 적용했어요. 해당 구·군의 개별 수거 기준은 별도 확인이 필요해요.` : `${regionLabel(region)} 공식 자료로 확인한 해당 품목의 지역 기준을 적용했어요.`);
+    result.notice = result.regional.scope === 'city' ? (result.regional.scopeNote || SEOUL_SCOPE_NOTE) : '표시된 품목의 지역 기준을 적용했어요. 배출일·시간·장소는 동별·주택 유형·관리사무소 안내를 확인해 주세요.';
   } else {
     result.regional.notes.push(region ? '이 지역의 해당 품목에 대한 세부 기준은 아직 검증하지 못했어요. 아래 기본 안내를 참고하고 관할 시·군·구 청소 담당 부서 또는 관리사무소에 확인해 주세요.' : '지역을 설정하면 확인된 지역별 기준을 적용할 수 있어요. 현재는 기본 안내예요.');
   }

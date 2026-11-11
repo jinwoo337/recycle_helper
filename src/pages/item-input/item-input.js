@@ -13,6 +13,7 @@ import { resultToolsMarkup, bindResultTools } from '../../components/result-tool
 import { memberTools } from '../../services/member-tools.js';
 import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel } from '../../domain/disposal/regions.js';
 import { DAEJEON_GUIDES } from '../../domain/disposal/daejeon-guides.js';
+import { METRO_GUIDES } from '../../domain/disposal/metro-guides.js';
 import { takeQueuedInput, queueDescription } from '../../services/input-draft.js';
 import { cleanSingleMaterialInput } from '../../domain/disposal/input-shortcuts.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
@@ -110,16 +111,36 @@ export function itemInputPage() {
 // 지역 기준이 확인되지 않은 결과는 전국 공통 기준으로 안내했다고 알리고, 그 지역 공식 안내로 연결합니다.
 // 서울·대전은 지역 자료가 있지만 품목마다 다르므로(예: 약은 구 자료에 없음) "이 물건은" 자료가 없다고 구분해 말합니다.
 const SUPPORTED_PROVINCES = ['서울특별시', '대전광역시'];
+const outLink = (url, text) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)} ↗</a>`;
+// 광역시 구·군청의 공식 안내(재활용·음식물·대형폐기물) 바로가기입니다. 세부 페이지를 못 찾은 곳은 누리집으로 연결합니다.
+export function districtLinksMarkup(region) {
+  const district = region && METRO_GUIDES[region.province]?.districts[region.district];
+  if (!district) return '';
+  const links = [['recycle', '재활용'], ['food', '음식물'], ['large', '대형폐기물']].filter(([key]) => district[key]).map(([key, text]) => outLink(district[key], text));
+  return `${escapeHtml(region.district)} 공식 안내: ${links.length ? links.join(' · ') : outLink(district.home, '구청 누리집')}`;
+}
 export function localGuideMarkup(result, itemName = '') {
   const region = result.region;
-  if (!region || result.regional?.coverage === 'verified') return '';
+  if (!region) return '';
+  const metro = METRO_GUIDES[region.province];
+  const withParts = (result.parts?.length || 0) > 1;
+  // 광역시: 시 공통 문장을 붙였어도 수거 요일·장소는 구청마다 달라서 구청 공식 안내 링크를 늘 보여 줍니다.
+  if (metro && metro.districts[region.district]) {
+    const links = districtLinksMarkup(region);
+    if (result.regional?.coverage === 'verified') return `<p class="local-guide-line">🏛️ ${links}</p>`;
+    const local = metro.city?.label || region.district;
+    const text = !metro.city ? `${escapeHtml(region.district)}의 품목별 기준은 아직 정리하지 못해 <strong>전국 공통 기준</strong>으로 안내했어요.`
+      : withParts ? `부속품이 함께 있는 물건이라 ${escapeHtml(local)} 기준 대신 재질별 <strong>전국 공통 기준</strong>으로 안내했어요.`
+      : `${escapeHtml(local)} 자료에는 이 물건의 배출 방법이 따로 나와 있지 않아 <strong>전국 공통 기준</strong>으로 안내했어요.`;
+    return `<p class="local-guide-line">🗺️ ${text} ${links}</p>`;
+  }
+  if (result.regional?.coverage === 'verified') return '';
   const place = [region.province, region.district].filter(Boolean).join(' ');
   // 서울은 시 전체 자료라서 구 이름 대신 "서울시 자료"라고 씁니다. 대전은 구별 자료가 있습니다.
   const local = region.province === '서울특별시' ? '서울시' : region.district || region.province;
   const supported = SUPPORTED_PROVINCES.includes(region.province);
   const url = `https://search.naver.com/search.naver?query=${encodeURIComponent(`${place} ${supported && itemName ? `${itemName} 버리는 방법` : '분리배출 방법 배출 요일'}`)}`;
   // 지역 기준은 재질 하나짜리 물건에만 붙이므로, 라벨·뚜껑 같은 부속품이 함께 있으면 그 이유를 말합니다.
-  const withParts = (result.parts?.length || 0) > 1;
   const text = supported
     ? withParts
       ? `부속품이 함께 있는 물건이라 ${escapeHtml(local)} 기준 대신 재질별 <strong>전국 공통 기준</strong>으로 안내했어요.`
@@ -133,7 +154,7 @@ export function largeWasteMarkup(result) {
   return `<section class="large-waste-help" aria-labelledby="large-waste-title"><h3 id="large-waste-title">🪑 ${help.maybe ? '봉투에 안 들어가면 ' : ''}대형폐기물 신고하기${help.place ? ` · ${escapeHtml(help.place)}` : ''}</h3>
     <ol>${help.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>
     <p class="input-hint">💰 ${escapeHtml(help.feeNote)}</p>
-    <div class="large-waste-links">${help.homepage ? `<a class="button secondary" href="${escapeHtml(help.homepage)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.place.split(' ').pop())}청 누리집 ↗</a>` : ''}<a class="button secondary" href="${escapeHtml(help.searchUrl)}" target="_blank" rel="noopener noreferrer">신고 페이지 찾기 ↗</a></div>
+    <div class="large-waste-links">${help.reportUrl ? `<a class="button primary" href="${escapeHtml(help.reportUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.place.split(' ').pop())} 대형폐기물 안내 ↗</a>` : ''}${help.homepage ? `<a class="button secondary" href="${escapeHtml(help.homepage)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.place.split(' ').pop())}청 누리집 ↗</a>` : ''}<a class="button secondary" href="${escapeHtml(help.searchUrl)}" target="_blank" rel="noopener noreferrer">신고 페이지 찾기 ↗</a></div>
     ${help.place ? '' : '<p class="input-hint">판별 지역을 고르면 우리 구 신고 페이지로 바로 안내해요.</p>'}</section>`;
 }
 const sourceLabel = url => url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url);
@@ -147,6 +168,8 @@ export function sourceLineMarkup(result, sources) {
     if (seoulUrl(url)) return region?.province === '서울특별시' ? 3 : -1;
     const district = daejeonDistrictOf(url);
     if (district) return region?.province === '대전광역시' && region.district === district ? 3 : -1;
+    const metroProvince = Object.entries(METRO_GUIDES).find(([, guide]) => guide.city && [guide.city.recycle, guide.city.food].includes(url))?.[0];
+    if (metroProvince) return region?.province === metroProvince ? 3 : -1;
     if (Object.values(REGIONAL_SOURCES).includes(url)) return -1;
     return url === RULE_SOURCE ? 1 : 2;
   };
@@ -174,7 +197,7 @@ export function resultMarkup(input, result, createdAt) {
     ${result.aiAssisted ? '<p class="ai-badge">🤖 AI 추정 결과예요. 실제 제품의 분리배출 표시를 꼭 확인해 주세요.</p>' : ''}
     ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
     <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}"><span class="result-badge">${input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status]}</span><h3>${escapeHtml(result.method)}</h3></div>
-    <p class="result-region input-hint">${result.regional ? `${escapeHtml(result.regional.label)} · ${result.regional.coverage === 'verified' ? result.regional.scope === 'city' ? '서울시 공통 안내 · 구별 수거 확인 필요' : '해당 품목 지역 기준 적용' : '기본 안내 · 지역 기준 확인 필요'}` : '지역 미기록 · 지역을 설정하고 다시 판별해 주세요.'}</p>
+    <p class="result-region input-hint">${result.regional ? `${escapeHtml(result.regional.label)} · ${result.regional.coverage === 'verified' ? result.regional.scope === 'city' ? `${escapeHtml(result.regional.cityLabel || '서울시')} 공통 안내 · 구별 수거 확인 필요` : '해당 품목 지역 기준 적용' : '기본 안내 · 지역 기준 확인 필요'}` : '지역 미기록 · 지역을 설정하고 다시 판별해 주세요.'}</p>
     ${sourceLineMarkup(result, sources)}
     ${localGuideMarkup(result, input.itemName)}
     <h3>이렇게 배출하세요</h3>${stepListMarkup(result.steps)}
