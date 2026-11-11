@@ -15,7 +15,7 @@ import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel, resultRegionLabel }
 import { METRO_GUIDES } from '../../domain/disposal/metro-guides.js';
 import { cityGuide } from '../../domain/disposal/city-guides.js';
 import { DAEJEON_GUIDES } from '../../domain/disposal/daejeon-guides.js';
-import { queueDescription, queueInput, takeQueuedInput } from '../../services/input-draft.js';
+import { queueInput, takeQueuedInput } from '../../services/input-draft.js';
 import { cleanSingleMaterialInput } from '../../domain/disposal/input-shortcuts.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
@@ -24,7 +24,7 @@ import { regionalComparisonMarkup } from '../../components/regional-comparison.j
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { ITEM_CATEGORY_GROUPS, categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
 import { resultForDisplay, inputForDisplay, resultStepsForDisplay } from '../../domain/disposal/result-display.js';
-import { detectItemCategory } from '../../domain/disposal/category-keywords.js';
+import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
@@ -164,9 +164,8 @@ export function largeWasteMarkup(result) {
   const help = largeWasteHelp(result);
   if (!help) return '';
   return `<section class="large-waste-help" aria-labelledby="large-waste-title"><h3 id="large-waste-title">🪑 ${help.maybe ? '봉투에 안 들어가면 ' : ''}대형폐기물 신고하기${help.place ? ` · ${escapeHtml(help.place)}` : ''}</h3>
-    <ol>${help.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>
-    <p class="input-hint">💰 ${escapeHtml(help.feeNote)}</p>
-    <div class="large-waste-links">${help.reportUrl ? `<a class="button primary" href="${escapeHtml(help.reportUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.office)} 대형폐기물 안내 ↗</a>` : ''}${help.homepage ? `<a class="button secondary" href="${escapeHtml(help.homepage)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.office)}청 누리집 ↗</a>` : ''}<a class="button secondary" href="${escapeHtml(help.searchUrl)}" target="_blank" rel="noopener noreferrer">신고 페이지 찾기 ↗</a></div>
+    <div class="large-waste-links">${help.reportUrl ? `<a class="button primary" href="${escapeHtml(help.reportUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.office)} 대형폐기물 ${help.directReport ? '배출 신청' : '안내'} ↗</a>` : ''}${help.feeUrl ? `<a class="button secondary" href="${escapeHtml(help.feeUrl)}" target="_blank" rel="noopener noreferrer">유성구 품목·수수료표 ↗</a>` : help.homepage ? `<a class="button secondary" href="${escapeHtml(help.homepage)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.office)}청 누리집 ↗</a>` : ''}${help.directReport ? '' : `<a class="button secondary" href="${escapeHtml(help.searchUrl)}" target="_blank" rel="noopener noreferrer">신고 페이지 찾기 ↗</a>`}</div>
+    <details class="result-evidence"><summary>신고 순서·수수료</summary><ol>${help.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol><p class="input-hint">${escapeHtml(help.feeNote)}</p></details>
     ${help.place ? '' : '<p class="input-hint">판별 지역을 고르면 우리 구 신고 페이지로 바로 안내해요.</p>'}</section>`;
 }
 const sourceLabel = url => url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url);
@@ -230,7 +229,11 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
 export function bindItemInput() {
   const owner = getCurrentMember()?.id || 'guest';
   if (draftOwner !== owner) { draft = {}; componentCount = 1; draftOwner = owner; }
-  const queued = takeQueuedInput(); if (queued) draft = queued;
+  const queued = takeQueuedInput();
+  if (queued) {
+    const { fromAssistance, ...next } = queued;
+    draft = fromAssistance && normalizeItemName(next.itemName) === normalizeItemName(draft.itemName) ? { ...draft, ...next } : next;
+  }
   const form = document.getElementById('item-form');
   const judgementRegion = bindJudgementRegion(form, readJudgementRegion(getCurrentMember()), {
     onChange: region => rememberJudgementRegion(region, getCurrentMember()),
@@ -238,13 +241,13 @@ export function bindItemInput() {
   const summary = document.getElementById('item-summary');
   const nameInput = form.elements.namedItem('itemName');
   const describeInstead = form.querySelector('[data-describe-instead]');
+  const handoff = path => queueInput({ description: nameInput.value.trim(), sourceName: nameInput.value.trim(), newSearch: !nameInput.value.trim() }, path);
   describeInstead.addEventListener('click', () => {
-    const name = nameInput.value.trim();
-    queueDescription(name ? `${name}인데, 상태는 ` : '');
+    handoff('/describe');
     location.hash = '/describe';
   });
   const disposeModeSelect = bindInputModeSelect(form, path => {
-    if (path !== '/item-input') queueInput({ description: nameInput.value.trim() }, path);
+    if (path !== '/item-input') handoff(path);
   });
   const saveStatus = document.getElementById('item-save-status');
   const fieldError = document.createElement('p');
@@ -368,6 +371,8 @@ export function bindItemInput() {
     toggle(node.querySelector('[data-condition="food"]'), active && material === '음식물류' && select.value === 'soft');
     const supported = active && supportsState(partValue(prefix));
     toggle(node.querySelector('[data-condition="state"]'), supported);
+    const partName = prefix ? partLabel?.value.trim() || `부속품 ${Number(prefix.slice(4, -1)) + 1}` : '본체';
+    node.querySelector('.current-state legend').textContent = `${partName} 상태는 어떤가요?`;
     const washable = needsWashQuestion(partValue(prefix));
     const stateRadios = [...node.querySelectorAll(`[name="${prefix}currentState"]`)];
     const current = selectedState(partValue(prefix), washable);
@@ -385,7 +390,7 @@ export function bindItemInput() {
     toggle(node.querySelector('[data-condition="removable"]'), dirty && (!seoulVinyl || value('vinylResidue') === 'solids'));
     node.querySelectorAll('.state-storage input').forEach(control => { control.required = false; });
     node.querySelector('[data-condition="removable"] legend').textContent = material === '종이' && value(`${prefix}type`) === 'paper'
-      ? '오염된 부분을 떼어내고 깨끗한 종이만 남길 수 있나요?' : '남은 오염을 헹구거나 닦아 제거할 수 있나요?';
+      ? `${partName}의 오염된 부분을 떼어내고 깨끗한 종이만 남길 수 있나요?` : `${partName}에 남은 오염을 헹구거나 닦아 제거할 수 있나요?`;
     if (!active) materialSelect.value = '';
   }
   function updateConditional() {
@@ -430,6 +435,11 @@ export function bindItemInput() {
     toggle(document.getElementById('separable-question'), combined);
     const components = combined && value('separable') === 'yes';
     describeInstead.hidden = !hasName || dedicated;
+    if (unregistered && !category.value) document.getElementById('category-guidance').textContent = '종류를 아는 경우 위에서 골라 주세요. 포장재는 재질 표시를 고를 수 있고, 둘 다 모르면 물건 설명이나 사진으로 이어서 찾을 수 있어요.';
+    if (isBatteryPackaging(nameInput.value) && category.value === 'packaging') {
+      categorySection.open = true;
+      document.getElementById('category-guidance').textContent = '전지를 빼고 남은 포장만 판별해요. 종이·플라스틱 등 실제 재질 표시를 확인해 주세요.';
+    }
     copyComponentState.hidden = !components || !['clean', 'dirty', 'washed-dirty'].includes(value('currentState'));
     document.getElementById('composition-detected').textContent = value('combined') === 'no' ? '다른 재질 없음' : combined
       ? `다른 재질 있음 · ${value('separable') === 'yes' ? '분리 가능' : value('separable') === 'no' ? '분리 어려움' : '분리 가능 여부 확인'}` : '다른 재질이 붙어 있나요?';
@@ -445,7 +455,6 @@ export function bindItemInput() {
     document.getElementById('quick-condition').hidden = !hasName || !cleanSingleMaterialInput(collect())
       || ['yes', 'unknown'].includes(value('contaminated')) || ['yes', 'unknown'].includes(value('combined'));
     document.getElementById('combination-hint').hidden = !(value('material') === '종이' && value('type') === 'carton');
-    document.getElementById('reset-item').hidden = !hasName;
     document.getElementById('reset-item').hidden = !hasName;
   }
   function keywordCategory() { return !keywordCategoryEnabled || lookupItem(nameInput.value)?.material ? null : detectItemCategory(nameInput.value); }
@@ -748,8 +757,13 @@ export function bindItemInput() {
     });
     document.getElementById('edit-item').addEventListener('click', () => {
       showInput(); restore(shownInput); saveStatus.textContent = '';
-      const pending = shownResult.pendingCondition;
-      const pendingField = ['removable', 'vinyl-residue'].includes(pending) && form.querySelector(`.part-fields[data-prefix=""] [data-condition="${pending}"] input:not(:disabled)`);
+      const partIndex = shownResult.parts.findIndex(part => part.pendingCondition);
+      const pending = shownResult.pendingCondition || shownResult.parts[partIndex]?.pendingCondition;
+      const prefix = shownResult.pendingCondition || partIndex < 1 ? '' : `part${partIndex - 1}-`;
+      const part = form.querySelector(`.part-fields[data-prefix="${prefix}"]`);
+      const pendingField = ['combined', 'separable'].includes(pending) ? form.querySelector(`input[name="${pending}"]:not(:disabled)`)
+        : pending === 'material' ? form.elements.namedItem(`${prefix}material`)
+          : ['state', 'type', 'removable', 'vinyl-residue'].includes(pending) && part?.querySelector(`[data-condition="${pending}"] :is(input:not([type="hidden"]),select):not(:disabled)`);
       const target = pendingField || form.querySelector('.current-state input:checked:not(:disabled), #handling-condition input:checked') || form.querySelector('#handling-condition input') || form.elements.namedItem('category');
       if (target && !target.disabled) { reveal(target); target.focus(); }
       else { nameInput.focus(); closeSuggestions(); }

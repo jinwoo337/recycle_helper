@@ -48,7 +48,7 @@ export function bindMain() {
   const autocomplete = bindItemAutocomplete({ input, options: document.getElementById('quick-items'), status: document.getElementById('quick-item-status'), search: searchItemNames,
     onSelect: () => form.requestSubmit(),
     onCompositionEnd: clearNameError,
-    noResultsMessage: '목록에 없어도 검색할 수 있어요. 배출 방법 찾기를 눌러 물건 종류를 알려주세요.' });
+    noResultsMessage: '등록된 이름이 없어요. ‘배출 방법 찾기’에서 종류·재질 표시를 고르거나, 아래에서 설명·사진으로 이어서 찾을 수 있어요.' });
   form.addEventListener('submit', event => {
     event.preventDefault();
     autocomplete.close();
@@ -61,7 +61,7 @@ export function bindMain() {
   }));
   const aiSwitch = bindAiToggle(document.getElementById('home-ai-enabled'));
   const disposeModeSelect = bindInputModeSelect(form, path => {
-    if (path !== '/item-input') queueInput({ description: input.value.trim() }, path);
+    if (path !== '/item-input') queueInput({ description: input.value.trim(), sourceName: input.value.trim(), newSearch: true }, path);
   });
   const disposeVoice = bindVoiceInput(document.getElementById('home-voice'), input, { status: document.getElementById('quick-item-status'), onResult: () => { autocomplete.close(); form.requestSubmit(); } });
   const disposeCollection = bindCollectionDays(document.querySelector('.home-page'));

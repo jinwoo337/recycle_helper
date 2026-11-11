@@ -15,5 +15,9 @@ export function inputForDisplay(input, savedResult) {
 export function resultStepsForDisplay(result) {
   const parts = result.parts.length > 1 ? result.parts.map(part => ({ ...part, steps: [...new Set(part.steps)] })) : [];
   const partSteps = new Set(parts.flatMap(part => part.steps));
-  return { parts, steps: [...new Set(result.steps)].filter(step => !partSteps.has(step)) };
+  const sharedPreparation = (parts[0]?.steps || []).filter(step =>
+    /^(내용물을 비우고 물기를 제거|남은 오염을 제거하고 깨끗해졌는지 확인)/.test(step)
+    && parts.every(part => part.steps.includes(step)));
+  const steps = [...new Set(result.steps)].filter(step => !partSteps.has(step));
+  return { parts: parts.map(part => ({ ...part, steps: part.steps.filter(step => !sharedPreparation.includes(step)) })), steps: [...steps, ...sharedPreparation] };
 }

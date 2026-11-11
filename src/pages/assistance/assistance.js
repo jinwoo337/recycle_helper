@@ -11,20 +11,33 @@ import { collectionPointMarkup } from '../../components/collection-help.js';
 import { queueInput, takeQueuedInput } from '../../services/input-draft.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
-import { lookupItem } from '../../domain/disposal/item-suggestions.js';
+import { lookupItem, normalizeItemName } from '../../domain/disposal/item-suggestions.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
-import { judgeDisposal, RULE_SOURCE } from '../../domain/disposal/rules.js';
+import { judgeDisposal, RULE_SOURCE, supportsState } from '../../domain/disposal/rules.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
+import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
+import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
+import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
 
 const titles = { description: '물건 설명하기', photo: '사진으로 인식하기' };
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
-let descriptionDraft = '', descriptionOwner;
+let assistanceDraft = {}, descriptionOwner;
 
-function registeredGuide(name, region) {
+function registeredGuide(name, region, { infer = true } = {}) {
+  if (isBatteryPackaging(name)) return { needsConditions: true, hint: '전지가 없는 포장만 선택하고 실제 재질 표시를 확인해 주세요.' };
   const item = lookupItem(name);
-  if (!item?.handling) return null;
-  const guide = judgeDisposal({ ...itemPresetInput(name), region });
-  return guide.handling === item.handling ? guide : null;
+  if (!item?.material) {
+    if (!infer) return null;
+    const detected = detectItemCategory(name);
+    if (!['large', 'damaged-battery'].includes(detected?.category)) return null;
+    return { ...judgeDisposal({ itemName: name, region }), inferred: true };
+  }
+  const input = itemPresetInput(name);
+  const prompt = handlingConditionQuestion(item.handling);
+  if (prompt || !input.type && !item.handling || supportsState(input) || input.material === '음식물류' && input.type === 'soft') {
+    return { needsConditions: true, hint: prompt?.title || '실제 재질 표시와 본체·부속품 상태를 확인해 주세요.' };
+  }
+  return judgeDisposal({ ...input, region });
 }
 
 function questionChoices(answer, index) {
@@ -48,24 +61,33 @@ function followUpMarkup(answer, answers, mode) {
     </form></section>`;
 }
 
-export function assistanceResultMarkup(answer, region, { answers = [], mode = 'description', guide } = {}) {
+export function assistanceResultMarkup(answer, region, { answers = [], mode = 'description', guide = answer.evidence === 'object' && answer.confidence !== 'low' ? registeredGuide(answer.itemName, region) : null, fromInput = false } = {}) {
+  if (guide) answer = { ...answer, questions: [] };
   const hasQuestions = answer.questions.length > 0;
-  const { method, steps } = guide || answer;
-  const sources = guide?.sourceUrls.filter(url => url === RULE_SOURCE || Object.hasOwn(CATALOG_DETAIL_SOURCES, url) || Object.values(REGIONAL_SOURCES).includes(url)) || [];
-  const guidance = `<div class="assist-method"><h3>${escapeHtml(method)}</h3></div>${steps.length ? stepListMarkup(steps) : '<p class="input-hint">입력을 보완하거나 제품 표시와 지역 수거 기준을 확인해 주세요.</p>'}`;
-  return `<p class="eyebrow">${guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide ? resultRegionLabel(guide) : regionLabel(region))}</p>
+  const uncertain = answer.evidence !== 'object' || answer.confidence === 'low' || answers.some(pair => pair.answer === '모르겠어요');
+  const { method, steps } = guide?.needsConditions ? { method: '물건 상태 확인 후 배출 방법 보기', steps: [] }
+    : guide || (uncertain || hasQuestions ? { method: '배출 전 추가 확인이 필요해요', steps: [] } : answer);
+  const sources = guide?.sourceUrls?.filter(url => url === RULE_SOURCE || Object.hasOwn(CATALOG_DETAIL_SOURCES, url) || Object.values(REGIONAL_SOURCES).includes(url)) || [];
+  const large = guide?.handling === 'large' ? largeWasteHelp(guide) : null;
+  const canConfirm = guide || !uncertain;
+  const correction = `<form class="assist-correction" data-assist-correction><div class="field"><label for="assist-correct-name">다른 물건이면 이름을 고쳐 주세요</label><input id="assist-correct-name" name="itemName" maxlength="80" required autocomplete="off"></div><button type="submit" class="button secondary">이 이름으로 기준 확인</button></form>`;
+  const candidates = uncertain && answer.candidates?.length ? `<div class="assist-result-actions" aria-label="인식 후보">${answer.candidates.map(name => `<button type="button" class="button secondary" data-assist-candidate="${escapeHtml(name)}">${escapeHtml(name)} 기준 확인</button>`).join('')}</div>` : '';
+  const hint = guide?.hint || '제품에 적힌 재질 표시와 용도를 확인해 주세요. 알 수 없다면 사진이나 제품명을 준비해 거주지 폐기물 담당 부서에 수거 여부를 문의해 주세요.';
+  const guidance = `<div class="assist-method"><h3>${escapeHtml(method)}</h3></div>${steps.length ? stepListMarkup(steps) : `<p class="input-hint">${escapeHtml(hint)}</p>`}`;
+  return `<p class="eyebrow">${guide?.inferred ? '이름으로 알아본 종류의 안내' : guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide?.regional ? resultRegionLabel(guide) : regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
-    ${answer.identification ? `<p class="assist-identification">${escapeHtml(answer.identification)}</p>` : ''}
+    ${guide && !fromInput ? '<p class="assist-identification">사진이나 설명에서 추정한 이름이에요. 실제 물건과 같은지 확인해 주세요.</p>' : !guide && answer.identification ? `<p class="assist-identification">${escapeHtml(answer.identification)}</p>` : ''}
     ${answer.evidence === 'markings' ? '<p class="input-hint">표시는 읽었지만 실제 물건은 확인하지 못했어요. 물건 전체 사진이나 용도 설명을 더해 주세요.</p>' : ''}
     ${answer.markings.length ? `<p class="assist-markings"><strong>AI가 읽은 표시</strong> ${answer.markings.map(escapeHtml).join(' · ')}</p>` : ''}
+    ${candidates}
+    ${!guide && !uncertain && answer.cautions.length ? `<h3>주의할 점</h3>${list(answer.cautions)}` : ''}
     ${hasQuestions ? followUpMarkup(answer, answers, mode) : guidance}
-    ${hasQuestions && steps.length ? `<details class="assist-answer-history"><summary>${guide ? '이 물건이 맞다면 등록 안내 보기' : '현재 정보로 본 참고 안내'}</summary>${guidance}</details>` : ''}
-    ${!hasQuestions && steps.length ? collectionPointMarkup({ ...guide, itemName: answer.itemName, region, method, steps }) : ''}
+    ${guide?.handling && steps.length ? collectionPointMarkup({ ...guide, itemName: answer.itemName }) : ''}
+    ${large?.reportUrl ? `<div class="assist-result-actions"><a class="button primary" href="${escapeHtml(large.reportUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(large.office)} 대형폐기물 ${large.directReport ? '배출 신청' : '안내'} ↗</a></div>` : ''}
     ${sources.length ? `<details class="assist-answer-history"><summary>등록 안내의 출처</summary><ul>${sources.map(url => `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a></li>`).join('')}</ul></details>` : ''}
-    ${!guide && answer.cautions.length ? `<h3>주의할 점</h3>${list(answer.cautions)}` : ''}
     ${answers.length ? `<details class="assist-answer-history"><summary>지금까지 답한 내용 ${answers.length}개</summary><dl>${answers.map(pair => `<dt>${escapeHtml(pair.question)}</dt><dd>${escapeHtml(pair.answer)}</dd>`).join('')}</dl></details>` : ''}
     ${!guide && steps.length ? '<p class="input-hint">실제 제품 표시와 거주지 수거 기준을 확인해 주세요.</p>' : ''}
-    <div class="assist-result-actions">${!hasQuestions ? '<button type="button" class="button primary" data-assist-new>다른 물건 찾기</button>' : ''}<button type="button" class="button secondary" data-assist-refine>입력 수정</button>${answer.evidence === 'object' && answer.confidence !== 'low' ? '<button type="button" class="button secondary" data-assist-check>이 이름으로 기준 확인</button>' : '<a class="button secondary" href="#/item-input">이름으로 찾기</a>'}</div>`;
+    <div class="assist-result-actions">${canConfirm ? `<button type="button" class="button ${guide?.needsConditions ? 'primary' : 'secondary'}" data-assist-check>${guide?.needsConditions ? '물건 상태 확인하기' : '이 이름으로 기준 확인'}</button>` : ''}<button type="button" class="button secondary" data-assist-refine>입력 수정</button><button type="button" class="button secondary" data-assist-new>다른 물건 찾기</button></div>${correction}`;
 }
 
 export function assistancePage(mode = 'description') {
@@ -79,13 +101,13 @@ export function assistancePage(mode = 'description') {
         <div class="assist-photo-buttons"><label class="button secondary assist-file-label">사진 촬영<input type="file" name="camera" accept="${PHOTO_ACCEPT}" capture="environment" aria-label="물건 사진 촬영"></label><label class="button secondary assist-file-label">사진 선택<input type="file" name="gallery" accept="${PHOTO_ACCEPT}" aria-label="저장된 사진 선택"></label></div>
         <p class="input-hint">JPG·PNG·WebP·HEIC · 12MB 이하</p>
         <figure class="assist-preview" data-assist-preview hidden><img data-assist-image alt="분석할 물건 사진 미리보기"><figcaption><span data-assist-photo-status></span><button type="button" class="history-action" data-assist-remove>사진 지우기</button></figcaption></figure>
-        <p class="assist-photo-message" data-assist-photo-message role="status" aria-live="polite"></p></section>` : ''}
+        <p class="assist-photo-message" data-assist-photo-message role="status" aria-live="polite"></p><button type="button" class="history-action" data-assist-describe>사진 대신 설명으로 찾기</button></section>` : ''}
       ${photo ? `<details class="assist-extra"><summary>사진에 보이지 않는 정보 추가 (선택)</summary>${descriptionField}</details>` : descriptionField}
       ${judgementRegionMarkup(readJudgementRegion(getCurrentMember()))}
       <div class="assist-submit-row"><button type="submit" class="button primary">${photo ? '사진 인식하고 안내 받기' : '설명으로 안내 받기'}</button><button type="button" class="button secondary" data-assist-cancel hidden>분석 취소</button></div>
       <p class="form-status" data-assist-status role="status" aria-live="polite"></p>
       <p class="input-hint">${photo ? '사진·설명' : '설명'}과 선택한 지역을 Google Gemini에 보내요.</p>
-      <details class="assist-data-use"><summary>입력 정보 사용 안내</summary><p class="input-hint">개인정보가 담긴 내용은 제외해 주세요. ${photo ? '사진은 크기와 원본 촬영 정보를 줄여 전송하고, 화면을 떠나면 미리보기가 지워져요. ' : ''}입력과 안내는 이 사이트의 판별 기록에 자동 저장되지 않아요.</p></details>
+      <details class="assist-data-use"><summary>입력 정보 사용 안내</summary><p class="input-hint">개인정보가 담긴 내용은 제외해 주세요. ${photo ? '사진은 크기와 원본 촬영 정보를 줄여 전송해요. 새 물건을 찾거나 페이지를 새로고침하면 사진 초안이 지워져요. ' : ''}입력과 안내는 이 사이트의 판별 기록에 자동 저장되지 않아요.</p></details>
     </form>
     <section class="item-card assist-result" data-assist-result tabindex="-1" aria-labelledby="assistance-result-title" hidden></section>
   </section>`;
@@ -100,8 +122,11 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   const path = mode === 'photo' ? '/photo' : '/describe';
   const queued = takeQueuedInput(path);
   const owner = getCurrentMember()?.id || 'guest';
-  if (owner !== descriptionOwner) { descriptionDraft = ''; descriptionOwner = owner; }
-  let image = null, photoRevision = 0, preparing = false, busy = false, disposed = false, controller, answer, answered = [];
+  if (owner !== descriptionOwner || queued?.newSearch || (queued?.sourceName && normalizeItemName(queued.sourceName) !== normalizeItemName(assistanceDraft.sourceName))) {
+    assistanceDraft = {}; descriptionOwner = owner;
+  }
+  if (queued?.sourceName) assistanceDraft.sourceName = queued.sourceName;
+  let image = null, previewUrl = '', photoRevision = 0, preparing = false, busy = false, disposed = false, controller, answer, answered = [];
   const region = bindRegion(form, readJudgementRegion(getCurrentMember()), {
     onChange(value) {
       rememberJudgementRegion(value, getCurrentMember());
@@ -134,7 +159,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     submit.disabled = value || preparing;
   }
   function clearPhoto() {
-    photoRevision++; image = null; preparing = false;
+    photoRevision++; image = null; previewUrl = ''; preparing = false;
     root.querySelector('[data-assist-preview]').hidden = true;
     root.querySelector('[data-assist-image]').removeAttribute('src');
     form.elements.namedItem('camera').value = ''; form.elements.namedItem('gallery').value = '';
@@ -150,7 +175,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     try {
       const prepared = await preparePhoto(file);
       if (!alive() || revision !== photoRevision) return;
-      image = prepared.image;
+      image = prepared.image; previewUrl = prepared.preview;
       clearResult();
       root.querySelector('[data-assist-image]').src = prepared.preview;
       root.querySelector('[data-assist-photo-status]').textContent = '선택한 사진';
@@ -165,24 +190,40 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     form.elements.namedItem('camera').addEventListener('change', selectedPhoto);
     form.elements.namedItem('gallery').addEventListener('change', selectedPhoto);
     root.querySelector('[data-assist-remove]').addEventListener('click', clearPhoto);
+    root.querySelector('[data-assist-describe]')?.addEventListener('click', () => { location.hash = '/describe'; });
+    if (assistanceDraft.photo) {
+      ({ image, previewUrl } = assistanceDraft.photo);
+      root.querySelector('[data-assist-image]').src = previewUrl;
+      root.querySelector('[data-assist-photo-status]').textContent = '선택한 사진';
+      root.querySelector('[data-assist-preview]').hidden = false;
+    }
   }
   function updateCount() {
     root.querySelector('[data-assist-count]').textContent = `${description.value.length.toLocaleString('ko-KR')} / 2,000자`;
   }
-  const initialDescription = queued?.description ?? (mode === 'description' ? descriptionDraft : '');
+  const initialDescription = queued?.sourceName && assistanceDraft.description?.trim()
+    ? assistanceDraft.description : queued?.description ?? assistanceDraft.description ?? '';
   if (initialDescription) {
     description.value = initialDescription;
     updateCount();
     const extra = description.closest('.assist-extra');
     if (extra) extra.open = true;
   }
+  const previous = assistanceDraft.sessions?.[mode];
+  if (previous?.description === description.value) answered = previous.answers;
   description.addEventListener('input', () => {
     descriptionError.textContent = ''; description.removeAttribute('aria-invalid'); updateCount(); clearResult();
   });
+  function openNameSearch(itemName) {
+    assistanceDraft.sourceName = itemName;
+    queueInput({ itemName, region: region.get(), fromAssistance: true });
+    location.hash = '/item-input';
+  }
   root.querySelector('.input-modes')?.addEventListener('click', event => {
     const route = event.target.closest('a')?.getAttribute('href')?.slice(1);
-    if (!route || route === path || route === '/item-input' || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-    if (description.value.trim()) queueInput({ description: description.value.trim() }, route);
+    if (route !== '/item-input' || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const name = assistanceDraft.sourceName || (answer?.evidence === 'object' && answer.confidence !== 'low' ? answer.itemName : '');
+    if (name) { event.preventDefault(); openNameSearch(name); }
   });
   function cancelAnalysis() {
     controller?.abort(); gate.cancel(); setBusy(false); setStatus('분석을 취소했어요.');
@@ -195,7 +236,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       descriptionError.textContent = '물건에 대해 짧게라도 적어 주세요.';
       description.setAttribute('aria-invalid', 'true'); description.focus(); return;
     }
-    if (mode === 'photo' && !image) { status.textContent = '분석할 사진을 먼저 촬영하거나 선택해 주세요.'; form.elements.namedItem('camera').focus(); return; }
+    if (mode === 'photo' && !image) { root.querySelector('[data-assist-photo-message]').textContent = '분석할 사진을 먼저 촬영하거나 선택해 주세요.'; form.elements.namedItem('camera').focus(); return; }
     if (!region.validate()) return;
     if (!form.reportValidity()) return;
     await generate(answered);
@@ -210,7 +251,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       const input = { mode, description: description.value.trim(), region: selectedRegion };
       if (mode === 'photo') input.image = image;
       if (nextAnswers.length) input.answers = nextAnswers;
-      const typedGuide = mode === 'description' && !nextAnswers.length ? registeredGuide(input.description, selectedRegion) : null;
+      const typedGuide = mode === 'description' && !nextAnswers.length ? registeredGuide(input.description, selectedRegion, { infer: false }) : null;
       const response = typedGuide
         ? { itemName: input.description, identification: '', evidence: 'object', confidence: 'high', questions: [], markings: [], cautions: [] }
         : await request(input, { signal: controller.signal });
@@ -226,8 +267,8 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
         });
       const guide = typedGuide || (response.evidence === 'object' && response.confidence !== 'low' ? registeredGuide(response.itemName, selectedRegion) : null);
       answer = { ...response, questions: remaining.map(entry => entry.question), questionChoices: remaining.map(entry => entry.choices) };
-      if (guide && !typedGuide) answer.identification = `${mode === 'photo' ? '사진' : '설명'}에서 이 물건으로 파악했어요. 실제 물건과 이름이 일치하는지 확인해 주세요.`;
-      result.innerHTML = assistanceResultMarkup(answer, selectedRegion, { answers: answered, mode, guide });
+      if (guide) answer.questions = [];
+      result.innerHTML = assistanceResultMarkup(answer, selectedRegion, { answers: answered, mode, guide, fromInput: Boolean(typedGuide) });
       status.textContent = '';
       result.hidden = false;
       form.hidden = true;
@@ -247,6 +288,13 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     syncChoices(followupForm); setStatus('');
   });
   result.addEventListener('submit', async event => {
+    const correction = event.target.closest('[data-assist-correction]');
+    if (correction) {
+      event.preventDefault();
+      const name = correction.elements.namedItem('itemName').value.trim();
+      if (!busy && name) openNameSearch(name);
+      return;
+    }
     const followupForm = event.target.closest('[data-assist-followup-form]');
     if (!followupForm) return;
     event.preventDefault(); if (busy || !answer || !followupForm.reportValidity()) return;
@@ -279,14 +327,21 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       description.scrollIntoView({ block: 'center', behavior: 'instant' });
     }
     if (event.target.closest('[data-assist-new]')) {
+      assistanceDraft = {};
       description.value = ''; updateCount();
       if (mode === 'photo') { clearPhoto(); description.closest('.assist-extra').open = false; form.elements.namedItem('camera').focus(); }
       else { clearResult(); description.focus(); }
     }
-    if (event.target.closest('[data-assist-check]') && answer) { queueInput({ itemName: answer.itemName }); location.hash = '/item-input'; }
+    const candidate = event.target.closest('[data-assist-candidate]')?.dataset.assistCandidate;
+    if (candidate) openNameSearch(candidate);
+    else if (event.target.closest('[data-assist-check]') && answer) openNameSearch(answer.itemName);
   });
   return () => {
-    if (mode === 'description' && (getCurrentMember()?.id || 'guest') === owner) descriptionDraft = description.value;
+    if ((getCurrentMember()?.id || 'guest') === owner) {
+      assistanceDraft.description = description.value;
+      (assistanceDraft.sessions ||= {})[mode] = { description: description.value, answers: answered };
+      if (mode === 'photo') assistanceDraft.photo = image ? { image, previewUrl } : null;
+    }
     disposed = true; controller?.abort(); gate.dispose(); photoRevision++; image = null;
   };
 }

@@ -46,12 +46,14 @@ export const REGIONAL_SOURCES = {
   gimpoWaste: 'https://m.gimpo.go.kr/portal/contents.do?key=2723',
   gimpoRecycle: 'https://gimpo.go.kr/portal/contents.do?key=1435',
   geumcheonFood: 'https://geumcheon.go.kr/portal/contents.do?key=818',
+  yuseongLargeFees: 'https://www.yuseong.go.kr/clean/html/sub02/02.html',
   ...Object.fromEntries(Object.entries(MEDICINE_SOURCES).map(([key, url]) => [`medicine-${key}`, url])),
 };
 export function regionalSourceLabel(url) {
   if (url === MEDICINE_SOURCES.seoul) return '서울시 폐의약품 수거 안내';
   if (url === MEDICINE_SOURCES.daejeon) return '대전시 가정 내 폐의약품 안내';
   if (url === MEDICINE_SOURCES.donggu) return '대전 동구 폐의약품 배출 안내';
+  if (url === REGIONAL_SOURCES.yuseongLargeFees) return '유성구 대형폐기물 품목·수수료표';
   const seoulLabels = { recycle: '서울시 분리배출 안내', vinyl: '서울시 폐비닐 안내', scope: '서울시 자치구 적용 범위', food: '서울시 음식물 RFID 안내' };
   for (const [key, source] of Object.entries(SEOUL_SOURCES)) if (url === source) return seoulLabels[key];
   for (const [district, guide] of Object.entries(DAEJEON_GUIDES)) {
@@ -182,7 +184,13 @@ export function applyRegionalRules(input, base) {
   }
   const daejeon = region?.province === '대전광역시' && DAEJEON_GUIDES[region.district];
   if (daejeon && single) {
-    if (knownGlass && region.district === '서구' && input.material === '유리' && input.type === 'broken') {
+    if (result.handling === 'large' && region.district === '유성구' && /책상/.test(input.itemName || '')) {
+      result.method = '책상 · 유성구 대형폐기물 품목 확인 후 신청';
+      result.steps = ['서랍이 한쪽인지 양쪽인지, 컴퓨터용인지, 책장·서랍장이 포함된 세트인지 확인해 주세요.', '유성구 품목표에서 맞는 책상 항목과 수수료를 확인해 배출 신청하세요.', '신청 후 안내받은 필증·배출일·지정 장소를 따라 주세요.'];
+      result.parts[0] = { ...result.parts[0], method: result.method, steps: [...result.steps] };
+      result.regional.checkedAt = '2026-11-11';
+      set(REGIONAL_SOURCES.yuseongLargeFees, '유성구 품목표는 책상을 양수, 편수, 컴퓨터용, 세트로 구분해요.', 'desk:yuseong-types');
+    } else if (knownGlass && region.district === '서구' && input.material === '유리' && input.type === 'broken') {
       result.status = 'general'; result.method = '깨진 유리 · 안전 포장 후 서구 종량제봉투로 배출';
       result.steps = ['유리 조각을 신문지 등으로 안전하게 감싸 주세요.', '종량제봉투 겉면에 위험물이라고 크게 표시해 주세요.', '봉투에 담기 어려운 크기·양은 서구에 별도 처리 방법을 확인해 주세요.'];
       result.parts[0] = { ...result.parts[0], status: result.status, method: result.method, steps: [...result.steps] };

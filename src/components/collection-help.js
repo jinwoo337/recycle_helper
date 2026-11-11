@@ -1,5 +1,6 @@
 import { escapeHtml } from '../utils/html.js';
 import { collectionPointHelp, nearbyMapUrl } from '../domain/disposal/collection-points.js';
+import { MEDICINE_SOURCES } from '../domain/disposal/medicine-guide.js';
 
 // 결과 화면(이름 찾기·설명·사진 모두)에 붙는 "가까운 수거처 찾기" 영역입니다.
 export function collectionPointMarkup(result) {
@@ -7,8 +8,11 @@ export function collectionPointMarkup(result) {
   if (!help) return '';
   ensureNearbyHandler();
   const link = (url, text, extra = '') => `<a class="button secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"${extra}>${text}</a>`;
+  const officialMedicine = result.handling === 'medicine' && result.regional?.coverage === 'verified'
+    && result.regional.sources.find(url => Object.values(MEDICINE_SOURCES).includes(url));
   return `<section class="collection-help" aria-labelledby="collection-title"><h3 id="collection-title">📍 가까운 ${escapeHtml(help.name)} 수거처 찾기</h3>
     <p class="input-hint">${escapeHtml(help.note)}</p>
+    ${officialMedicine ? `<div class="collection-links">${link(officialMedicine, '공식 폐의약품 수거처·접수 안내 ↗')}</div>` : ''}
     <div class="collection-links">${help.targets.map(target => `<button type="button" class="button ${target === help.targets[0] ? 'primary' : 'secondary'}" data-nearby-map="${escapeHtml(target.search)}" data-fallback="${escapeHtml(target.mapUrl)}">📍 내 주변 ${escapeHtml(target.label)} 찾기</button>`).join('')}</div>
     ${help.pickup ? `<div class="collection-links">${link(help.pickup.url, `🚚 ${escapeHtml(help.pickup.label)} ↗`)}</div>` : ''}
     <p class="input-hint collection-status" data-nearby-status role="status" aria-live="polite"></p>

@@ -27,7 +27,8 @@ test('AI 추정값은 허용 목록 안의 값만 받고, 확신이 낮으면 �
 test('AI 경로별 판별: 종량제·대형·위험·불확실', () => {
   const base = { itemName: '실리콘주걱', material: '기타' };
   const general = judgeDisposal({ ...base, aiGuess: guess('general') });
-  assert.equal(general.status, 'general'); assert.ok(general.aiAssisted); assert.ok(general.method.includes('종량제'));
+  assert.equal(general.status, 'check'); assert.ok(general.aiAssisted); assert.match(general.method, /종량제.*확인/);
+  assert.doesNotMatch(general.steps.join(' '), /담아 배출해 주세요/);
   assert.ok(general.reasons.some(reason => reason.includes('AI')));
   assert.equal(judgeDisposal({ ...base, aiGuess: guess('general', { confidence: 'medium' }) }).status, 'check');
   assert.ok(judgeDisposal({ ...base, aiGuess: guess('large') }).method.includes('대형폐기물'));

@@ -3,6 +3,8 @@
 import { validItemCategory } from './item-categories.js';
 
 const key = name => (typeof name === 'string' ? name.normalize('NFKC').replace(/\s+/g, '').toLowerCase() : '');
+export const BATTERY_PACKAGING_NAMES = ['건전지포장', '건전지포장재', '빈건전지포장', '건전지포장상자', '건전지포장비닐'];
+export const isBatteryPackaging = name => BATTERY_PACKAGING_NAMES.includes(key(name));
 
 // 이 낱말이 들어 있으면 어떤 종류로도 인식하지 않습니다. (약과·계약서처럼 '약'이 들어가도 약이 아닌 말 등)
 const NEVER = ['약과', '약수', '약속', '계약', '예약', '절약', '약간', '요약', '약국봉투', '약봉투', '약통', '약병', '약상자', '치약', '구두약', '모기약', '파리약', '쥐약', '농약', '염색약', '머리약', '화약', '폭약',
@@ -35,6 +37,7 @@ const RULES = [
 // 이름에서 물건 종류를 찾습니다. 찾지 못하거나 헷갈리면 null을 돌려줍니다.
 export function detectItemCategory(name) {
   const value = key(name);
+  if (isBatteryPackaging(value)) return { category: 'packaging', keyword: value };
   if (!value || NEVER.some(word => value.includes(word))) return null;
   for (const { category, words = [], ends = [] } of RULES) {
     const keyword = words.filter(word => value.includes(word)).sort((a, b) => b.length - a.length)[0]

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bindAssistance } from '../src/pages/assistance/assistance.js';
+import { queueInput } from '../src/services/input-draft.js';
 
 class Control extends EventTarget {
   value=''; disabled=false; hidden=false; isConnected=true; textContent=''; innerHTML=''; attributes=new Map();
@@ -16,9 +17,9 @@ class Control extends EventTarget {
 }
 const delayed=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
-const answer={itemName:'용기',identification:'설명에 적힌 용기예요.',method:'오염과 표시를 확인해 주세요.',confidence:'medium',evidence:'object',steps:['상태를 확인해 주세요.'],markings:[],cautions:[],questions:[]};
+const answer={itemName:'조립용 받침',identification:'설명에 적힌 물건이에요.',method:'오염과 표시를 확인해 주세요.',confidence:'medium',evidence:'object',steps:['상태를 확인해 주세요.'],markings:[],cautions:[],questions:[]};
 
-function setup(mode, options={}) {
+function setup(mode, { resume = false, ...options } = {}) {
   const form=new Control(),description=new Control(),submit=new Control(),cancel=new Control(),result=new Control(),status=new Control(),camera=new Control(),gallery=new Control(),remove=new Control(),preview=new Control(),image=new Control(),photoMessage=new Control(),photoStatus=new Control(),count=new Control(),previouslyDisabled=new Control();
   previouslyDisabled.disabled=true;
   const nodes={'[data-assist-form]':form,'[data-assist-status]':status,'[data-assist-result]':result,'[data-assist-cancel]':cancel,'[data-assist-preview]':preview,'[data-assist-image]':image,'[data-assist-remove]':remove,'[data-assist-photo-message]':photoMessage,'[data-assist-photo-status]':photoStatus,'[data-assist-count]':count,'#assist-description-error':new Control()};
@@ -26,6 +27,7 @@ function setup(mode, options={}) {
   form.elements={namedItem:key=>({description,camera,gallery})[key]};
   form.querySelector=()=>submit;
   form.querySelectorAll=()=>[description,submit,cancel,camera,gallery,remove,previouslyDisabled];
+  if (!resume) queueInput({ newSearch: true }, mode === 'photo' ? '/photo' : '/describe');
   const dispose=bindAssistance(mode,{root,bindRegion:()=>({validate:()=>true,get:()=>null}),...options});
   const send=()=>form.dispatchEvent(new Event('submit',{cancelable:true}));
   function followup(values) {
@@ -48,7 +50,7 @@ test('설명 모드는 중복 전송을 막고 취소 뒤 늦은 응답이 새 �
     ui.cancel.dispatchEvent(new Event('click'));assert.equal(firstSignal.aborted,true);assert.equal(ui.description.disabled,false);assert.equal(ui.previouslyDisabled.disabled,true);assert.match(ui.status.textContent,/취소/);
     ui.send();assert.equal(calls,2);
     first.resolve({...answer,itemName:'이전 답'});await flush();assert.equal(ui.submit.disabled,true);assert.ok(!ui.result.innerHTML.includes('이전 답'));
-    second.resolve(answer);await flush();assert.equal(ui.submit.disabled,false);assert.match(ui.result.innerHTML,/용기/);assert.equal(ui.result.hidden,false);
+    second.resolve(answer);await flush();assert.equal(ui.submit.disabled,false);assert.match(ui.result.innerHTML,/조립용 받침/);assert.equal(ui.result.hidden,false);
     ui.description.dispatchEvent(new Event('input'));assert.equal(ui.result.hidden,true,'설명을 고치면 이전 결과는 숨김');
   }finally{ui.dispose();}
 });
@@ -68,7 +70,8 @@ test('등록된 전용 품목명은 AI 없이 안내하고, AI가 확인한 품�
     ui.description.dispatchEvent(new Event('input'));
     ui.send(); await flush();
     assert.equal(calls, 1);
-    assert.match(ui.result.innerHTML, /의류·잡화 수거 대상과 상태 확인/);
+    assert.match(ui.result.innerHTML, /의류·잡화 상태는 어떤가요/);
+    assert.match(ui.result.innerHTML, /물건 상태 확인하기/);
     assert.doesNotMatch(ui.result.innerHTML, /종량제봉투에 넣으세요|옷은 항상/);
   } finally { ui.dispose(); }
 });
@@ -115,7 +118,7 @@ test('사진은 선택만으로 전송하지 않고 교체·삭제 뒤 오래된
   const one=delayed(),two=delayed();let preparations=0,calls=0,captured;
   const ui=setup('photo',{preparePhoto:()=>++preparations===1?one.promise:two.promise,request:async(value)=>{calls++;captured=value;return answer;}});
   try {
-    ui.send();assert.equal(calls,0);assert.match(ui.status.textContent,/사진을 먼저/);
+    ui.send();assert.equal(calls,0);assert.match(ui.photoMessage.textContent,/사진을 먼저/);
     ui.gallery.files=[{type:'image/jpeg',size:100}];ui.gallery.dispatchEvent(new Event('change'));assert.equal(ui.submit.disabled,true);
     ui.camera.files=[{type:'image/jpeg',size:200}];ui.camera.dispatchEvent(new Event('change'));
     one.resolve({image:{mimeType:'image/jpeg',data:'old'},preview:'old'});await flush();assert.equal(ui.image.src,undefined);
@@ -157,4 +160,25 @@ test('잘못된 새 사진은 기존 사진을 지우지 않고 사진 후속 �
     assert.deepEqual(calls[1].answers, [{ question, answer: '비웠어요' }]);
     assert.doesNotMatch(ui.result.innerHTML, /data-assist-followup-form/);
   } finally { ui.dispose(); }
+});
+
+test('설명으로 이동했다 돌아와도 사진과 설명을 유지하고 새 검색에서는 비운다', async () => {
+  const photo = setup('photo', { preparePhoto: async () => ({ image: { mimeType: 'image/jpeg', data: 'sample' }, preview: 'sample-preview' }) });
+  photo.description.value = '라벨 표시가 희미해요.';
+  photo.gallery.files = [{ type: 'image/jpeg', size: 123 }];
+  photo.gallery.dispatchEvent(new Event('change'));
+  await flush();
+  photo.dispose();
+  const describe = setup('description', { resume: true });
+  assert.equal(describe.description.value, '라벨 표시가 희미해요.');
+  describe.description.value += ' 본체는 가벼워요.';
+  describe.dispose();
+  const back = setup('photo', { resume: true });
+  assert.equal(back.description.value, '라벨 표시가 희미해요. 본체는 가벼워요.');
+  assert.equal(back.image.src, 'sample-preview');
+  back.dispose();
+  const fresh = setup('photo');
+  assert.equal(fresh.description.value, '');
+  assert.equal(fresh.image.src, undefined);
+  fresh.dispose();
 });

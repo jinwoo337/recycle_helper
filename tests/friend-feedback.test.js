@@ -116,6 +116,22 @@ test('종류 정보가 없는 AI 설명·사진 결과도 이름과 안내 문�
   assert.equal(inferCollectionHandling({ itemName: '리모컨 건전지', method: '', steps: [] }), 'battery');
   assert.equal(inferCollectionHandling({ itemName: '컵라면 용기', method: '플라스틱으로 배출', steps: ['내용물을 비워 주세요.'] }), null);
   assert.equal(inferCollectionHandling({ handling: 'large', itemName: '소파' }), null);
+  assert.equal(inferCollectionHandling({ itemName: '건전지 포장', ...judge('건전지 포장', gangnam) }), null);
+  const packageOnly = { itemName: '건전지 포장', material: '종이', type: 'paper', contaminated: 'no', combined: 'no' };
+  const packagingResult = judgeDisposal(packageOnly);
+  assert.match(packagingResult.method, /종이류/);
+  assert.match(packagingResult.steps[0], /전지가 남아 있지 않은지/);
+  assert.equal(judgeDisposal({ ...packageOnly, material: '모르겠어요' }).status, 'check');
+});
+
+test('철제 책상은 유성구 품목표의 형태 구분과 공식 신청 주소를 복사에도 유지한다', async () => {
+  const { resultToText } = await import('../src/domain/disposal/result-text.js');
+  const input = { itemName: '철제 책상', region: { province: '대전광역시', district: '유성구' } };
+  const result = judgeDisposal(input);
+  assert.equal(result.regional.coverage, 'verified');
+  assert.match(result.steps[0], /한쪽인지 양쪽인지/);
+  assert.match(resultToText(input, result), /yuseong\.go\.kr\/clean\/html\/sub03\/0301\.html/);
+  assert.match(resultToText(input, result), /yuseong\.go\.kr\/clean\/html\/sub02\/02\.html/);
 });
 
 import { sourceLineMarkup, localGuideMarkup } from '../src/pages/item-input/item-input.js';

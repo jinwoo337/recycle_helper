@@ -100,6 +100,9 @@
 .assist-questions { padding: 14px 16px; background: #f0f5fc; border: 1px solid #c6d4ea; border-radius: 9px; margin: 12px 0; }
 .assist-questions p { font-size: 14px; }
 .assist-result-actions { margin-top: 12px; }
+.assist-correction { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 16px; }
+.assist-correction .field { flex: 1 1 14rem; min-width: 0; }
+.assist-correction .button, [data-assist-describe] { min-height: 44px; }
 .assist-followup-field { margin: 16px 0; }
 .assist-followup-field > label { display: block; font-weight: 700; font-size: 15px; margin-bottom: 8px; line-height: 1.6; }
 .assist-followup-field input {

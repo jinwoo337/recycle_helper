@@ -1,4 +1,4 @@
-import { normalizeRegion } from './regions.js';
+import { normalizeRegion, REGIONAL_SOURCES } from './regions.js';
 import { METRO_GUIDES } from './metro-guides.js';
 import { cityGuide } from './city-guides.js';
 
@@ -22,7 +22,8 @@ export const DISTRICT_HOMEPAGES = {
   },
 };
 
-export const LARGE_WASTE_FEE_NOTE = '수수료는 구마다, 품목·크기마다 달라요. 보통 의자·작은 선반은 수천 원, 책상·소파·장롱·침대는 1만 원 이상인 경우가 많아요. 정확한 금액은 신고할 때 품목을 고르면 바로 나와요.';
+export const LARGE_WASTE_FEE_NOTE = '수수료는 지역과 품목·크기에 따라 달라요. 신청하기 전에 관할 지자체의 품목표에서 금액을 확인해 주세요.';
+export const YUSEONG_LARGE_WASTE_REPORT = 'https://www.yuseong.go.kr/clean/html/sub03/0301.html';
 export const LARGE_WASTE_STEPS = ['구청 누리집이나 동 주민센터에서 대형폐기물 배출을 신고해요.', '안내받은 수수료를 내고 신고필증(스티커·번호)을 받아요.', '필증을 물건에 붙이거나 번호를 적어 정해진 날짜·장소에 내놓아요.'];
 
 const LARGE_HANDLINGS = ['large', 'large-electronic'];
@@ -44,12 +45,13 @@ export function largeWasteHelp(result, regionValue = result?.region) {
   const city = region && !metroDistrict ? cityGuide(region) : null;
   const homepage = region ? DISTRICT_HOMEPAGES[region.province]?.[region.district] || metroDistrict?.home || city?.home || null : null;
   // 광역시 구·군청이나 시청의 대형폐기물 안내 페이지를 찾았으면 바로 연결합니다.
-  const reportUrl = metroDistrict?.large || city?.large || null;
+  const directReport = region?.province === '대전광역시' && region.district === '유성구';
+  const reportUrl = directReport ? YUSEONG_LARGE_WASTE_REPORT : metroDistrict?.large || city?.large || null;
   // 버튼에 쓰는 기관 이름: 광역시는 구·군, 큰 도시는 시 이름입니다.
   const office = city?.name || (region?.district ? region.district.split(' ').pop() : '');
   const query = `${place ? `${place} ` : ''}대형폐기물 배출 신고`;
   return {
-    place, office, homepage, reportUrl, query, maybe,
+    place, office, homepage, reportUrl, query, maybe, directReport, feeUrl: directReport ? REGIONAL_SOURCES.yuseongLargeFees : null,
     searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`,
     feeNote: LARGE_WASTE_FEE_NOTE, steps: LARGE_WASTE_STEPS,
   };

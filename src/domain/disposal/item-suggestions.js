@@ -1,5 +1,6 @@
 import { expandedItemEntries } from './expanded-catalog.js';
 import { ITEM_VARIANTS } from './item-variants.js';
+import { BATTERY_PACKAGING_NAMES } from './category-keywords.js';
 // 정확한 품목명만 일치시킵니다. 대표 구성은 별도 메타데이터로 관리합니다.
 export const bundledItemEntries = [
   [['우유팩', '두유팩', '주스팩', '쥬스팩', '멸균우유팩', '멸균팩', '종이팩'], '종이', 'carton'],
@@ -30,7 +31,7 @@ export const bundledItemEntries = [
   [['음식물', '과일껍질', '채소찌꺼기'], '음식물류', '', '단단한 껍데기·뼈·씨앗 포함 여부를 확인한 뒤 종류를 선택해 주세요.'],
 ];
 
-const localEntries = [...expandedItemEntries, ...bundledItemEntries];
+const localEntries = [...expandedItemEntries, ...bundledItemEntries, [BATTERY_PACKAGING_NAMES, '', '']];
 const aliases = { '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔' };
 export const normalizeItemName = name => {
   const value = typeof name === 'string' ? name.normalize('NFKC').trim().replace(/\s+/g, '').toLowerCase() : '';
@@ -104,7 +105,9 @@ export function searchItemNames(query, limit = 6) {
   if (!normalized || !Number.isInteger(limit) || limit < 1) return [];
   const raw = query.trim().toLowerCase();
   return suggestions.filter(entry => entry.key.includes(normalized) || entry.name.includes(raw))
-    .sort((a, b) => Number(!a.key.startsWith(normalized)) - Number(!b.key.startsWith(normalized)) || a.name.length - b.name.length)
+    .sort((a, b) => Number(b.name === raw) - Number(a.name === raw)
+      || Number(b.key === normalized) - Number(a.key === normalized)
+      || Number(b.key.startsWith(normalized)) - Number(a.key.startsWith(normalized)) || a.name.length - b.name.length)
     .slice(0, Math.min(limit, 10)).map(entry => entry.name);
 }
 

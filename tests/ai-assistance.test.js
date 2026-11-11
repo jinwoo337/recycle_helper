@@ -118,13 +118,35 @@ test('세 가지 찾기 모드를 구분하고 사진의 명시적 전송·촬�
   assert.match(description,/name="description"[^>]*required/);assert.doesNotMatch(description,/type="file"/);
   assert.match(photo,/capture="environment"/);assert.match(photo,/name="gallery"/);assert.match(photo,/원본 촬영 정보/);assert.match(photo,/Google Gemini/);
   assert.doesNotMatch(photo,/name="description"[^>]*required/);
-  const html=assistanceResultMarkup(answer({itemName:'<img src=x onerror=alert(1)>',steps:['<script>bad()</script>']}),input.region);
+  const html=assistanceResultMarkup(answer({itemName:'<img src=x onerror=alert(1)>',steps:['<script>bad()</script>'],questions:[]}),input.region);
   assert.ok(!html.includes('<script>'));assert.ok(!html.includes('<img src=x'));assert.match(html,/&lt;script&gt;/);assert.match(html,/거주지 수거 기준/);
   assert.match(layout('', 'photo', null),/href="#\/item-input" aria-current="page"/);
 });
 
+test('등록된 깨진 유리·투명 페트병은 Gemini의 지시보다 지역·상태 규칙을 우선한다', () => {
+  const generated = { method: '무조건 유리병 수거함으로', steps: ['유리병 수거함으로 바로 배출'], cautions: ['생성된 주의'], questions: ['재질은?'] };
+  const glass = assistanceResultMarkup(answer({ ...generated, itemName: '깨진 유리병' }), { province: '경기도', district: '김포시' });
+  assert.match(glass, /백색마대봉투/);
+  assert.doesNotMatch(glass, /유리병 수거함으로 바로 배출|생성된 주의|data-assist-followup-form/);
+  const bottle = assistanceResultMarkup(answer({ ...generated, itemName: '투명생수병' }), input.region, { mode: 'photo' });
+  assert.match(bottle, /물건 상태 확인하기/);
+  assert.doesNotMatch(bottle, /무조건|생성된 주의|data-assist-followup-form/);
+});
+
+test('사진 후보를 정정할 수 있고 미확인 답으로는 배출을 확정하지 않는다', () => {
+  const uncertain = validateAssistance(answer({ confidence: 'low', candidates: ['유리병', '깨진 유리', '유리병'] }));
+  assert.deepEqual(uncertain.candidates, ['유리병', '깨진 유리']);
+  const markup = assistanceResultMarkup(uncertain, input.region, { mode: 'photo' });
+  assert.match(markup, /data-assist-candidate="깨진 유리"/);
+  assert.match(markup, /data-assist-correction/);
+  const unknown = assistanceResultMarkup(answer({ itemName: '조립식 받침', method: '종량제로 바로 배출', questions: [] }), input.region,
+    { answers: [{ question: '재질은 무엇인가요?', answer: '모르겠어요' }] });
+  assert.match(unknown, /폐기물 담당 부서/);
+  assert.doesNotMatch(unknown, /종량제로 바로 배출/);
+});
+
 test('사진과 설명에 선택지와 직접 입력을 지원하고 기존 질문 형식도 해석한다',()=>{
-  const raw=answer({questions:[{text:'책상 몸체는 어떤 재질인가요?',options:['철제','나무']},{text:'대략 크기는요?',options:[]}]});
+  const raw=answer({itemName:'조립용 받침',questions:[{text:'책상 몸체는 어떤 재질인가요?',options:['철제','나무']},{text:'대략 크기는요?',options:[]}]});
   const parsed=validateAssistance(raw);
   assert.deepEqual(parsed.questions,['책상 몸체는 어떤 재질인가요?','대략 크기는요?']);assert.deepEqual(parsed.questionChoices,[['철제','나무'],[]]);
   assert.deepEqual(validateAssistance(parsed),parsed,'서버에서 정리한 선택지를 브라우저 재검증에서도 유지');
@@ -134,7 +156,7 @@ test('사진과 설명에 선택지와 직접 입력을 지원하고 기존 질�
   assert.match(assistanceInstruction(),/이전 질문과 사용자의 짧은 답변/);
   const html=assistanceResultMarkup(parsed,input.region);
   assert.match(html,/name="answer0"/);assert.match(html,/name="answer1"/);assert.match(html,/철제/);assert.match(html,/모르겠어요/);assert.match(html,/답변 반영하기/);
-  assert.ok(html.indexOf('data-assist-followup-form') < html.indexOf('현재 정보로 본 참고 안내'));
+  assert.doesNotMatch(html, /현재 정보로 본 참고 안내/);
   assert.deepEqual(validateAssistance(answer({ questions: ['기존 질문'] })).questions, ['기존 질문']);
 });
 
@@ -147,6 +169,6 @@ test('최초 설명과 누적 질문·답변을 분리해 전송하고 잘못된
   assert.deepEqual(assistanceParts(photo)[1].inlineData, image);
   assert.deepEqual(mergeAssistanceAnswers(answers,[{question:'재질은?',answer:'나무'},{question:'크기는?',answer:'120cm'}]),[{question:'재질은?',answer:'나무'},{question:'크기는?',answer:'120cm'}]);
   for(const bad of ['bad',Array(21).fill(answers[0]),[{question:'',answer:'철제'}],[{question:'재질은?',answer:' '}],[{question:'재질은?',answer:'가'.repeat(301)}]])assert.equal(parseAssistanceInput({...input,answers:bad}),null);
-  const escaped=assistanceResultMarkup(answer({questions:['<img onerror=alert(1)>']}),input.region,{mode:'description',answers:[{question:'<script>질문</script>',answer:'" onfocus="alert(1)'}]});
+  const escaped=assistanceResultMarkup(answer({itemName:'조립용 받침',questions:['<img onerror=alert(1)>']}),input.region,{mode:'description',answers:[{question:'<script>질문</script>',answer:'" onfocus="alert(1)'}]});
   assert.ok(!escaped.includes('<script>'));assert.ok(!escaped.includes('<img onerror'));assert.match(escaped,/&quot;/);
 });

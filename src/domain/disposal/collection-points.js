@@ -1,5 +1,6 @@
 import { normalizeRegion } from './regions.js';
 import { detectItemCategory } from './category-keywords.js';
+import { lookupItem } from './item-suggestions.js';
 
 // 전용 수거처가 필요한 물건은 지도에서 가까운 수거처를 찾을 수 있게 합니다.
 // "폐건전지 수거함" 같은 수거함 자체는 지도에 장소로 등록돼 있지 않아 검색이 안 되므로,
@@ -42,9 +43,12 @@ const TEXT_RULES = [
 export function inferCollectionHandling(result) {
   if (result?.handling === 'clothing' && result.handlingCondition === 'unusable') return null;
   if (POINTS[result?.handling]) return result.handling;
-  if (result?.handling) return null;
+  if (result?.handling || result?.ruleVersion) return null;
   const byName = detectItemCategory(result?.itemName || '')?.category;
   if (POINTS[byName]) return byName;
+  // 등록된 일반 품목이나 사용자가 직접 확인한 물건의 안내 문장에는
+  // 다른 품목을 피하라는 주의가 나올 수 있으므로 그 문장으로 수거처를 정하지 않습니다.
+  if (lookupItem(result?.itemName)?.material || /포장|상자|박스|케이스|라벨|뚜껑/.test(result?.itemName || '')) return null;
   const text = [result?.itemName, result?.method, ...(result?.steps || [])].filter(Boolean).join(' ');
   return TEXT_RULES.find(([pattern]) => pattern.test(text))?.[1] || null;
 }
