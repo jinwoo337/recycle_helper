@@ -1,4 +1,4 @@
-// 광역시가 아닌 시·군(인구 많은 순)의 시청 공식 안내 주소입니다(2026-11-11 확인).
+// 광역시가 아닌 시·군(인구 많은 순, 경기도는 31개 시·군 전체)의 시청·군청 공식 안내 주소입니다(2026-11-11 확인).
 // 품목별 문장은 정리하지 않았으므로 "지역 기준"이라고 하지 않고, 결과 화면에서 시청 안내로 바로 연결만 합니다.
 // recycle: 재활용품 배출 요령, food: 음식물, large: 대형폐기물 신고·안내. 찾지 못한 항목은 비워 두고 누리집으로 연결합니다.
 // 사용자는 "수원시 영통구"처럼 직접 입력하므로 첫 낱말(시·군 이름)로 찾습니다.
@@ -6,8 +6,8 @@ export const CITY_CHECKED_AT = '2026-11-11';
 
 export const CITY_GUIDES = {
   '경기도': {
-    수원시: { home: 'https://www.suwon.go.kr', recycle: 'https://www.suwon.go.kr/sw-www/deptHome/dep_env/env_03/env_03_09.jsp', large: 'https://www.suwon.go.kr/sw-www/deptHome/dep_env/env_03/env_03_11/env_03_01.jsp' },
-    고양시: { home: 'https://www.goyang.go.kr', recycle: 'https://www.goyang.go.kr/www/www03/www03_3/www03_3_2/www03_3_2_tab1.jsp' },
+    수원시: { home: 'https://www.suwon.go.kr', recycle: 'https://www.suwon.go.kr/sw-www/deptHome/dep_env/env_03/env_03_09.jsp', food: 'https://www.suwon.go.kr/sw-www/deptHome/dep_env/env_03/env_03_02_01.jsp', large: 'https://www.suwon.go.kr/sw-www/deptHome/dep_env/env_03/env_03_11/env_03_01.jsp' },
+    고양시: { home: 'https://www.goyang.go.kr', recycle: 'https://www.goyang.go.kr/www/www03/www03_3/www03_3_2/www03_3_2_tab1.jsp', food: 'https://www.goyang.go.kr/www/www03/www03_3/www03_3_3/www03_3_3_tab3.jsp', large: 'https://www.goyang.go.kr/www/www03/www03_3/www03_3_3/www03_3_3_tab2.jsp' },
     용인시: { home: 'https://www.yongin.go.kr', recycle: 'https://www.yongin.go.kr/home/www/www12/www12_08/www12_08_03/www12_08_03_03.jsp', food: 'https://www.yongin.go.kr/home/www/www12/www12_08/www12_08_03/www12_08_03_01.jsp', large: 'https://www.yongin.go.kr/home/www/www12/www12_08/www12_03/www12_03_02/www12_03_02_01.jsp' },
     화성시: { home: 'https://www.hscity.go.kr', recycle: 'https://www.hscity.go.kr/www/partInfo/trnsportEnvrn/trashProcessInfo.jsp', large: 'https://waste.hscity.go.kr/Waste/index.jsp' },
     성남시: { home: 'https://www.seongnam.go.kr', recycle: 'https://recycle.seongnam.go.kr/platforminfo/recycle/method', large: 'https://waste.isdc.co.kr' },
@@ -20,17 +20,23 @@ export const CITY_GUIDES = {
     김포시: { home: 'https://www.gimpo.go.kr', recycle: 'https://gimpo.go.kr/portal/contents.do?key=1435' },
     의정부시: { home: 'https://www.ui4u.go.kr', recycle: 'https://www.ui4u.go.kr/depart/contents.do?mId=0602030000', food: 'https://www.ui4u.go.kr/depart/contents.do?mId=0602050000', large: 'https://www.ui4u.go.kr/depart/contents.do?mId=0602040000' },
     안양시: { home: 'https://www.anyang.go.kr', recycle: 'https://www.anyang.go.kr/main/contents.do?key=806' },
-    광주시: { home: 'https://www.gjcity.go.kr' },
-    하남시: { home: 'https://www.hanam.go.kr' },
-    광명시: { home: 'https://www.gm.go.kr' },
-    군포시: { home: 'https://www.gunpo.go.kr' },
-    양주시: { home: 'https://www.yangju.go.kr' },
-    오산시: { home: 'https://www.osan.go.kr' },
-    이천시: { home: 'https://www.icheon.go.kr' },
-    구리시: { home: 'https://www.guri.go.kr' },
-    안성시: { home: 'https://www.anseong.go.kr' },
-    의왕시: { home: 'https://www.uiwang.go.kr' },
-    포천시: { home: 'https://www.pocheon.go.kr' },
+    광주시: { home: 'https://www.gjcity.go.kr', recycle: 'https://www.gjcity.go.kr/depart/contents.do?mId=0901050000' },
+    하남시: { home: 'https://www.hanam.go.kr', recycle: 'https://www.hanam.go.kr/www/contents.do?key=6421', large: 'https://www.hanam.go.kr/clean/main/index.php' },
+    광명시: { home: 'https://www.gm.go.kr', recycle: 'https://www.gm.go.kr/pt/partInfo/en/cleaning/lfgarbage/PTMN219.jsp', large: 'https://www.gm.go.kr/pt/partInfo/en/cleaning/lfgarbage/lfgarbage_01.jsp' },
+    군포시: { home: 'https://www.gunpo.go.kr', recycle: 'https://www.gunpo.go.kr/www/contents.do?key=4527', large: 'https://www.gunpo.go.kr/waste/index.do' },
+    양주시: { home: 'https://www.yangju.go.kr', recycle: 'https://www.yangju.go.kr/www/contents.do?key=689' },
+    오산시: { home: 'https://www.osan.go.kr', recycle: 'https://www.osan.go.kr/main/contents.do?mId=0605020000', large: 'https://www.osan.go.kr/waste/contents.do?mId=0100000000' },
+    이천시: { home: 'https://www.icheon.go.kr', recycle: 'https://www.icheon.go.kr/depart/contents.do?mid=0504020000', large: 'https://www.icheon.go.kr/depart/waste/index.do?mid=0505000000' },
+    구리시: { home: 'https://www.guri.go.kr', recycle: 'https://www.guri.go.kr/www/contents.do?key=765', large: 'https://www.guri.go.kr/www/contents.do?key=767' },
+    안성시: { home: 'https://www.anseong.go.kr', recycle: 'https://www.anseong.go.kr/depart/contents.do?mId=0702010000', large: 'https://www.anseong.go.kr/depart/contents.do?mId=0702040000' },
+    의왕시: { home: 'https://www.uiwang.go.kr', recycle: 'https://www.uiwang.go.kr/UWKORENV0303', large: 'https://www.uiwang.go.kr/UWKORENV0312' },
+    포천시: { home: 'https://www.pocheon.go.kr', large: 'https://waste.pocheon.go.kr/bcInfo/bcInfo.jsp' },
+    여주시: { home: 'https://www.yeoju.go.kr', recycle: 'https://www.yeoju.go.kr/www/contents.do?key=565' },
+    동두천시: { home: 'https://www.ddc.go.kr', recycle: 'https://www.ddc.go.kr/ddc/contents.do?key=489', large: 'https://www.ddc.go.kr/ddc/contents.do?key=1875' },
+    과천시: { home: 'https://www.gccity.go.kr', recycle: 'https://www.gccity.go.kr/dept/contents.do?mId=0604030200', large: 'https://www.gccity.go.kr/dept/contents.do?mId=0604010000' },
+    양평군: { home: 'https://www.yp21.go.kr', recycle: 'https://www.yp21.go.kr/www/contents.do?key=1458', large: 'https://www.yp21.go.kr/waste/index.do' },
+    가평군: { home: 'https://www.gp.go.kr', recycle: 'https://www.gp.go.kr/portal/contents.do?key=678', large: 'https://clean.gp.go.kr/bigWeb/order/viewOrder.do' },
+    연천군: { home: 'https://www.yeoncheon.go.kr', recycle: 'https://www.yeoncheon.go.kr/www/contents.do?key=3503' },
   },
   '경상남도': {
     창원시: { home: 'https://www.changwon.go.kr', recycle: 'https://www.changwon.go.kr/depart/contents.do?mId=1005010100', large: 'https://www.changwon.go.kr/depart/contents.do?mId=1004020000' },

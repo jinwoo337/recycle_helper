@@ -5,6 +5,9 @@ import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES } from './daejeon-gu
 import { SEOUL_SOURCES, SEOUL_RECYCLE_NOTES, SEOUL_SCOPE_NOTE, SEOUL_VINYL_NOTE } from './seoul-guides.js';
 import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } from './metro-guides.js';
 export { METRO_DISTRICTS } from './metro-guides.js';
+import { CITY_GUIDES } from './city-guides.js';
+// 직접 입력하는 시·도에서 추천으로 보여 줄 시·군 이름(시청 공식 안내가 있는 곳)입니다. 목록에 없는 이름도 입력할 수 있습니다.
+export const citySuggestionsFor = province => Object.keys(CITY_GUIDES[province] || {});
 // 구·군을 목록에서 고르는 시·도(서울·대전·광역시)의 구·군 이름입니다. 다른 시·도는 직접 입력합니다.
 export const districtsFor = province => province === '서울특별시' ? SEOUL_DISTRICTS
   : province === '대전광역시' ? DAEJEON_DISTRICTS : METRO_DISTRICTS[province] || [];
