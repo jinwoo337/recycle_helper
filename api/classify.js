@@ -193,6 +193,40 @@ export async function saveSharedGuess(name, guess, { fetcher = fetch, serviceKey
   } catch (error) { console.error('shared guesses save failed', error?.name); return false; }
 }
 
+// "틀렸어요" 신고: 그 이름(과 같은 물건의 별칭)의 공용 답을 숨겨 다른 사용자에게 더 이상 보이지 않게 합니다.
+// 숨긴 뒤에는 다음 사용자가 AI에게 새로 묻습니다(숨긴 줄은 덮어쓰지 않으므로 공용 저장은 다시 되지 않음).
+export async function hideSharedGuess(name, { fetcher = fetch, serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY } = {}) {
+  const key = normalizeItemName(name);
+  if (!key || !serviceKey) return false;
+  const quoted = `"${key.replace(/["\\]/g, '')}"`;
+  try {
+    const response = await fetcher(`${SHARED_TABLE}?or=${encodeURIComponent(`(name_key.eq.${quoted},canonical_key.eq.${quoted})`)}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: serviceKey, ...(serviceKey.startsWith('eyJ') ? { Authorization: `Bearer ${serviceKey}` } : {}),
+        'Content-Type': 'application/json', Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ hidden: true }), signal: AbortSignal.timeout(2_000),
+    });
+    if (!response.ok) { console.error('shared guesses hide failed', response.status); return false; }
+    return true;
+  } catch (error) { console.error('shared guesses hide failed', error?.name); return false; }
+}
+
+function forgetCached(name) {
+  const prefix = `${String(name).toLowerCase()}|`;
+  for (const key of [...cache.keys()]) if (key.startsWith(prefix)) cache.delete(key);
+}
+
+async function readBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  let text = typeof req.body === 'string' ? req.body : '';
+  if (!text && typeof req[Symbol.asyncIterator] === 'function') {
+    for await (const chunk of req) { text += chunk; if (text.length > 2_000) return null; }
+  }
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 function send(res, status, body, cacheSeconds = 0) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', cacheSeconds ? `public, max-age=3600, s-maxage=${cacheSeconds}` : 'no-store');
@@ -200,7 +234,18 @@ function send(res, status, body, cacheSeconds = 0) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); send(res, 405, { error: 'method_not_allowed' }); return; }
+  if (req.method === 'POST') {
+    const body = await readBody(req);
+    const reported = cleanAiName(body?.name);
+    if (body?.action !== 'report' || !reported) { send(res, 400, { error: 'invalid_report' }); return; }
+    const ip = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+    if (!allowRequest(ip)) { send(res, 429, { error: 'rate_limited' }); return; }
+    forgetCached(reported);
+    const hidden = await hideSharedGuess(reported);
+    send(res, 200, { reported: true, hidden });
+    return;
+  }
+  if (req.method !== 'GET') { res.setHeader('Allow', 'GET, POST'); send(res, 405, { error: 'method_not_allowed' }); return; }
   const name = cleanAiName(Array.isArray(req.query?.name) ? req.query.name[0] : req.query?.name);
   if (!name) { send(res, 400, { error: 'invalid_name' }); return; }
   // 등록된 품목은 기존 규칙을 쓰므로 AI를 부르지 않습니다. 단, mode=opinion이면 화면에 참고 의견으로만 보여 줄 AI 답을 받습니다.
@@ -221,11 +266,11 @@ export default async function handler(req, res) {
   const stateCode = Array.isArray(req.query?.state) ? req.query.state[0] : req.query?.state;
   const state = describeAiState(stateCode);
   const key = `${name.toLowerCase()}|${state}`;
-  if (cache.has(key)) { send(res, 200, cache.get(key), 604800); return; }
+  if (cache.has(key)) { send(res, 200, cache.get(key), 3600); return; }
   // 미등록 품목은 다른 사용자가 이미 물어본 답이 있으면 AI 없이 바로 돌려줍니다.
   if (!known && !state) {
     const shared = await readSharedGuess(name);
-    if (shared) { const body = { guess: shared, cached: 'shared' }; cache.set(key, body); send(res, 200, body, 604800); return; }
+    if (shared) { const body = { guess: shared, cached: 'shared' }; cache.set(key, body); send(res, 200, body, 3600); return; }
   }
   if (!process.env.GEMINI_API_KEY) { send(res, 503, { error: 'not_configured' }); return; }
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
@@ -237,7 +282,7 @@ export default async function handler(req, res) {
     if (answer && !known && !state) await saveSharedGuess(name, answer);
     if (guess) cache.set(key, { guess });
     if (cache.size > 2000) cache.delete(cache.keys().next().value);
-    send(res, 200, { guess }, guess ? 604800 : 0);
+    send(res, 200, { guess }, guess ? 3600 : 0);
   } catch (error) {
     console.error('classify failed', error?.message);
     if (isBusy(error)) { send(res, 503, { error: 'busy' }); return; }

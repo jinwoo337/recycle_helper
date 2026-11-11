@@ -58,5 +58,6 @@ export function guideForHandling(handling, condition) {
     reason = '손상이 없는 전지로 입력했어요.';
     steps = [batterySteps[0], batterySteps[2], '가까운 전지 전용 수거함이나 지정 회수처에 배출해 주세요.'];
   }
-  return {status, method, reasons:[reason, '수거 장소·제품 상태·지역별 접수 조건은 최종 확인이 필요해요.'], steps:[...steps]};
+  return {status, method, reasons:[reason, '수거 장소·제품 상태·지역별 접수 조건은 최종 확인이 필요해요.'], steps:[...steps],
+    ...(damaged ? { handling: 'damaged-battery' } : {}), ...(handling === 'clothing' && condition === 'unusable' ? { handlingCondition: condition } : {})};
 }

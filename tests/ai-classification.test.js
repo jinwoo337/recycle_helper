@@ -199,7 +199,8 @@ function fakeResponse() {
 
 test('서버 함수: 잘못된 요청·등록 품목·키 미설정', async () => {
   const call = async (method, name) => { const res = fakeResponse(); await handler({ method, query: { name }, headers: {} }, res); return res; };
-  assert.equal((await call('POST', '주걱')).statusCode, 405);
+  assert.equal((await call('PUT', '주걱')).statusCode, 405);
+  assert.equal((await call('POST', '주걱')).statusCode, 400, '신고 본문이 없는 POST는 거절');
   assert.equal((await call('GET', '')).statusCode, 400);
   assert.equal((await call('GET', 'x'.repeat(41))).statusCode, 400);
   const known = await call('GET', '우유팩');

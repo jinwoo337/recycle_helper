@@ -9,6 +9,8 @@ export const AI_NAME_MAX = 40;
 // 조건이 미확인인 기준 결과에 AI가 확정 경로를 제시한 경우도 재검토 대상입니다.
 export function aiOpinionNeedsReview(result, guess) {
   if (!result || !guess || guess.route === 'unknown' || result.status === 'mixed') return false;
+  // AI도 대형폐기물이라고 한 대형 생활용품·가전 결과는 같은 의견이라 경고하지 않습니다.
+  if (guess.route === 'large' && ['large', 'large-electronic'].includes(result.handling)) return false;
   if (result.status === 'check') return true;
   if (result.status === 'recycle') return guess.route !== 'recyclable';
   if (result.status === 'general') return guess.route !== 'general';

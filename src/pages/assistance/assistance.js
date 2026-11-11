@@ -5,7 +5,9 @@ import { getCurrentMember } from '../../services/auth.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
 import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel, resultRegionLabel } from '../../domain/disposal/regions.js';
 import { requestAssistance } from '../../services/ai-assistance.js';
-import { prepareAssistancePhoto } from '../../services/assistance-photo.js';
+import { prepareAssistancePhoto, PHOTO_ACCEPT } from '../../services/assistance-photo.js';
+import { stepListMarkup } from '../../components/step-list.js';
+import { collectionPointMarkup } from '../../components/collection-help.js';
 import { queueInput, takeQueuedInput } from '../../services/input-draft.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
@@ -50,7 +52,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], mode = 'd
   const hasQuestions = answer.questions.length > 0;
   const { method, steps } = guide || answer;
   const sources = guide?.sourceUrls.filter(url => url === RULE_SOURCE || Object.hasOwn(CATALOG_DETAIL_SOURCES, url) || Object.values(REGIONAL_SOURCES).includes(url)) || [];
-  const guidance = `<div class="assist-method"><h3>${escapeHtml(method)}</h3></div>${steps.length ? `<ol class="action-steps">${steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>` : '<p class="input-hint">입력을 보완하거나 제품 표시와 지역 수거 기준을 확인해 주세요.</p>'}`;
+  const guidance = `<div class="assist-method"><h3>${escapeHtml(method)}</h3></div>${steps.length ? stepListMarkup(steps) : '<p class="input-hint">입력을 보완하거나 제품 표시와 지역 수거 기준을 확인해 주세요.</p>'}`;
   return `<p class="eyebrow">${guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide ? resultRegionLabel(guide) : regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
     ${answer.identification ? `<p class="assist-identification">${escapeHtml(answer.identification)}</p>` : ''}
@@ -58,6 +60,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], mode = 'd
     ${answer.markings.length ? `<p class="assist-markings"><strong>AI가 읽은 표시</strong> ${answer.markings.map(escapeHtml).join(' · ')}</p>` : ''}
     ${hasQuestions ? followUpMarkup(answer, answers, mode) : guidance}
     ${hasQuestions && steps.length ? `<details class="assist-answer-history"><summary>${guide ? '이 물건이 맞다면 등록 안내 보기' : '현재 정보로 본 참고 안내'}</summary>${guidance}</details>` : ''}
+    ${!hasQuestions && steps.length ? collectionPointMarkup({ ...guide, itemName: answer.itemName, region, method, steps }) : ''}
     ${sources.length ? `<details class="assist-answer-history"><summary>등록 안내의 출처</summary><ul>${sources.map(url => `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a></li>`).join('')}</ul></details>` : ''}
     ${!guide && answer.cautions.length ? `<h3>주의할 점</h3>${list(answer.cautions)}` : ''}
     ${answers.length ? `<details class="assist-answer-history"><summary>지금까지 답한 내용 ${answers.length}개</summary><dl>${answers.map(pair => `<dt>${escapeHtml(pair.question)}</dt><dd>${escapeHtml(pair.answer)}</dd>`).join('')}</dl></details>` : ''}
@@ -73,8 +76,8 @@ export function assistancePage(mode = 'description') {
     ${inputModesMarkup(mode)}
     <form class="item-card assist-form" data-assist-form novalidate>
       ${photo ? `<section class="assist-photo" aria-labelledby="assist-photo-title"><h2 id="assist-photo-title">물건 사진</h2><p class="input-hint">물건 전체나 분리배출 표시가 잘 보이는 사진을 선택해 주세요.</p>
-        <div class="assist-photo-buttons"><label class="button secondary assist-file-label">사진 촬영<input type="file" name="camera" accept="image/jpeg,image/png,image/webp" capture="environment" aria-label="물건 사진 촬영"></label><label class="button secondary assist-file-label">사진 선택<input type="file" name="gallery" accept="image/jpeg,image/png,image/webp" aria-label="저장된 사진 선택"></label></div>
-        <p class="input-hint">JPG·PNG·WebP · 12MB 이하</p>
+        <div class="assist-photo-buttons"><label class="button secondary assist-file-label">사진 촬영<input type="file" name="camera" accept="${PHOTO_ACCEPT}" capture="environment" aria-label="물건 사진 촬영"></label><label class="button secondary assist-file-label">사진 선택<input type="file" name="gallery" accept="${PHOTO_ACCEPT}" aria-label="저장된 사진 선택"></label></div>
+        <p class="input-hint">JPG·PNG·WebP·HEIC · 12MB 이하</p>
         <figure class="assist-preview" data-assist-preview hidden><img data-assist-image alt="분석할 물건 사진 미리보기"><figcaption><span data-assist-photo-status></span><button type="button" class="history-action" data-assist-remove>사진 지우기</button></figcaption></figure>
         <p class="assist-photo-message" data-assist-photo-message role="status" aria-live="polite"></p></section>` : ''}
       ${photo ? `<details class="assist-extra"><summary>사진에 보이지 않는 정보 추가 (선택)</summary>${descriptionField}</details>` : descriptionField}

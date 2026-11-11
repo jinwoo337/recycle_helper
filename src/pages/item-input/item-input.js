@@ -3,7 +3,7 @@ import { getDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisp
 import { MATERIALS, TYPES, supportsState, needsWashQuestion, normalizePart, judgeDisposal, RULE_SOURCE, RULE_VERSION } from '../../domain/disposal/rules.js';
 import { suggestItemInfo, searchItemNames, lookupItem, normalizeItemName } from '../../domain/disposal/item-suggestions.js';
 import { validateAiGuess, aiOpinionNeedsReview } from '../../domain/disposal/ai-classification.js';
-import { requestAiGuess } from '../../services/ai-classify.js';
+import { requestAiGuess, reportAiGuess } from '../../services/ai-classify.js';
 import { aiToggleMarkup, bindAiToggle, readAiEnabled } from '../../components/ai-toggle.js';
 import { RECYCLE_MARKS, markById } from '../../domain/disposal/recycle-marks.js';
 import { encodeAiState } from '../../domain/disposal/ai-state.js';
@@ -12,7 +12,10 @@ import { getCatalogMessage, initializeItemCatalog } from '../../services/item-ca
 import { resultToolsMarkup, bindResultTools } from '../../components/result-tools.js';
 import { memberTools } from '../../services/member-tools.js';
 import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel, resultRegionLabel } from '../../domain/disposal/regions.js';
-import { queueInput, takeQueuedInput } from '../../services/input-draft.js';
+import { METRO_GUIDES } from '../../domain/disposal/metro-guides.js';
+import { cityGuide } from '../../domain/disposal/city-guides.js';
+import { DAEJEON_GUIDES } from '../../domain/disposal/daejeon-guides.js';
+import { queueDescription, queueInput, takeQueuedInput } from '../../services/input-draft.js';
 import { cleanSingleMaterialInput } from '../../domain/disposal/input-shortcuts.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
@@ -25,7 +28,10 @@ import { detectItemCategory } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
-import { inputModeSelectMarkup, bindInputModeSelect } from '../../components/input-modes.js';
+import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
+import { collectionPointMarkup } from '../../components/collection-help.js';
+import { stepListMarkup } from '../../components/step-list.js';
+import { inputModeSelectMarkup, photoShortcutMarkup, bindInputModeSelect } from '../../components/input-modes.js';
 import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
 import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
 
@@ -74,7 +80,7 @@ export function itemInputPage() {
     <button type="button" id="retry-catalog" class="history-action" hidden>품목 정보 다시 불러오기</button>
     <div class="item-grid"><form id="item-form" class="item-card" novalidate>
       <div class="item-basic-fields"><div class="field"><label for="item-name">물건 이름</label><div class="item-name-control"><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="item-name-options" aria-expanded="false" aria-describedby="item-name-status"><div id="item-name-options" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><p class="input-hint" id="item-name-status" role="status" aria-live="polite"></p>
-        <div class="ai-mode-controls">${aiToggleMarkup('ai-enabled')}${inputModeSelectMarkup('name')}</div>
+        <div class="ai-mode-controls">${aiToggleMarkup('ai-enabled')}${inputModeSelectMarkup('name')}${photoShortcutMarkup()}</div>
         <div id="ai-guess-box" class="ai-panel" hidden role="status" aria-live="polite"><p class="ai-panel-title" id="ai-guess-text"></p><p class="ai-panel-reason" id="ai-guess-status"></p><button type="button" class="button secondary" id="ai-guess-button" hidden>다시 묻기</button></div></div>
         <div class="example-items input-examples" aria-label="자주 찾는 물건">${['우유팩', '투명생수병', '과자봉지', '종이상자'].map(name => `<button class="history-action" type="button" data-item-example="${name}">${name}</button>`).join('')}</div></div>
         ${judgementRegionMarkup(getCurrentMember()?.region)}
@@ -88,9 +94,10 @@ export function itemInputPage() {
         <p class="input-hint" id="combination-hint">종이팩 코팅층은 그대로, 빨대·뚜껑만 확인해 주세요.</p>
         <div id="separable-question" hidden>${question('separable', '결합된 재질을 분리할 수 있나요?')}</div>
         </div></details>
-        <div id="components-section" hidden><details class="component-help"><summary>부속품 입력 도움말</summary><p class="input-hint">분리한 부속품도 상태를 확인해 주세요. 같은 재질·상태는 묶어 최대 5개까지 입력할 수 있어요. 복합재질 부속품은 ‘기타’를 선택하고, 페트병 뚜껑은 본체 처리 안내를 따라 주세요.</p></details><div id="component-fields"></div><button class="button secondary" type="button" id="add-component">부속품 추가</button></div>
+        <div id="components-section" hidden><details id="components-details" class="material-editor components-details" open><summary><span id="components-detected">부속품</span></summary><button class="history-action" type="button" id="copy-component-state" hidden>부속품에도 본체 상태 적용</button><details class="component-help"><summary>부속품 입력 도움말</summary><p class="input-hint">같은 재질과 상태는 묶어 최대 5개까지 입력할 수 있어요. 복합재질 부속품은 ‘기타’를 선택하고, 페트병 뚜껑은 본체 처리 안내를 따라 주세요.</p></details><div id="component-fields"></div><button class="button secondary" type="button" id="add-component">부속품 추가</button></details></div>
       </section>
       <div class="form-actions"><button type="submit" class="button primary">분리배출 방법 보기 <span aria-hidden="true">→</span></button><button type="button" class="button secondary" id="reset-item">새로 입력</button></div>
+      <button type="button" class="history-action describe-instead" data-describe-instead hidden>물건 설명으로 이어서 찾기</button>
       <p id="item-save-status" class="item-save-status" role="status" aria-live="polite"></p>
     </form>
     <section id="item-summary" class="item-card item-summary" hidden tabindex="-1" aria-labelledby="summary-title"></section>
@@ -101,6 +108,89 @@ export function itemInputPage() {
     </div></section>`;
 }
 
+// 아직 지역 기준을 확인하지 못한 지역(서울·대전 외 전국)은 전국 공통 기준으로 안내하고, 그 지역 공식 안내로 바로 연결합니다.
+// 지역 기준이 확인되지 않은 결과는 전국 공통 기준으로 안내했다고 알리고, 그 지역 공식 안내로 연결합니다.
+// 서울·대전은 지역 자료가 있지만 품목마다 다르므로(예: 약은 구 자료에 없음) "이 물건은" 자료가 없다고 구분해 말합니다.
+const SUPPORTED_PROVINCES = ['서울특별시', '대전광역시'];
+// 받침이 있으면 '은', 없으면 '는'(예: 연천군은, 경기도 김포시는).
+const topicParticle = word => { const code = String(word).charCodeAt(String(word).length - 1) - 0xac00; return code >= 0 && code <= 11171 && code % 28 ? '은' : '는'; };
+const outLink = (url, text) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)} ↗</a>`;
+// 광역시 구·군청의 공식 안내(재활용·음식물·대형폐기물) 바로가기입니다. 세부 페이지를 못 찾은 곳은 누리집으로 연결합니다.
+// 큰 도시(수원·고양 등)는 시청 안내로 연결합니다.
+export function districtLinksMarkup(region) {
+  const district = region && METRO_GUIDES[region.province]?.districts[region.district];
+  const city = district ? null : cityGuide(region);
+  const guide = district || city;
+  if (!guide) return '';
+  const name = city ? city.name : region.district;
+  const links = [['recycle', '재활용'], ['food', '음식물'], ['large', '대형폐기물']].filter(([key]) => guide[key]).map(([key, text]) => outLink(guide[key], text));
+  return `${escapeHtml(name)} 공식 안내: ${links.length ? links.join(' · ') : outLink(guide.home, `${name.slice(-1)}청 누리집`)}`;
+}
+export function localGuideMarkup(result, itemName = '') {
+  const region = result.region;
+  if (!region) return '';
+  const metro = METRO_GUIDES[region.province];
+  const withParts = (result.parts?.length || 0) > 1;
+  // 광역시: 시 공통 문장을 붙였어도 수거 요일·장소는 구청마다 달라서 구청 공식 안내 링크를 늘 보여 줍니다.
+  if (metro && metro.districts[region.district]) {
+    const links = districtLinksMarkup(region);
+    if (result.regional?.coverage === 'verified') return `<p class="local-guide-line">🏛️ ${links}</p>`;
+    const local = metro.city?.label || region.district;
+    const text = !metro.city ? `${escapeHtml(region.district)}의 품목별 기준은 아직 정리하지 못해 <strong>전국 공통 기준</strong>으로 안내했어요.`
+      : withParts ? `부속품이 함께 있는 물건이라 ${escapeHtml(local)} 기준 대신 재질별 <strong>전국 공통 기준</strong>으로 안내했어요.`
+      : `${escapeHtml(local)} 자료에는 이 물건의 배출 방법이 따로 나와 있지 않아 <strong>전국 공통 기준</strong>으로 안내했어요.`;
+    return `<p class="local-guide-line">🗺️ ${text} ${links}</p>`;
+  }
+  const city = cityGuide(region);
+  if (result.regional?.coverage === 'verified') return city ? `<p class="local-guide-line">🏛️ ${districtLinksMarkup(region)}</p>` : '';
+  // 큰 도시: 품목별 문장은 아직 없어서 전국 공통 기준이라고 밝히고, 시청 공식 안내로 바로 연결합니다.
+  if (city && !SUPPORTED_PROVINCES.includes(region.province)) {
+    return `<p class="local-guide-line">🗺️ ${escapeHtml(city.name)}의 품목별 기준은 아직 정리하지 못해 <strong>전국 공통 기준</strong>으로 안내했어요. ${districtLinksMarkup(region)}</p>`;
+  }
+  const place = [region.province, region.district].filter(Boolean).join(' ');
+  // 서울은 시 전체 자료라서 구 이름 대신 "서울시 자료"라고 씁니다. 대전은 구별 자료가 있습니다.
+  const local = region.province === '서울특별시' ? '서울시' : region.district || region.province;
+  const supported = SUPPORTED_PROVINCES.includes(region.province);
+  const url = `https://search.naver.com/search.naver?query=${encodeURIComponent(`${place} ${supported && itemName ? `${itemName} 버리는 방법` : '분리배출 방법 배출 요일'}`)}`;
+  // 지역 기준은 재질 하나짜리 물건에만 붙이므로, 라벨·뚜껑 같은 부속품이 함께 있으면 그 이유를 말합니다.
+  const text = supported
+    ? withParts
+      ? `부속품이 함께 있는 물건이라 ${escapeHtml(local)} 기준 대신 재질별 <strong>전국 공통 기준</strong>으로 안내했어요.`
+      : `${escapeHtml(local)} 자료에는 이 물건의 배출 방법이 따로 나와 있지 않아 <strong>전국 공통 기준</strong>으로 안내했어요.`
+    : `${escapeHtml(place)}${topicParticle(place)} 아직 지역 자료를 모으지 못해 <strong>전국 공통 기준</strong>으로 안내했어요.`;
+  return `<p class="local-guide-line">🗺️ ${text} <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(region.district || region.province)} 공식 안내 찾기 ↗</a></p>`;
+}
+export function largeWasteMarkup(result) {
+  const help = largeWasteHelp(result);
+  if (!help) return '';
+  return `<section class="large-waste-help" aria-labelledby="large-waste-title"><h3 id="large-waste-title">🪑 ${help.maybe ? '봉투에 안 들어가면 ' : ''}대형폐기물 신고하기${help.place ? ` · ${escapeHtml(help.place)}` : ''}</h3>
+    <ol>${help.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>
+    <p class="input-hint">💰 ${escapeHtml(help.feeNote)}</p>
+    <div class="large-waste-links">${help.reportUrl ? `<a class="button primary" href="${escapeHtml(help.reportUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.office)} 대형폐기물 안내 ↗</a>` : ''}${help.homepage ? `<a class="button secondary" href="${escapeHtml(help.homepage)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.office)}청 누리집 ↗</a>` : ''}<a class="button secondary" href="${escapeHtml(help.searchUrl)}" target="_blank" rel="noopener noreferrer">신고 페이지 찾기 ↗</a></div>
+    ${help.place ? '' : '<p class="input-hint">판별 지역을 고르면 우리 구 신고 페이지로 바로 안내해요.</p>'}</section>`;
+}
+const sourceLabel = url => url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url);
+// 결과를 펼치지 않아도 어떤 기준(공식 출처·확인일)으로 판단했는지 한 줄로 보여 줍니다.
+// 고른 지역의 자료 → 전국 자료(품목 사전·지침) 순으로 대표 출처를 고르고, 다른 지역(예: 대전인데 서울시) 자료는 대표로 쓰지 않습니다.
+const seoulUrl = url => /(^|\.)seoul\.go\.kr\//.test(new URL(url).hostname + '/');
+const daejeonDistrictOf = url => Object.entries(DAEJEON_GUIDES).find(([, guide]) => guide.recycle === url || guide.food === url)?.[0];
+export function sourceLineMarkup(result, sources) {
+  const region = result.region;
+  const regionScore = url => {
+    if (result.regional?.sources?.includes(url)) return 4;
+    if (seoulUrl(url)) return region?.province === '서울특별시' ? 3 : -1;
+    const district = daejeonDistrictOf(url);
+    if (district) return region?.province === '대전광역시' && region.district === district ? 3 : -1;
+    const metroProvince = Object.entries(METRO_GUIDES).find(([, guide]) => guide.city && [guide.city.recycle, guide.city.food].includes(url))?.[0];
+    if (metroProvince) return region?.province === metroProvince ? 3 : -1;
+    if (Object.values(REGIONAL_SOURCES).includes(url)) return -1;
+    return url === RULE_SOURCE ? 1 : 2;
+  };
+  const primary = [...sources].sort((a, b) => regionScore(b) - regionScore(a)).find(url => regionScore(url) >= 0);
+  const checkedAt = result.regional?.checkedAt || result.checkedAt;
+  if (!primary && !checkedAt) return '';
+  return `<p class="result-source-line">📌 ${checkedAt ? `${escapeHtml(checkedAt)} 확인한 기준` : '참고한 기준'}${primary ? ` · <a href="${escapeHtml(primary)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel(primary))} ↗</a>` : ''}</p>`;
+}
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
 export function resultMarkup(input, result, createdAt, { editRegion = false } = {}) {
   const updated = result.ruleVersion !== RULE_VERSION;
@@ -112,7 +202,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
   const labels = { yes: '네', no: '아니요', unknown: '모르겠어요', 'liquid-only': '내용물·고형물 없이 기름·물 자국만 남음', solids: '고형물이 남음' };
   const { parts, steps } = resultStepsForDisplay(result);
   const badge = input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
-  const handlingAnswer = handlingConditionQuestion(result.handling)?.options.find(([key]) => key === input.handlingCondition)?.[1];
+  const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const details = part => Object.entries(titles).filter(([key]) => part[key]).map(([key, title]) => {
     const value = key === 'type' ? TYPES[part.material]?.find(([value]) => value === part.type)?.[1] || part.type : labels[part[key]] || part[key];
     return `<div><dt>${title}</dt><dd>${escapeHtml(value)}</dd></div>`;
@@ -124,11 +214,14 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
     ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
     <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}">${badge !== result.method ? `<span class="result-badge">${badge}</span>` : ''}<h3>${escapeHtml(result.method)}</h3></div>
     <div class="result-region"><p class="input-hint">${escapeHtml(resultRegionLabel(result))}</p>${editRegion ? '<button type="button" class="history-action" data-edit-region>지역 변경</button>' : ''}</div>
-    ${steps.length ? `<h3>${parts.length ? '먼저 할 일' : result.status === 'check' ? '배출 전에 확인하세요' : '이렇게 배출하세요'}</h3><ol class="action-steps">${steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>` : ''}
-    ${parts.length ? `<h3>본체와 부속품 배출 방법</h3><div class="result-parts">${parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${part.steps.length ? list(part.steps) : ''}</article>`).join('')}</div>` : ''}
+    ${steps.length ? `<h3>${parts.length ? '먼저 할 일' : result.status === 'check' ? '배출 전에 확인하세요' : '이렇게 배출하세요'}</h3>${stepListMarkup(steps)}` : ''}
+    ${parts.length ? `<h3>본체와 부속품 배출 방법</h3><div class="result-parts">${parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${part.steps.length ? stepListMarkup(part.steps, 'part-steps') : ''}</article>`).join('')}</div>` : ''}
+    ${largeWasteMarkup(result)}
+    ${collectionPointMarkup({ ...result, itemName: input.itemName })}
+    ${localGuideMarkup(result, input.itemName)}
     ${regionalComparisonMarkup(input, result)}
     <div class="result-next-actions"><button type="button" class="button primary" data-new-item>다른 물건 찾기</button><button type="button" class="button secondary" id="edit-item">조건 수정</button></div>
-    <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${list(result.reasons)}${result.regional?.notes.length ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">확인일 ${escapeHtml(result.regional?.checkedAt || result.checkedAt || '미기록')} · ${escapeHtml(result.ruleVersion)} · ${sources.map(url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url === RULE_SOURCE ? '분리배출 지침' : escapeHtml(CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a>`).join(' · ')}</p></details>
+    <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${sourceLineMarkup(result, sources)}${list(result.reasons)}${result.regional?.notes.length ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">${sources.map(url => outLink(url, sourceLabel(url))).join(' · ')}</p></details>
     <details class="input-details"><summary>입력한 조건</summary><dl><div><dt>물건</dt><dd>${escapeHtml(input.itemName)}</dd></div>${input.category ? `<div><dt>${result.keywordCategory ? '이름으로 알아본 종류' : '직접 선택한 종류'}</dt><dd>${escapeHtml(categoryLabel(input.category))}</dd></div>` : ''}${handlingAnswer ? `<div><dt>물건 상태</dt><dd>${handlingAnswer}</dd></div>` : ''}${details(input)}</dl>${(input.components || []).map((part, index) => `<h4>${escapeHtml(part.label || `부속품 ${index + 1}`)}</h4><dl>${details(part)}</dl>`).join('')}</details>
     <p class="input-hint" data-record-save-status role="status"></p>
     ${resultToolsMarkup(input)}`;
@@ -144,6 +237,12 @@ export function bindItemInput() {
   });
   const summary = document.getElementById('item-summary');
   const nameInput = form.elements.namedItem('itemName');
+  const describeInstead = form.querySelector('[data-describe-instead]');
+  describeInstead.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    queueDescription(name ? `${name}인데, 상태는 ` : '');
+    location.hash = '/describe';
+  });
   const disposeModeSelect = bindInputModeSelect(form, path => {
     if (path !== '/item-input') queueInput({ description: nameInput.value.trim() }, path);
   });
@@ -176,6 +275,8 @@ export function bindItemInput() {
   const aiToggle = document.getElementById('ai-enabled');
   // 이름별 AI 의견 상태: { status: 'loading' | 'done' | 'error', guess, error, promise }
   const opinions = new Map();
+  // 이 화면에서 "틀렸어요"를 누른 이름(정규화). 신고 상태: 'sending' | 'done' | 오류 문구
+  const reports = new Map();
   const catalogStatus = document.getElementById('catalog-status');
   const retryCatalog = document.getElementById('retry-catalog');
   let catalogLoading = false;
@@ -216,6 +317,34 @@ export function bindItemInput() {
       if (!show) { if (control.type === 'radio') control.checked = false; else control.value = ''; }
     });
   }
+  function componentSummaryText() {
+    const names = Array.from({ length: componentCount }, (_, index) => {
+      const material = value(`part${index}-material`);
+      const type = TYPES[material]?.find(([id]) => id === value(`part${index}-type`))?.[1];
+      return type ? `${material}(${type.split('·')[0].trim()})` : material;
+    }).filter(Boolean);
+    return names.length ? `부속품 ${names.join(', ')}` : '부속품 재질을 골라 주세요';
+  }
+  function linkComponentStates() {
+    const answer = value('currentState');
+    if (!['clean', 'dirty', 'washed-dirty'].includes(answer)) return;
+    for (let index = 0; index < componentCount; index++) {
+      const prefix = `part${index}-`;
+      const radios = [...form.querySelectorAll(`[name="${prefix}currentState"]`)];
+      const pick = radios.find(radio => radio.value === answer && !radio.disabled) || (answer === 'washed-dirty' ? radios.find(radio => radio.value === 'dirty' && !radio.disabled) : null);
+      if (!pick) continue;
+      pick.checked = true;
+      writeValues(stateAnswers(pick.value, needsWashQuestion(partValue(prefix))), prefix);
+      // 오염이 있을 때 이어지는 "남은 오염을 제거할 수 있나요?"도 본체 답을 같이 씁니다.
+      const removable = value('removable');
+      const follow = removable && form.querySelector(`[name="${prefix}removable"][value="${removable}"]`);
+      if (follow) follow.checked = true;
+    }
+    updateConditional();
+    draft = collect();
+  }
+  const copyComponentState = document.getElementById('copy-component-state');
+  copyComponentState.addEventListener('click', linkComponentStates);
   function syncPart(node, active = true) {
     const prefix = node.dataset.prefix;
     const materialSelect = form.elements.namedItem(`${prefix}material`);
@@ -300,6 +429,8 @@ export function bindItemInput() {
     const combined = supported && value('combined') === 'yes';
     toggle(document.getElementById('separable-question'), combined);
     const components = combined && value('separable') === 'yes';
+    describeInstead.hidden = !hasName || dedicated;
+    copyComponentState.hidden = !components || !['clean', 'dirty', 'washed-dirty'].includes(value('currentState'));
     document.getElementById('composition-detected').textContent = value('combined') === 'no' ? '다른 재질 없음' : combined
       ? `다른 재질 있음 · ${value('separable') === 'yes' ? '분리 가능' : value('separable') === 'no' ? '분리 어려움' : '분리 가능 여부 확인'}` : '다른 재질이 붙어 있나요?';
     document.getElementById('components-section').hidden = !components;
@@ -307,6 +438,7 @@ export function bindItemInput() {
       if (components) syncPart(node);
       else node.querySelectorAll('input, select').forEach(control => { control.disabled = true; });
     });
+    document.getElementById('components-detected').textContent = componentSummaryText();
     const typeLabel = TYPES[value('material')]?.find(([type]) => type === value('type'))?.[1];
     form.querySelectorAll('[data-mark]').forEach(button => { const mark = markById(button.dataset.mark); button.setAttribute('aria-pressed', String(mark.material === value('material') && mark.type === value('type'))); });
     document.getElementById('material-detected').textContent = [value('material'), typeLabel].filter(Boolean).join(' · ') || '재질·종류를 선택해 주세요';
@@ -426,8 +558,10 @@ export function bindItemInput() {
     if (verifiedNameGuide(name)) { panel.closest('details').remove(); return; }
     const known = Boolean(lookupItem(name));
     const entry = shownResult?.aiGuess ? { status: 'done', guess: shownResult.aiGuess } : opinions.get(aiKey(name, shownAiState()));
+    const report = reports.get(normalizeItemName(name));
     let body;
-    if (!entry || entry.status === 'loading') body = '<p class="ai-panel-title">AI에게 물어보고 있어요…</p>';
+    if (report === 'done') body = `<p class="ai-panel-title">알려 주셔서 고마워요 🙏</p><p class="ai-note">이 AI 답은 숨겨서 다른 사용자에게 더 이상 보이지 않아요.${shownResult?.aiAssisted ? ' 아래 <strong>조건 수정</strong>에서 물건 종류와 재질을 직접 골라 다시 확인해 주세요.' : ''}</p>`;
+    else if (!entry || entry.status === 'loading') body = '<p class="ai-panel-title">AI에게 물어보고 있어요…</p>';
     else if (entry.status === 'error') body = `<p class="ai-panel-title">AI 의견을 받지 못했어요</p><p class="ai-panel-reason">${escapeHtml(entry.error)}</p><button type="button" class="button secondary" data-ai-retry>다시 묻기</button>`;
     else if (!entry.guess) body = '<p class="ai-panel-title">AI가 이 물건을 분류하지 못했어요</p>';
     else {
@@ -454,6 +588,7 @@ export function bindItemInput() {
   });
   summary.addEventListener('click', event => {
     if (event.target.closest('[data-ai-retry]') && shownInput) askAi(shownInput.itemName, shownAiState());
+    if (event.target.closest('[data-ai-report]') && shownInput) reportWrongAi(shownInput.itemName);
   });
   const aiSwitch = bindAiToggle(aiToggle, enabled => {
     aiEnabled = enabled;
@@ -464,6 +599,19 @@ export function bindItemInput() {
     }
     refreshAi();
   });
+  async function reportWrongAi(name) {
+    const key = normalizeItemName(name);
+    if (!key || reports.get(key) === 'sending' || reports.get(key) === 'done') return;
+    reports.set(key, 'sending'); renderOpinion();
+    try {
+      await reportAiGuess(name);
+      reports.set(key, 'done');
+      for (const opinionKey of [...opinions.keys()]) if (opinionKey.startsWith(`${key}|`)) opinions.delete(opinionKey);
+      opinions.set(aiKey(name), { status: 'done', guess: null, promise: Promise.resolve(null) });
+      if (aiGuess && normalizeItemName(aiGuess.itemName) === key) aiGuess = null;
+    } catch (error) { reports.set(key, error.message); }
+    if (form.isConnected) refreshAi();
+  }
   function attachOpinionPanel() {
     if (verifiedNameGuide(shownInput?.itemName)) return;
     if (summary.querySelector('#ai-opinion')) return;
@@ -690,6 +838,7 @@ export function bindItemInput() {
     // 이름을 바꾸면 이전 물품의 상태와 부속품 답변을 새 물품에 사용하지 않습니다.
     form.querySelectorAll('input[type="radio"]').forEach(control => { control.checked = false; });
     componentCount = Math.max(1, preset.components?.length || 0); drawComponents();
+    document.getElementById('components-details').open = true;
     form.elements.namedItem('material').value = preset.material;
     form.elements.namedItem('type').value = '';
     for (let pass = 0; pass < 3; pass++) {
@@ -709,6 +858,9 @@ export function bindItemInput() {
       ? '이름에 맞는 정보를 채웠어요. 실제 제품과 다르면 수정해 주세요.'
       : nameInput.value.trim() ? '자동 입력할 수 있는 이름이 아니에요. 실제 재질과 세부 종류를 직접 선택해 주세요.' : '물건 이름을 입력하면 알려진 품목의 재질 정보를 채워요.';
   }
+  // 이름 칸을 벗어날 때 생기는 change는 입력 때 이미 처리한 값이면 건너뜁니다.
+  // (다시 처리하면 AI·저장된 답으로 골라 둔 종류와 답한 상태가 지워져 판별 버튼이 막혔습니다.)
+  let handledName = null;
   function changed(event) {
     if (event.isComposing) return;
     if (event.target.name === 'judgementDistrict' && event.target.type === 'text' && event.type === 'input') return;
@@ -797,6 +949,7 @@ export function bindItemInput() {
     const parts = collect().components;
     if (!parts || componentCount >= 5) return;
     replaceComponents([...parts, {}]);
+    document.getElementById('components-details').open = true;
     form.elements.namedItem(`part${componentCount - 1}-material`).focus();
   });
   document.getElementById('component-fields').addEventListener('click', event => {
