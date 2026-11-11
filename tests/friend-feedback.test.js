@@ -129,7 +129,7 @@ test('대전 유성구에서 약을 찾으면 서울시 자료를 대표 출처�
   assert.doesNotMatch(guide, /확인하지 못해/);
   const seoul = judge('약', gangnam);
   assert.match(sourceLineMarkup(seoul, seoul.sourceUrls), /서울시/);
-  assert.match(localGuideMarkup(judge('약', { province: '경기도', district: '수원시' }), '약'), /아직 지역 자료를 모으지 못해/);
+  assert.match(localGuideMarkup(judge('약', { province: '경기도', district: '연천군' }), '약'), /아직 지역 자료를 모으지 못해/);
 });
 
 test('대형폐기물 신고 안내는 큰 물건에만 붙고 옷·도자기에는 붙이지 않는다', () => {
