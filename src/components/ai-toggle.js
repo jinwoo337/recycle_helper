@@ -17,8 +17,9 @@ export function writeAiEnabled(enabled) {
 export function aiToggleMarkup(id, { compact = false } = {}) {
   const safe = escapeHtml(id);
   return `<label class="ai-toggle is-switch-only${compact ? ' is-compact' : ''}" data-ai-toggle title="AI 사용 켜기/끄기">
-    <input type="checkbox" id="${safe}" role="switch" aria-label="이름 검색 AI 사용">
+    <input type="checkbox" id="${safe}" role="switch" aria-label="이름 검색 AI 자동 제안">
     <span class="ai-toggle-track" aria-hidden="true"><span class="ai-toggle-label on">ON</span><span class="ai-toggle-label off">OFF</span></span>
+    <span class="ai-toggle-caption">AI 자동 제안</span>
   </label>`;
 }
 

@@ -4,7 +4,8 @@ import { ASSIST_IMAGE_TYPES, ASSIST_IMAGE_MAX, ASSIST_UPLOAD_MAX } from '../doma
 export const PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
 const HEIC_TYPES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
 const HEIC_CONVERTER = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
-export const isHeicFile = file => HEIC_TYPES.includes(file?.type) || (!file?.type || file.type === 'application/octet-stream') && /\.hei[cf]$/i.test(file?.name || '');
+const unspecifiedType = file => !file?.type || file.type === 'application/octet-stream';
+export const isHeicFile = file => HEIC_TYPES.includes(file?.type) || unspecifiedType(file) && /\.hei[cf]$/i.test(file?.name || '');
 
 let converterLoading;
 function loadHeicConverter() {
@@ -12,8 +13,15 @@ function loadHeicConverter() {
   converterLoading ||= new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = HEIC_CONVERTER; script.async = true;
-    script.onload = () => globalThis.heic2any ? resolve(globalThis.heic2any) : reject(new Error('missing'));
-    script.onerror = () => reject(new Error('load'));
+    const finish = () => {
+      clearTimeout(timer);
+      script.remove();
+      if (globalThis.heic2any) resolve(globalThis.heic2any);
+      else reject(new Error('HEIC converter unavailable'));
+    };
+    const timer = setTimeout(finish, 10_000);
+    script.onload = finish;
+    script.onerror = finish;
     document.head.append(script);
   }).catch(error => { converterLoading = null; throw error; });
   return converterLoading;
@@ -45,7 +53,8 @@ async function openPhoto(file) {
 
 // 브라우저에서 다시 그려 크기를 줄이고 촬영 위치 등 원본 메타데이터를 전송하지 않습니다.
 export async function prepareAssistancePhoto(file) {
-  if (!file || !(ASSIST_IMAGE_TYPES.includes(file.type) || isHeicFile(file))) throw new Error('JPG·PNG·WebP·HEIC 사진을 선택해 주세요.');
+  const imageExtension = unspecifiedType(file) && /\.(jpe?g|png|webp)$/i.test(file?.name || '');
+  if (!file || !(ASSIST_IMAGE_TYPES.includes(file.type) || isHeicFile(file) || imageExtension)) throw new Error('JPG·PNG·WebP·HEIC 사진을 선택해 주세요.');
   if (!file.size || file.size > ASSIST_UPLOAD_MAX) throw new Error('12MB 이하의 사진을 선택해 주세요.');
   const { image, url } = await openPhoto(file);
   try {

@@ -2,7 +2,7 @@ import { escapeHtml } from '../../utils/html.js';
 import { getDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisposalHistory } from '../../services/disposal-history.js';
 import { MATERIALS, TYPES, supportsState, needsWashQuestion, normalizePart, judgeDisposal, RULE_SOURCE, RULE_VERSION } from '../../domain/disposal/rules.js';
 import { suggestItemInfo, searchItemNames, lookupItem, normalizeItemName } from '../../domain/disposal/item-suggestions.js';
-import { validateAiGuess, aiOpinionNeedsReview, suggestedItemCategory } from '../../domain/disposal/ai-classification.js';
+import { cleanAiName, validateAiGuess, aiOpinionNeedsReview, suggestedItemCategory } from '../../domain/disposal/ai-classification.js';
 import { requestAiGuess, reportAiGuess } from '../../services/ai-classify.js';
 import { aiToggleMarkup, bindAiToggle, readAiEnabled } from '../../components/ai-toggle.js';
 import { RECYCLE_MARKS, markById } from '../../domain/disposal/recycle-marks.js';
@@ -19,7 +19,7 @@ import { queueInput, takeQueuedInput } from '../../services/input-draft.js';
 import { cleanSingleMaterialInput } from '../../domain/disposal/input-shortcuts.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
-import { stateAnswers, selectedState } from '../../domain/disposal/input-state.js';
+import { linkedComponentState, stateAnswers, selectedState } from '../../domain/disposal/input-state.js';
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
@@ -31,7 +31,7 @@ import { readJudgementRegion, rememberJudgementRegion } from '../../services/jud
 import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
 import { collectionPointMarkup } from '../../components/collection-help.js';
 import { stepListMarkup } from '../../components/step-list.js';
-import { inputModeSelectMarkup, photoShortcutMarkup, bindInputModeSelect } from '../../components/input-modes.js';
+import { inputModesMarkup, bindInputModes } from '../../components/input-modes.js';
 import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
 import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
 import { checklistMarkup } from '../../components/disposal-checklist.js';
@@ -102,8 +102,9 @@ export function itemInputPage() {
     <p id="catalog-status" class="input-hint" role="status" aria-live="polite"></p>
     <button type="button" id="retry-catalog" class="history-action" hidden>품목 정보 다시 불러오기</button>
     <div class="item-grid"><form id="item-form" class="item-card" novalidate>
+      ${inputModesMarkup('name')}
       <div class="item-basic-fields"><div class="field"><label for="item-name">물건 이름</label><div class="item-name-control"><input id="item-name" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자 봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="item-name-options" aria-expanded="false" aria-describedby="item-name-status"><div id="item-name-options" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div></div><p class="input-hint" id="item-name-status" role="status" aria-live="polite"></p>
-        <div class="ai-mode-controls">${aiToggleMarkup('ai-enabled')}${inputModeSelectMarkup('name')}${photoShortcutMarkup()}</div></div>
+        <div class="ai-mode-controls">${aiToggleMarkup('ai-enabled')}</div></div>
         <div class="example-items input-examples" aria-label="자주 찾는 물건">${['우유팩', '투명생수병', '과자봉지', '종이상자'].map(name => `<button class="history-action" type="button" data-item-example="${name}">${name}</button>`).join('')}</div></div>
         ${judgementRegionMarkup(getCurrentMember()?.region)}
         ${categoryFields()}
@@ -116,7 +117,7 @@ export function itemInputPage() {
         <p class="input-hint" id="combination-hint">종이팩 코팅층은 그대로, 빨대·뚜껑만 확인해 주세요.</p>
         <div id="separable-question" hidden>${question('separable', '결합된 재질을 분리할 수 있나요?')}</div>
         </div></details>
-        <div id="components-section" hidden><details id="components-details" class="material-editor components-details" open><summary><span id="components-detected">부속품</span></summary><button class="history-action" type="button" id="copy-component-state" hidden>부속품에도 본체 상태 적용</button><details class="component-help"><summary>부속품 입력 도움말</summary><p class="input-hint">같은 재질과 상태는 묶어 최대 5개까지 입력할 수 있어요. 복합재질 부속품은 ‘기타’를 선택하고, 페트병 뚜껑은 본체 처리 안내를 따라 주세요.</p></details><div id="component-fields"></div><button class="button secondary" type="button" id="add-component">부속품 추가</button></details></div>
+        <div id="components-section" hidden><details id="components-details" class="material-editor components-details" open><summary><span id="components-detected">부속품</span></summary><button class="history-action" type="button" id="copy-component-state" hidden>부속품에도 본체 상태 적용</button><p class="input-hint component-copy-status" id="component-copy-status" role="status"></p><details class="component-help"><summary>부속품 입력 도움말</summary><p class="input-hint">같은 재질과 상태는 묶어 최대 5개까지 입력할 수 있어요. 복합재질 부속품은 ‘기타’를 선택하고, 페트병 뚜껑은 본체 처리 안내를 따라 주세요.</p></details><div id="component-fields"></div><button class="button secondary" type="button" id="add-component">부속품 추가</button></details></div>
       </section>
       <div class="form-actions"><button type="submit" class="button primary" id="show-disposal">분리배출 방법 보기 <span aria-hidden="true">→</span></button><button type="button" class="button secondary" id="reset-item">새로 입력</button></div>
       <p id="item-save-status" class="item-save-status" role="status" aria-live="polite"></p>
@@ -262,14 +263,15 @@ export function bindItemInput() {
   const summary = document.getElementById('item-summary');
   const nameInput = form.elements.namedItem('itemName');
   const describeInstead = form.querySelector('[data-describe-instead]');
-  const handoff = path => queueInput({ description: nameInput.value.trim(), sourceName: nameInput.value.trim(), newSearch: !nameInput.value.trim() }, path);
+  const handoff = path => {
+    const name = nameInput.value.trim();
+    queueInput({ description: name, sourceName: name, newSearch: !name, region: judgementRegion.get() }, path);
+  };
   describeInstead.addEventListener('click', () => {
     handoff('/describe');
     location.hash = '/describe';
   });
-  const disposeModeSelect = bindInputModeSelect(form, path => {
-    if (path !== '/item-input') handoff(path);
-  });
+  const disposeModes = bindInputModes(form, handoff);
   const saveStatus = document.getElementById('item-save-status');
   const fieldError = document.createElement('p');
   fieldError.className = 'field-error';
@@ -354,24 +356,24 @@ export function bindItemInput() {
     return names.length ? `부속품 ${names.join(', ')}` : '부속품 재질을 골라 주세요';
   }
   function linkComponentStates() {
-    const answer = value('currentState');
-    if (!['clean', 'dirty', 'washed-dirty'].includes(answer)) return;
+    clearFieldError();
+    const body = partValue('');
+    let applied = 0;
     for (let index = 0; index < componentCount; index++) {
       const prefix = `part${index}-`;
-      const radios = [...form.querySelectorAll(`[name="${prefix}currentState"]`)];
-      const pick = radios.find(radio => radio.value === answer && !radio.disabled) || (answer === 'washed-dirty' ? radios.find(radio => radio.value === 'dirty' && !radio.disabled) : null);
-      if (!pick) continue;
-      pick.checked = true;
-      writeValues(stateAnswers(pick.value, needsWashQuestion(partValue(prefix))), prefix);
-      // 오염이 있을 때 이어지는 "남은 오염을 제거할 수 있나요?"도 본체 답을 같이 씁니다.
-      const removable = value('removable');
-      const follow = removable && form.querySelector(`[name="${prefix}removable"][value="${removable}"]`);
-      if (follow) follow.checked = true;
+      const answers = linkedComponentState(body, partValue(prefix));
+      if (!answers) continue;
+      writeValues(answers, prefix);
+      applied++;
     }
     updateConditional();
     draft = collect();
+    componentCopyStatus.textContent = applied
+      ? `부속품 ${applied}개의 상태에 반영했어요. 남은 질문은 각 부속품에서 확인해 주세요.`
+      : '상태를 적용하려면 부속품의 재질과 종류를 먼저 선택해 주세요.';
   }
   const copyComponentState = document.getElementById('copy-component-state');
+  const componentCopyStatus = document.getElementById('component-copy-status');
   copyComponentState.addEventListener('click', linkComponentStates);
   function syncPart(node, active = true, materialOnly = false) {
     const prefix = node.dataset.prefix;
@@ -463,7 +465,9 @@ export function bindItemInput() {
     const combined = supported && value('combined') === 'yes';
     toggle(document.getElementById('separable-question'), combined);
     const components = combined && value('separable') === 'yes';
-    if (unregistered && !category.value) categoryGuidance.textContent = '이 이름으로 확정된 배출 기준이 없어요. AI가 제안한 종류를 확인하면 필요한 질문만 보여 드려요.';
+    if (unregistered && !category.value) categoryGuidance.textContent = verifiedNameGuide(nameInput.value)
+      ? '다른 물건이라면 이름을 고치거나 실제 용도와 재질을 확인해 주세요.'
+      : '이 이름으로 확정된 배출 기준이 없어요. AI가 제안한 종류를 확인하면 필요한 질문만 보여 드려요.';
     if (isBatteryPackaging(nameInput.value) && category.value === 'packaging') {
       categorySection.open = true;
       categoryGuidance.textContent = '전지를 빼고 남은 포장만 판별해요. 종이·플라스틱 등 실제 재질 표시를 확인해 주세요.';
@@ -497,7 +501,7 @@ export function bindItemInput() {
   const aiKey = (name, state = '') => `${normalizeItemName(name)}|${state}`;
   function askAi(name, state = '', { manual = false } = {}) {
     const key = aiKey(name, state);
-    if ((!aiEnabled && !manual) || !normalizeItemName(name) || verifiedNameGuide(name)) return Promise.resolve();
+    if ((!aiEnabled && !manual) || !cleanAiName(name) || verifiedNameGuide(name)) return Promise.resolve();
     const existing = opinions.get(key);
     if (existing?.status === 'loading' || (existing?.status === 'done' && (!manual || suggestedItemCategory(existing.guess)))) return existing.promise;
     const known = Boolean(lookupItem(name)?.material);
@@ -568,6 +572,13 @@ export function bindItemInput() {
     }
     aiBox.hidden = !hasName || Boolean(verified || suggestion || category.value || category.disabled);
     if (aiBox.hidden) return;
+    if (!cleanAiName(name)) {
+      aiBox.classList.remove('is-loading');
+      aiButton.hidden = true;
+      aiText.textContent = '';
+      aiStatus.textContent = '물건 이름을 40자 이내로 줄이거나 용도·표시를 설명해 주세요.';
+      return;
+    }
     const status = canSuggest ? entry?.status : '';
     aiBox.classList.toggle('is-loading', status === 'loading');
     aiButton.setAttribute('aria-disabled', String(status === 'loading'));
@@ -626,7 +637,7 @@ export function bindItemInput() {
     if (aiEnabled) {
       const name = nameInput.value.trim();
       if (name && !category.value && !lookupItem(name)?.material && summary.hidden) askAi(name);
-      if (!summary.hidden && shownInput) { attachOpinionPanel(); askAi(shownInput.itemName, shownAiState()); }
+      if (!summary.hidden && shownInput && attachOpinionPanel()) askAi(shownInput.itemName, shownAiState());
     }
     else {
       clearTimeout(prefetchTimer); aiGuess = null;
@@ -648,9 +659,11 @@ export function bindItemInput() {
     if (form.isConnected) refreshAi();
   }
   function attachOpinionPanel() {
-    if (verifiedNameGuide(shownInput?.itemName)) return;
-    if (summary.querySelector('#ai-opinion')) return;
-    summary.querySelector('.result-evidence')?.insertAdjacentHTML('beforebegin', '<details class="result-evidence"><summary>AI 의견 보기</summary><section id="ai-opinion" class="ai-panel ai-opinion" aria-live="polite"></section></details>');
+    if (verifiedNameGuide(shownInput?.itemName) || (shownInput?.category && !shownResult?.aiAssisted)) return false;
+    if (!summary.querySelector('#ai-opinion')) {
+      summary.querySelector('.result-evidence')?.insertAdjacentHTML('beforebegin', '<details class="result-evidence"><summary>AI 의견 보기</summary><section id="ai-opinion" class="ai-panel ai-opinion" aria-live="polite"></section></details>');
+    }
+    return true;
   }
   function collect() {
     const input = { itemName: nameInput.value.trim(), ...normalizePart(partValue('')), region: judgementRegion.get() };
@@ -683,6 +696,7 @@ export function bindItemInput() {
   }
   function replaceComponents(parts) {
     clearFieldError();
+    componentCopyStatus.textContent = '';
     componentCount = parts.length;
     drawComponents();
     parts.forEach((part, index) => writeValues({ material: part.material || '', label: part.label || '' }, `part${index}-`));
@@ -747,6 +761,7 @@ export function bindItemInput() {
   }
   function restore(input) {
     clearFieldError();
+    componentCopyStatus.textContent = '';
     const editCategory = input.editCategory;
     keywordCategoryEnabled = input.keywordCategory !== false;
     input = prepareCategoryInput(input);
@@ -784,7 +799,10 @@ export function bindItemInput() {
     const editingInput = inputForDisplay(input, result);
     shownRecordId = recordId;
     summary.innerHTML = resultMarkup(input, result, createdAt, { editRegion: true });
-    if (!createdAt && (aiEnabled || shownResult.aiGuess || opinions.get(aiKey(input.itemName))?.guess?.shared)) { attachOpinionPanel(); renderOpinion(); if (!shownResult.aiGuess) askAi(input.itemName, shownAiState()); }
+    if (!createdAt && (aiEnabled || shownResult.aiGuess || opinions.get(aiKey(input.itemName))?.guess?.shared) && attachOpinionPanel()) {
+      renderOpinion();
+      if (!shownResult.aiGuess) askAi(input.itemName, shownAiState());
+    }
     summary.hidden = false; form.hidden = true;
     summary.focus({ preventScroll: true }); summary.scrollIntoView({ behavior: 'auto', block: 'start' });
     document.getElementById('category-other')?.addEventListener('click', () => {
@@ -925,6 +943,7 @@ export function bindItemInput() {
     const textField = event.target.type === 'text' && event.target.name !== 'judgementDistrict';
     if ((event.type === 'change' && textField) || (event.type === 'input' && !textField)) return;
     clearFieldError();
+    componentCopyStatus.textContent = '';
     const changedName = event.target === nameInput && currentNameKey !== normalizeItemName(nameInput.value);
     if (event.target === nameInput && !changedName) { draft.itemName = nameInput.value.trim(); return; }
     // 사전에 없는 이름이면 이름 속 낱말로 물건 종류를 자동으로 골라 둡니다. 사용자가 바꿀 수 있습니다.
@@ -950,7 +969,7 @@ export function bindItemInput() {
     }
     if (event.target.name?.endsWith('currentState')) {
       const prefix = event.target.closest('.part-fields').dataset.prefix;
-      writeValues(stateAnswers(event.target.value, needsWashQuestion(partValue(prefix))), prefix);
+      writeValues({ washed: '', removable: '', vinylResidue: '', ...stateAnswers(event.target.value, needsWashQuestion(partValue(prefix))) }, prefix);
     }
     nameInput.setCustomValidity(''); saveStatus.textContent = '';
     if (event.target === nameInput && !aiMatches(nameInput.value.trim())) aiGuess = null;
@@ -978,7 +997,7 @@ export function bindItemInput() {
   function scheduleAiPrefetch() {
     clearTimeout(prefetchTimer);
     const name = nameInput.value.trim();
-    if (!name || category.value || lookupItem(name)?.material || verifiedNameGuide(name)) return;
+    if (!cleanAiName(name) || category.value || lookupItem(name)?.material || verifiedNameGuide(name)) return;
     // 저장된 답 조회는 가벼워서 0.3초, AI는 0.7초 기다린 뒤 묻습니다.
     prefetchTimer = setTimeout(() => {
       if (form.isConnected && !category.value && nameInput.value.trim() === name) {
@@ -1104,5 +1123,5 @@ export function bindItemInput() {
   window.addEventListener('favorites-changed', renderFavorites);
   // 홈 검색·기록에서 이름을 가져온 경우에도 저장된 답(또는 AI 의견)을 바로 찾아봅니다.
   if (nameInput.value.trim()) scheduleAiPrefetch();
-  return () => { disposeModeSelect(); aiSwitch.dispose(); recentVersion++; favoriteVersion++; clearTimeout(prefetchTimer); autocomplete.dispose(); disposeResultTools(); window.removeEventListener('favorites-changed', renderFavorites); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', windowFocused); };
+  return () => { disposeModes(); aiSwitch.dispose(); recentVersion++; favoriteVersion++; clearTimeout(prefetchTimer); autocomplete.dispose(); disposeResultTools(); window.removeEventListener('favorites-changed', renderFavorites); window.removeEventListener('storage', storageChanged); window.removeEventListener('focus', windowFocused); };
 }

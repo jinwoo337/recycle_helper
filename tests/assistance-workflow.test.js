@@ -28,12 +28,17 @@ function setup(mode, { resume = false, ...options } = {}) {
   form.querySelector=()=>submit;
   form.querySelectorAll=()=>[description,submit,cancel,camera,gallery,remove,previouslyDisabled];
   if (!resume) queueInput({ newSearch: true }, mode === 'photo' ? '/photo' : '/describe');
-  const dispose=bindAssistance(mode,{root,bindRegion:()=>({validate:()=>true,get:()=>null}),...options});
+  result.hidden = true;
+  const dispose=bindAssistance(mode,{root,bindRegion:(_form, initial)=>({validate:()=>true,get:()=>initial}),...options});
   const send=()=>form.dispatchEvent(new Event('submit',{cancelable:true}));
   function followup(values) {
     const fields=values.map(value=>Object.assign(new Control(),{value})),followupForm=new Control(),followupCancel=new Control(),followupStatus=new Control(),button=new Control();
     followupForm.elements={namedItem:key=>fields[Number(key.replace('answer',''))]};
-    result.querySelector=key=>key==='[data-assist-followup-cancel]'?followupCancel:key==='[data-assist-followup-status]'?followupStatus:null;
+    result.querySelector = key => ({
+      '[data-assist-followup-form]': followupForm,
+      '[data-assist-followup-cancel]': followupCancel,
+      '[data-assist-followup-status]': followupStatus,
+    })[key] || null;
     result.querySelectorAll=()=>[...fields,button,followupCancel];
     result.closest=key=>key==='[data-assist-followup-form]'?followupForm:null;
     return {fields,form:followupForm,cancel:followupCancel,status:followupStatus,send:()=>result.dispatchEvent(new Event('submit',{cancelable:true}))};
@@ -71,8 +76,13 @@ test('등록된 전용 품목명은 AI 없이 안내하고, AI가 확인한 품�
     ui.send(); await flush();
     assert.equal(calls, 1);
     assert.match(ui.result.innerHTML, /의류·잡화 상태는 어떤가요/);
-    assert.match(ui.result.innerHTML, /물건 상태 확인하기/);
+    assert.match(ui.result.innerHTML, /data-assist-handling="reusable"/);
     assert.doesNotMatch(ui.result.innerHTML, /종량제봉투에 넣으세요|옷은 항상/);
+    ui.result.closest = selector => selector === '[data-assist-handling]' ? { dataset: { assistHandling: 'reusable' } } : null;
+    ui.result.dispatchEvent(new Event('click'));
+    assert.equal(calls, 1, '선택한 상태는 AI 재요청 없이 등록 기준으로 판별');
+    assert.match(ui.result.innerHTML, /재사용 가능한 의류·잡화 · 전용 수거함 확인/);
+    assert.match(ui.result.innerHTML, /물건 상태 · 깨끗하고 다시 쓸 수 있어요/);
   } finally { ui.dispose(); }
 });
 
@@ -181,4 +191,36 @@ test('설명으로 이동했다 돌아와도 사진과 설명을 유지하고 �
   assert.equal(fresh.description.value, '');
   assert.equal(fresh.image.src, undefined);
   fresh.dispose();
+});
+
+test('사진으로 돌아오면 이전 결과와 작성 중인 답을 복원하고 지역이 바뀌면 결과만 갱신한다', async () => {
+  const question = '내용물이 남아 있나요?';
+  let calls = 0;
+  const request = async () => { calls++; return { ...answer, questions: [question] }; };
+  const photo = setup('photo', {
+    preparePhoto: async () => ({ image: { mimeType: 'image/jpeg', data: 'sample' }, preview: 'sample-preview' }),
+    request,
+  });
+  photo.description.value = '플라스틱 부속품이 있어요.';
+  photo.gallery.files = [{ type: 'image/jpeg', size: 123 }];
+  photo.gallery.dispatchEvent(new Event('change'));
+  await flush();
+  photo.send();
+  await flush();
+  photo.followup(['조금 남았어요']);
+  photo.dispose();
+
+  setup('description', { resume: true }).dispose();
+  const back = setup('photo', { resume: true, request });
+  assert.equal(back.result.hidden, false);
+  assert.match(back.result.innerHTML, /value="조금 남았어요"/);
+  assert.equal(back.image.src, 'sample-preview');
+  assert.equal(calls, 1);
+  back.dispose();
+
+  queueInput({ region: { province: '서울특별시', district: '노원구' } }, '/photo');
+  const changedRegion = setup('photo', { resume: true, request });
+  assert.equal(changedRegion.result.hidden, true);
+  assert.equal(changedRegion.image.src, 'sample-preview');
+  changedRegion.dispose();
 });

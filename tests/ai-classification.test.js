@@ -268,3 +268,44 @@ test('서버 함수: 공용 저장소에 있으면 Gemini를 부르지 않고 �
     if (previous.key === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = previous.key;
   }
 });
+
+test('종류 확인 요청은 분류할 수 없는 공용 답을 넘기고 구체적인 AI 제안을 돌려준다', async () => {
+  const previousKey = process.env.GEMINI_API_KEY;
+  const previousServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const previousFetch = globalThis.fetch;
+  const itemName = '브랜드 전용 조립 부속품';
+  let modelCalls = 0;
+  process.env.GEMINI_API_KEY = 'test-key';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key';
+  globalThis.fetch = async (url, init = {}) => {
+    if (url.includes(':generateContent')) {
+      modelCalls++;
+      assert.ok(JSON.parse(init.body).generationConfig.responseSchema.required.includes('category'));
+      const modelAnswer = {
+        material: '플라스틱', type: 'container', route: 'recyclable',
+        category: 'packaging', confidence: 'high', reason: '플라스틱 포장 용기', aliases: [],
+      };
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(modelAnswer) }] } }] }) };
+    }
+    if (url.includes('/v1beta/models?')) return { ok: true, json: async () => ({ models: [] }) };
+    if (init.method === 'POST') return { ok: true };
+    return { ok: true, json: async () => [{ material: '기타', item_type: '', route: 'general', confidence: 'high' }] };
+  };
+  try {
+    const request = { method: 'GET', query: { name: itemName, mode: 'identify' }, headers: {} };
+    const first = fakeResponse();
+    await handler(request, first);
+    assert.equal(first.statusCode, 200);
+    assert.equal(JSON.parse(first.body).guess.category, 'packaging');
+    const second = fakeResponse();
+    await handler(request, second);
+    assert.equal(JSON.parse(second.body).guess.category, 'packaging');
+    assert.equal(modelCalls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousKey;
+    if (previousServiceKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = previousServiceKey;
+  }
+});

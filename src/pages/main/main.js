@@ -8,13 +8,17 @@ import { voiceButtonMarkup, bindVoiceInput } from '../../components/voice-input.
 import { getDisposalHistory } from '../../services/disposal-history.js';
 import { collectionDaysMarkup, bindCollectionDays } from '../../components/collection-days.js';
 import { readJudgementRegion } from '../../services/judgement-region.js';
-import { inputModeSelectMarkup, photoShortcutMarkup, bindInputModeSelect } from '../../components/input-modes.js';
+import { inputModesMarkup, bindInputModes } from '../../components/input-modes.js';
+import { getCurrentMember } from '../../services/auth.js';
+
+let homeDraft = { owner: '', itemName: '' };
+
 export function mainPage(member) {
   return `<section class="container home-page">
     <header class="home-heading"><p class="eyebrow">버리기 전, 한 번만 확인해요</p><h1>이건 어디에 버릴까요?</h1><p>물건 이름으로 찾고, 내 물건의 상태에 맞게 분리배출하세요.</p></header>
-    <form id="quick-search" class="quick-search home-search" novalidate><label for="quick-item">어떤 물건을 버리려고 하나요?</label><div class="quick-search-row"><div class="item-name-control home-item-control"><input id="quick-item" name="itemName" type="text" maxlength="80" required placeholder="예: 우유팩, 생수병, 과자봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="quick-items" aria-expanded="false" aria-describedby="quick-name-error quick-item-status"><div id="quick-items" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div>${voiceButtonMarkup('home-voice')}</div><button class="button primary" type="submit">배출 방법 찾기 <span aria-hidden="true">→</span></button></div>
+    <form id="quick-search" class="quick-search home-search" novalidate>${inputModesMarkup('name')}<label for="quick-item">어떤 물건을 버리려고 하나요?</label><div class="quick-search-row"><div class="item-name-control home-item-control"><input id="quick-item" name="itemName" type="text" maxlength="80" required placeholder="예: 나무젓가락, 생수병, 과자봉지" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="quick-items" aria-expanded="false" aria-describedby="quick-name-error quick-item-status"><div id="quick-items" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div>${voiceButtonMarkup('home-voice')}</div><button class="button primary" type="submit">배출 방법 찾기 <span aria-hidden="true">→</span></button></div>
       <p id="quick-name-error" class="field-error" role="alert"></p><p id="quick-item-status" class="input-hint" role="status" aria-live="polite"></p>
-      <div class="example-items" aria-label="자주 찾는 물건"><span>자주 찾아요</span>${['우유팩', '투명생수병', '과자봉지'].map(name => `<button class="history-action" type="button" data-example="${name}">${name}</button>`).join('')}</div><div class="ai-mode-controls">${aiToggleMarkup('home-ai-enabled', { compact: true })}${inputModeSelectMarkup('name')}${photoShortcutMarkup()}</div>${member ? '' : '<p class="input-hint">로그인 없이 찾을 수 있어요.</p>'}</form>
+      <div class="example-items" aria-label="자주 찾는 물건"><span>자주 찾아요</span>${['나무젓가락', '투명생수병', '과자봉지'].map(name => `<button class="history-action" type="button" data-example="${name}">${name}</button>`).join('')}</div><div class="ai-mode-controls">${aiToggleMarkup('home-ai-enabled', { compact: true })}</div>${member ? '' : '<p class="input-hint">로그인 없이 찾을 수 있어요.</p>'}</form>
     <section id="home-recent" class="home-recent" aria-labelledby="home-recent-title" hidden><h2 id="home-recent-title">최근 찾은 물건</h2><div class="home-recent-items" id="home-recent-items"></div></section>
     ${collectionDaysMarkup(readJudgementRegion(member))}
     <nav class="home-shortcuts" aria-label="주요 기능 바로가기">
@@ -42,13 +46,15 @@ function homeIcon(name) {
 export function bindMain() {
   const form = document.getElementById('quick-search');
   const input = form.elements.itemName;
+  const owner = getCurrentMember()?.id || 'guest';
+  if (homeDraft.owner === owner) input.value = homeDraft.itemName;
   const nameError = document.getElementById('quick-name-error');
   function clearNameError() { nameError.textContent = ''; input.removeAttribute('aria-invalid'); }
   input.addEventListener('input', clearNameError);
   const autocomplete = bindItemAutocomplete({ input, options: document.getElementById('quick-items'), status: document.getElementById('quick-item-status'), search: searchItemNames,
     onSelect: () => form.requestSubmit(),
     onCompositionEnd: clearNameError,
-    noResultsMessage: '등록된 이름이 없어요. ‘배출 방법 찾기’에서 종류·재질 표시를 고르거나, 아래에서 설명·사진으로 이어서 찾을 수 있어요.' });
+    noResultsMessage: '등록된 이름이 없어요. ‘배출 방법 찾기’에서 AI로 종류를 알아보거나, 설명·사진으로 찾을 수 있어요.' });
   form.addEventListener('submit', event => {
     event.preventDefault();
     autocomplete.close();
@@ -60,14 +66,23 @@ export function bindMain() {
     input.value = button.dataset.example; form.requestSubmit();
   }));
   const aiSwitch = bindAiToggle(document.getElementById('home-ai-enabled'));
-  const disposeModeSelect = bindInputModeSelect(form, path => {
-    if (path !== '/item-input') queueInput({ description: input.value.trim(), sourceName: input.value.trim(), newSearch: true }, path);
+  const disposeModes = bindInputModes(form, path => {
+    const name = input.value.trim();
+    queueInput({ description: name, sourceName: name, newSearch: !name }, path);
   });
   const disposeVoice = bindVoiceInput(document.getElementById('home-voice'), input, { status: document.getElementById('quick-item-status'), onResult: () => { autocomplete.close(); form.requestSubmit(); } });
   const disposeCollection = bindCollectionDays(document.querySelector('.home-page'));
   let active = true;
   renderRecent(form, () => active);
-  return () => { active = false; disposeCollection(); autocomplete.dispose(); aiSwitch.dispose(); disposeVoice(); disposeModeSelect(); };
+  return () => {
+    homeDraft = { owner, itemName: input.value };
+    active = false;
+    disposeCollection();
+    autocomplete.dispose();
+    aiSwitch.dispose();
+    disposeVoice();
+    disposeModes();
+  };
 }
 
 // 최근에 찾아본 물건(최대 6개)을 버튼으로 보여 줘서 한 번에 다시 찾게 합니다. 기록이 없거나 불러오지 못하면 숨깁니다.

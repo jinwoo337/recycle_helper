@@ -4,7 +4,7 @@
   gap: 6px;
   margin: 12px 0 16px;
 }
-.input-modes a {
+.input-modes > :is(a, span) {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,8 +18,9 @@
   font-weight: 600;
   word-break: keep-all;
 }
-.input-modes a[aria-current] { background: #eaf5ee; border-color: var(--green); color: var(--green); }
-.ai-mode-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; max-width: 100%; }
+.input-modes [aria-current] { background: #eaf5ee; border-color: var(--green); color: var(--green); }
+.home-search > .input-modes, #item-form > .input-modes { margin-top: 0; }
+.ai-mode-controls { margin-top: 8px; }
 .ai-mode-controls .ai-toggle.is-switch-only, #item-form .ai-mode-controls .ai-toggle.is-switch-only {
   display: inline-flex;
   flex: none;
@@ -31,21 +32,9 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  gap: 0;
+  gap: 8px;
 }
-.ai-mode-controls .input-mode-select {
-  width: 220px;
-  max-width: calc(100% - 76px);
-  min-height: 44px;
-  padding: 9px 32px 9px 12px;
-  border: 1px solid #b8c9be;
-  border-radius: 9px;
-  background-color: #fff;
-  color: #253b31;
-  font: inherit;
-  font-size: 14px;
-}
-.photo-shortcut { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--green); font-size: 13px; font-weight: 600; }
+.ai-toggle-caption { color: var(--muted); font-size: 13px; font-weight: 600; }
 .assist-page { max-width: 820px; padding-block: 28px 48px; }
 .assist-page .item-heading { margin-bottom: 16px; }
 .assist-form .field { margin-top: 16px; }
@@ -131,7 +120,7 @@
 @media (max-width: 600px) {
   .assist-page { padding-top: 20px; }
   .assist-page .item-card { padding: 16px; }
-  .input-modes a { font-size: 12px; }
+  .input-modes > :is(a, span) { font-size: 12px; }
   .assist-description-meta { flex-wrap: wrap; }
   .assist-description-meta span { margin-left: auto; }
   .assist-form .assist-submit-row > .primary, .assist-followup-actions > .primary { width: 100%; }

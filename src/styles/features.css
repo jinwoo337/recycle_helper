@@ -49,6 +49,7 @@
 .manual-category > summary { min-height: 44px; align-content: center; color: var(--green); cursor: pointer; }
 .manual-category-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .item-category-section .history-action { min-height: 44px; }
+.component-copy-status:empty { display: none; }
 .item-page:has(#item-summary:not([hidden])) .item-heading { display: none; }
 #item-form .field-error {
   margin: 8px 0 0;

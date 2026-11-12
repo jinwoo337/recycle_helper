@@ -1,5 +1,5 @@
 import { escapeHtml } from '../../utils/html.js';
-import { inputModesMarkup } from '../../components/input-modes.js';
+import { inputModesMarkup, bindInputModes } from '../../components/input-modes.js';
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
@@ -25,7 +25,7 @@ const titles = { description: '물건 설명하기', photo: '사진으로 인식
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
 let assistanceDraft = {}, descriptionOwner;
 
-function registeredGuide(name, region, { infer = true } = {}) {
+function registeredGuide(name, region, { infer = true, condition } = {}) {
   if (isBatteryPackaging(name)) return { needsConditions: true, hint: '전지가 없는 포장만 선택하고 실제 재질 표시를 확인해 주세요.' };
   const item = lookupItem(name);
   if (!item?.material) {
@@ -36,20 +36,35 @@ function registeredGuide(name, region, { infer = true } = {}) {
   }
   const input = itemPresetInput(name);
   const prompt = handlingConditionQuestion(item.handling);
-  if (prompt || !input.type && !item.handling || supportsState(input) || input.material === '음식물류' && input.type === 'soft') {
-    return { needsConditions: true, hint: prompt?.title || '실제 재질 표시와 본체·부속품 상태를 확인해 주세요.' };
+  if (prompt) {
+    if (!prompt.options.some(([value]) => value === condition)) return { needsConditions: true, prompt };
+    return { ...judgeDisposal({ ...input, region, handlingCondition: condition }), prompt, condition };
+  }
+  if (!input.type && !item.handling || supportsState(input) || input.material === '음식물류' && input.type === 'soft') {
+    return { needsConditions: true, hint: '실제 재질 표시와 본체·부속품 상태를 확인해 주세요.' };
   }
   return judgeDisposal({ ...input, region });
+}
+
+function handlingPromptMarkup(guide) {
+  if (!guide?.prompt) return '';
+  const { prompt, condition } = guide;
+  const choices = `<div class="assist-answer-options" role="group" aria-label="${escapeHtml(prompt.title)}">${prompt.options.map(([value, label]) =>
+    `<button type="button" class="history-action" data-assist-handling="${value}" aria-pressed="${condition === value}">${label}</button>`
+  ).join('')}</div>`;
+  const selected = prompt.options.find(([value]) => value === condition)?.[1];
+  if (selected) return `<details class="assist-answer-history"><summary>물건 상태 · ${selected}</summary>${choices}</details>`;
+  return `<section class="assist-questions"><h3>${prompt.title}</h3>${choices}</section>`;
 }
 
 function questionChoices(answer, index) {
   return [...new Set([...(answer.questionChoices?.[index] || []), '모르겠어요'])];
 }
 
-function followUpMarkup(answer, answers, mode) {
+function followUpMarkup(answer, answers, mode, pendingAnswers) {
   return `<section class="assist-questions"><h3>배출 전에 확인할 내용</h3><p id="assist-followup-hint">아는 것만 골라 주세요.</p>
     <form data-assist-followup-form>${answer.questions.map((question, index) => {
-      const value = answers.find(pair => pair.question === question)?.answer || '';
+      const value = pendingAnswers[index] ?? answers.find(pair => pair.question === question)?.answer ?? '';
       const choices = questionChoices(answer, index);
       const field = `<input id="assist-answer-${index}" name="answer${index}" type="text" maxlength="300" value="${escapeHtml(value)}" placeholder="짧게 입력해 주세요" autocomplete="off" aria-describedby="assist-followup-hint">`;
       const hasChoices = choices.length > 1;
@@ -63,7 +78,7 @@ function followUpMarkup(answer, answers, mode) {
     </form></section>`;
 }
 
-export function assistanceResultMarkup(answer, region, { answers = [], mode = 'description', guide = answer.evidence === 'object' && answer.confidence !== 'low' ? registeredGuide(answer.itemName, region) : null, fromInput = false } = {}) {
+export function assistanceResultMarkup(answer, region, { answers = [], pendingAnswers = [], mode = 'description', guide = answer.evidence === 'object' && answer.confidence !== 'low' ? registeredGuide(answer.itemName, region) : null, fromInput = false } = {}) {
   if (guide) answer = { ...answer, questions: [] };
   const hasQuestions = answer.questions.length > 0;
   const uncertain = answer.evidence !== 'object' || answer.confidence === 'low' || answers.some(pair => pair.answer === '모르겠어요');
@@ -76,7 +91,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], mode = 'd
   const candidates = uncertain && answer.candidates?.length ? `<div class="assist-result-actions" aria-label="인식 후보">${answer.candidates.map(name => `<button type="button" class="button secondary" data-assist-candidate="${escapeHtml(name)}">${escapeHtml(name)} 기준 확인</button>`).join('')}</div>` : '';
   const hint = guide?.hint || '제품에 적힌 재질 표시와 용도를 확인해 주세요. 알 수 없다면 사진이나 제품명을 준비해 거주지 폐기물 담당 부서에 수거 여부를 문의해 주세요.';
   const checklist = Boolean(guide && steps.length);
-  const guidance = `<div class="assist-method"><h3>${escapeHtml(method)}</h3></div>${checklist ? checklistMarkup() : ''}${steps.length ? stepListMarkup(steps, 'action-steps', { checklist }) : `<p class="input-hint">${escapeHtml(hint)}</p>`}`;
+  const guidance = guide?.prompt && !guide.condition ? '' : `<div class="assist-method"><h3>${escapeHtml(method)}</h3></div>${checklist ? checklistMarkup() : ''}${steps.length ? stepListMarkup(steps, 'action-steps', { checklist }) : `<p class="input-hint">${escapeHtml(hint)}</p>`}`;
   return `<p class="eyebrow">${guide?.inferred ? '이름으로 알아본 종류의 안내' : guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide?.regional ? resultRegionLabel(guide) : regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
     ${guide && !fromInput ? '<p class="assist-identification">사진이나 설명에서 추정한 이름이에요. 실제 물건과 같은지 확인해 주세요.</p>' : !guide && answer.identification ? `<p class="assist-identification">${escapeHtml(answer.identification)}</p>` : ''}
@@ -84,14 +99,15 @@ export function assistanceResultMarkup(answer, region, { answers = [], mode = 'd
     ${answer.markings.length ? `<p class="assist-markings"><strong>AI가 읽은 표시</strong> ${answer.markings.map(escapeHtml).join(' · ')}</p>` : ''}
     ${candidates}
     ${!guide && !uncertain && answer.cautions.length ? `<h3>주의할 점</h3>${list(answer.cautions)}` : ''}
-    ${hasQuestions ? followUpMarkup(answer, answers, mode) : guidance}
+    ${handlingPromptMarkup(guide)}
+    ${hasQuestions ? followUpMarkup(answer, answers, mode, pendingAnswers) : guidance}
     ${guide?.handling && steps.length ? collectionPointMarkup({ ...guide, itemName: answer.itemName }) : ''}
     ${large?.reportUrl ? `<div class="assist-result-actions"><a class="button primary" href="${escapeHtml(large.reportUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(large.office)} 대형폐기물 ${large.directReport ? '배출 신청' : '안내'} ↗</a></div>` : ''}
     ${sources.length ? `<details class="assist-answer-history"><summary>등록 안내의 출처</summary><ul>${sources.map(url => `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a></li>`).join('')}</ul></details>` : ''}
     ${answers.length ? `<details class="assist-answer-history"><summary>지금까지 답한 내용 ${answers.length}개</summary><dl>${answers.map(pair => `<dt>${escapeHtml(pair.question)}</dt><dd>${escapeHtml(pair.answer)}</dd>`).join('')}</dl></details>` : ''}
     ${!guide && steps.length ? '<p class="input-hint">실제 제품 표시와 거주지 수거 기준을 확인해 주세요.</p>' : ''}
     ${guide ? relatedDisposalMarkup(answer.itemName) : ''}
-    <div class="assist-result-actions">${canConfirm ? `<button type="button" class="button ${guide?.needsConditions ? 'primary' : 'secondary'}" data-assist-check>${guide?.needsConditions ? '물건 상태 확인하기' : '이 이름으로 기준 확인'}</button>` : ''}<button type="button" class="button secondary" data-assist-refine>입력 수정</button><button type="button" class="button secondary" data-assist-new>다른 물건 찾기</button></div>${correction}`;
+    <div class="assist-result-actions">${canConfirm && (!guide?.prompt || guide.condition) ? `<button type="button" class="button ${guide?.needsConditions ? 'primary' : 'secondary'}" data-assist-check>${guide?.needsConditions ? '물건 상태 확인하기' : '이 이름으로 기준 확인'}</button>` : ''}<button type="button" class="button secondary" data-assist-refine>입력 수정</button><button type="button" class="button secondary" data-assist-new>다른 물건 찾기</button></div>${correction}`;
 }
 
 export function assistancePage(mode = 'description') {
@@ -131,8 +147,11 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   }
   if (queued?.sourceName) assistanceDraft.sourceName = queued.sourceName;
   let image = null, previewUrl = '', photoRevision = 0, preparing = false, busy = false, disposed = false, controller, answer, answered = [];
+  let currentResult = null;
   let disposeChecklist = () => {};
-  const region = bindRegion(form, readJudgementRegion(getCurrentMember()), {
+  const initialRegion = queued && Object.hasOwn(queued, 'region') ? queued.region
+    : Object.hasOwn(assistanceDraft, 'region') ? assistanceDraft.region : readJudgementRegion(getCurrentMember());
+  const region = bindRegion(form, initialRegion, {
     onChange(value) {
       rememberJudgementRegion(value, getCurrentMember());
       clearResult({ keepAnswers: true });
@@ -143,6 +162,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     disposeChecklist();
     disposeChecklist = () => {};
     answer = null;
+    currentResult = null;
     if (!keepAnswers) answered = [];
     result.hidden = true;
     form.hidden = false;
@@ -221,16 +241,23 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   description.addEventListener('input', () => {
     descriptionError.textContent = ''; description.removeAttribute('aria-invalid'); updateCount(); clearResult();
   });
-  function openNameSearch(itemName) {
+  function prepareNameSearch(itemName) {
     assistanceDraft.sourceName = itemName;
-    queueInput({ itemName, region: region.get(), fromAssistance: true });
+    const sameItem = normalizeItemName(itemName) === normalizeItemName(answer?.itemName);
+    const handlingCondition = sameItem && currentResult?.guide?.condition;
+    queueInput({
+      itemName, region: region.get(), fromAssistance: true,
+      ...(handlingCondition ? { handlingCondition } : {}),
+    });
+  }
+  function openNameSearch(itemName) {
+    prepareNameSearch(itemName);
     location.hash = '/item-input';
   }
-  root.querySelector('.input-modes')?.addEventListener('click', event => {
-    const route = event.target.closest('a')?.getAttribute('href')?.slice(1);
-    if (route !== '/item-input' || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  const disposeModes = bindInputModes(root, route => {
+    if (route !== '/item-input') return;
     const name = assistanceDraft.sourceName || (answer?.evidence === 'object' && answer.confidence !== 'low' ? answer.itemName : '');
-    if (name) { event.preventDefault(); openNameSearch(name); }
+    if (name) prepareNameSearch(name);
   });
   function cancelAnalysis() {
     controller?.abort(); gate.cancel(); setBusy(false); setStatus('분석을 취소했어요.');
@@ -248,10 +275,26 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     if (!form.reportValidity()) return;
     await generate(answered);
   });
+  function renderResult(view, moveFocus = true) {
+    answer = view.answer;
+    currentResult = view;
+    disposeChecklist();
+    result.innerHTML = assistanceResultMarkup(answer, view.region, {
+      answers: answered, pendingAnswers: view.pendingAnswers, mode, guide: view.guide, fromInput: view.fromInput,
+    });
+    disposeChecklist = bindDisposalChecklist(result);
+    status.textContent = '';
+    result.hidden = false;
+    form.hidden = true;
+    if (moveFocus) {
+      result.focus({ preventScroll: true });
+      result.scrollIntoView({ block: 'start', behavior: 'instant' });
+    }
+  }
   async function generate(nextAnswers, followup = false) {
     const operation = gate.begin(); if (!operation) return;
     controller = new AbortController(); const selectedRegion = region.get();
-    if (!followup) { answer = null; result.hidden = true; }
+    if (!followup) { answer = null; currentResult = null; result.hidden = true; }
     setBusy(true);
     setStatus(followup ? '질문에 답한 내용을 반영해 안내를 갱신하고 있어요…' : mode === 'photo' ? '사진 속 물건과 표시를 확인하고 배출 방법을 만들고 있어요…' : '설명을 읽고 배출 방법을 만들고 있어요…');
     try {
@@ -273,15 +316,12 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
           return true;
         });
       const guide = typedGuide || (response.evidence === 'object' && response.confidence !== 'low' ? registeredGuide(response.itemName, selectedRegion) : null);
-      answer = { ...response, questions: remaining.map(entry => entry.question), questionChoices: remaining.map(entry => entry.choices) };
-      if (guide) answer.questions = [];
-      result.innerHTML = assistanceResultMarkup(answer, selectedRegion, { answers: answered, mode, guide, fromInput: Boolean(typedGuide) });
-      disposeChecklist();
-      disposeChecklist = bindDisposalChecklist(result);
-      status.textContent = '';
-      result.hidden = false;
-      form.hidden = true;
-      result.focus({ preventScroll: true }); result.scrollIntoView({ block: 'start', behavior: 'instant' });
+      const nextAnswer = {
+        ...response,
+        questions: guide ? [] : remaining.map(entry => entry.question),
+        questionChoices: guide ? [] : remaining.map(entry => entry.choices),
+      };
+      renderResult({ answer: nextAnswer, region: selectedRegion, guide, fromInput: Boolean(typedGuide) });
     } catch (error) { if (alive() && operation.active()) setStatus(error.message); }
     finally { if (alive() && operation.active()) setBusy(false); operation.finish(); }
   }
@@ -320,6 +360,12 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   result.addEventListener('click', event => {
     if (event.target.closest('[data-assist-followup-cancel]')) { cancelAnalysis(); return; }
     if (busy) return;
+    const condition = event.target.closest('[data-assist-handling]')?.dataset.assistHandling;
+    if (condition && currentResult?.guide?.prompt?.options.some(([value]) => value === condition)) {
+      const guide = registeredGuide(answer.itemName, currentResult.region, { condition });
+      renderResult({ ...currentResult, guide });
+      return;
+    }
     const option = event.target.closest('[data-assist-option]');
     if (option && answer) {
       const index = Number(option.dataset.answerIndex), followupForm = option.closest('form');
@@ -343,17 +389,33 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     }
     const candidate = event.target.closest('[data-assist-candidate]')?.dataset.assistCandidate;
     const related = event.target.closest('[data-related-item]')?.dataset.relatedItem;
-    if (related) openNameSearch(related);
-    else if (candidate) openNameSearch(candidate);
+    if (related) {
+      queueInput({ itemName: related, region: region.get() });
+      location.hash = '/item-input';
+    } else if (candidate) openNameSearch(candidate);
     else if (event.target.closest('[data-assist-check]') && answer) openNameSearch(answer.itemName);
   });
+  const savedResult = previous?.result;
+  const selectedRegion = region.get();
+  if (savedResult && previous.description === description.value && (mode !== 'photo' || image)
+      && savedResult.region?.province === selectedRegion?.province && savedResult.region?.district === selectedRegion?.district) {
+    renderResult(savedResult, false);
+  }
   return () => {
     if ((getCurrentMember()?.id || 'guest') === owner) {
       assistanceDraft.description = description.value;
-      (assistanceDraft.sessions ||= {})[mode] = { description: description.value, answers: answered };
+      assistanceDraft.region = region.get();
+      const followup = currentResult && !result.hidden ? result.querySelector('[data-assist-followup-form]') : null;
+      const pendingAnswers = followup ? answer.questions.map((_, index) => followup.elements.namedItem(`answer${index}`)?.value || '') : [];
+      (assistanceDraft.sessions ||= {})[mode] = {
+        description: description.value,
+        answers: answered,
+        result: currentResult && !result.hidden ? { ...currentResult, pendingAnswers } : null,
+      };
       if (mode === 'photo') assistanceDraft.photo = image ? { image, previewUrl } : null;
     }
     disposeChecklist();
+    disposeModes();
     disposed = true; controller?.abort(); gate.dispose(); photoRevision++; image = null;
   };
 }

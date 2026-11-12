@@ -113,7 +113,10 @@ test('브라우저 서비스는 새 POST 경로·취소 신호를 사용하며 �
 });
 
 test('세 가지 찾기 모드를 구분하고 사진의 명시적 전송·촬영·선택과 AI 결과 표시를 제공한다', () => {
-  const modes=inputModesMarkup('photo');assert.match(modes,/#\/item-input/);assert.match(modes,/#\/describe/);assert.match(modes,/#\/photo" aria-current="page"/);
+  const modes = inputModesMarkup('photo');
+  assert.match(modes, /#\/item-input/);
+  assert.match(modes, /#\/describe/);
+  assert.match(modes, /<span aria-current="page">사진으로 찾기<\/span>/);
   const description=assistancePage('description'),photo=assistancePage('photo');
   assert.match(description,/name="description"[^>]*required/);assert.doesNotMatch(description,/type="file"/);
   assert.match(photo,/capture="environment"/);assert.match(photo,/name="gallery"/);assert.match(photo,/원본 촬영 정보/);assert.match(photo,/Google Gemini/);
