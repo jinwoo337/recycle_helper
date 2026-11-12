@@ -38,6 +38,22 @@ test('미등록 화면은 긴 분류 목록 대신 AI와 재질 확인을 제공
   assert.match(materialOnly.steps.join(' '), /재질\(플라스틱\).*수거 경로/);
 });
 
+test('일회용 숟가락은 재질을 확인하고 플라스틱 숟가락은 오염에 따라 안내한다', () => {
+  const page = itemInputPage();
+  assert.match(page, /data-item-variant="플라스틱 숟가락"/);
+  assert.match(page, /data-item-variant="나무 숟가락"/);
+  assert.equal(judgeDisposal(itemPresetInput('나무 숟가락')).status, 'general');
+  const spoon = { ...itemPresetInput('플라스틱 숟가락'), combined: 'no', region: { province: '서울특별시', district: '노원구' } };
+  assert.equal(spoon.type, 'utensil');
+  assert.equal(judgeDisposal(spoon).status, 'check');
+  const clean = judgeDisposal({ ...spoon, contaminated: 'no' });
+  assert.equal(clean.status, 'recycle');
+  assert.match(clean.method, /지역 수거 확인/);
+  assert.equal(clean.regional.coverage, 'unverified', '일반 플라스틱 용기 지역 안내를 숟가락에 적용하지 않는다');
+  assert.ok(clean.sourceUrls.includes('https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=416'));
+  assert.equal(judgeDisposal({ ...spoon, contaminated: 'yes', washed: 'yes', removable: 'no' }).status, 'general');
+});
+
 test('AI가 확인하지 못한 용도를 포장재나 전용 수거 품목으로 제안하지 않는다', () => {
   const base = { itemName: '브랜드 부속품', confidence: 'high', route: 'recyclable', material: '플라스틱', type: 'container' };
   const suggest = extra => suggestedItemCategory(validateAiGuess({ ...base, ...extra }));

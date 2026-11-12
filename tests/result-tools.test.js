@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bindResultTools } from '../src/components/result-tools.js';
+import { bindResultCopy } from '../src/components/result-copy.js';
 import { RULE_VERSION } from '../src/domain/disposal/rules.js';
 
 class Node extends EventTarget {
@@ -10,6 +11,40 @@ class Node extends EventTarget {
 }
 const pending = () => { let resolve, reject; const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject}; };
 const flush = async () => { for(let i=0;i<8;i++) await Promise.resolve(); };
+
+test('클립보드 실패 시 현재 결과를 직접 복사할 수 있고 이동한 화면은 갱신하지 않는다', async () => {
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const first = pending();
+  const second = pending();
+  let calls = 0;
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: { clipboard: { writeText: () => ++calls === 1 ? first.promise : second.promise } },
+  });
+  const button = new Node();
+  const field = { hidden: true, focus() {}, select() { this.selected = true; } };
+  const status = { textContent: '' };
+  const elements = { '[data-copy-result]': button, '[data-copy-fallback]': field, '[data-result-tools-status]': status };
+  const root = { isConnected: true, contains: node => node === button, querySelector: selector => elements[selector] };
+  const dispose = bindResultCopy(root, () => '노원구 · 나무젓가락 · 종량제봉투');
+  try {
+    button.dispatchEvent(new Event('click'));
+    first.reject(Error('clipboard unavailable'));
+    await flush();
+    assert.equal(field.hidden, false);
+    assert.equal(field.selected, true);
+    assert.match(field.value, /노원구.*종량제봉투/);
+    button.dispatchEvent(new Event('click'));
+    dispose();
+    second.resolve();
+    await flush();
+    assert.match(status.textContent, /직접 복사/);
+  } finally {
+    dispose();
+    if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor);
+    else delete globalThis.navigator;
+  }
+});
 function setup(tools, feedback = null) {
   const favorite=new Node(),status=new Node(),copy=new Node(),newItem=new Node();
   const nodes=new Map([['[data-favorite]',favorite],['[data-result-tools-status]',status],['[data-copy-result]',copy],['[data-new-item]',newItem]]);
@@ -52,9 +87,9 @@ test('즐겨찾기 조회 실패 후 재시도와 화면 정리 후 응답은 �
 
 test('제보는 공백을 제외한 길이를 확인하고 전송 중 중복·초안 변경을 막는다', async () => {
   globalThis.window=new EventTarget();
-  const form=new Node(),message=new Node(),kind=new Node(),button=new Node(),status=new Node(),sending=pending();
+  const form=new Node(),message=new Node(),kind=new Node(),issue=new Node(),button=new Node(),status=new Node(),sending=pending();
   message.value='          ';message.setCustomValidity=value=>{message.error=value;};message.reportValidity=()=>true;
-  kind.value='correction';form.elements={message,kind};form.reportValidity=()=>true;
+  kind.value='correction';issue.value='';form.elements={message,kind,issue};form.reportValidity=()=>true;
   form.querySelector=selector=>selector==='button'?button:status;
   form.reset=()=>{message.value='';};
   let payload,calls=0;
@@ -62,11 +97,11 @@ test('제보는 공백을 제외한 길이를 확인하고 전송 중 중복·�
   try {
     form.dispatchEvent(new Event('submit',{cancelable:true}));await flush();
     assert.equal(calls,0);assert.match(message.error,/공백을 제외/);
-    message.value='  정확한 품목과 지역의 안내를 확인해 주세요.  ';message.dispatchEvent(new Event('input'));
+    message.value='  링크 오류  ';issue.value='local';issue.dispatchEvent(new Event('change'));
     assert.equal(message.error,'');
     form.dispatchEvent(new Event('submit',{cancelable:true}));await flush();
-    assert.equal(message.disabled,true);assert.equal(kind.disabled,true);assert.equal(button.disabled,true);
-    assert.equal(payload.message,'정확한 품목과 지역의 안내를 확인해 주세요.');
+    assert.equal(message.disabled,true);assert.equal(kind.disabled,true);assert.equal(issue.disabled,true);assert.equal(button.disabled,true);
+    assert.equal(payload.message,'[지역 기준·공식 링크] 링크 오류');
     assert.equal(payload.result.ruleVersion, RULE_VERSION, '제보에는 오래된 기록 대신 화면에 표시한 현재 안내를 첨부한다');
     form.dispatchEvent(new Event('submit',{cancelable:true}));assert.equal(calls,1);
     sending.resolve({id:'test-only'});await flush();

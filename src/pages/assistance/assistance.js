@@ -11,7 +11,7 @@ import { collectionPointMarkup } from '../../components/collection-help.js';
 import { queueInput, takeQueuedInput } from '../../services/input-draft.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
-import { lookupItem, normalizeItemName } from '../../domain/disposal/item-suggestions.js';
+import { lookupItem, normalizeItemName, searchItemNames } from '../../domain/disposal/item-suggestions.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { judgeDisposal, RULE_SOURCE, supportsState } from '../../domain/disposal/rules.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
@@ -20,6 +20,9 @@ import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/ca
 import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
 import { bindDisposalChecklist, checklistMarkup } from '../../components/disposal-checklist.js';
 import { relatedDisposalMarkup } from '../../components/related-disposal.js';
+import { bindResultCopy, copyResultButton, copyResultFallback } from '../../components/result-copy.js';
+import { resultToText } from '../../domain/disposal/result-text.js';
+import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 
 const titles = { description: '물건 설명하기', photo: '사진으로 인식하기' };
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
@@ -87,10 +90,13 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
   const sources = guide?.sourceUrls?.filter(url => url === RULE_SOURCE || Object.hasOwn(CATALOG_DETAIL_SOURCES, url) || Object.values(REGIONAL_SOURCES).includes(url)) || [];
   const large = guide?.handling === 'large' ? largeWasteHelp(guide) : null;
   const canConfirm = guide || !uncertain;
-  const correction = `<form class="assist-correction" data-assist-correction><div class="field"><label for="assist-correct-name">다른 물건이면 이름을 고쳐 주세요</label><input id="assist-correct-name" name="itemName" maxlength="80" required autocomplete="off"></div><button type="submit" class="button secondary">이 이름으로 기준 확인</button></form>`;
+  const correction = `<form class="assist-correction" data-assist-correction><div class="field"><label for="assist-correct-name">다른 물건이면 이름을 고쳐 주세요</label>
+    <div class="item-name-control"><input id="assist-correct-name" name="itemName" maxlength="80" required autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="assist-correct-options" aria-expanded="false" aria-describedby="assist-correct-status"><div class="item-name-options" id="assist-correct-options" role="listbox" aria-label="추천 물품" hidden></div></div>
+    <p id="assist-correct-status" class="input-hint" role="status"></p></div><button type="submit" class="button secondary">이 이름으로 기준 확인</button></form>`;
   const candidates = uncertain && answer.candidates?.length ? `<div class="assist-result-actions" aria-label="인식 후보">${answer.candidates.map(name => `<button type="button" class="button secondary" data-assist-candidate="${escapeHtml(name)}">${escapeHtml(name)} 기준 확인</button>`).join('')}</div>` : '';
   const hint = guide?.hint || '제품에 적힌 재질 표시와 용도를 확인해 주세요. 알 수 없다면 사진이나 제품명을 준비해 거주지 폐기물 담당 부서에 수거 여부를 문의해 주세요.';
   const checklist = Boolean(guide && steps.length);
+  const copy = guide?.ruleVersion && steps.length ? `<div class="result-actions">${copyResultButton}</div><p class="input-hint" data-result-tools-status role="status"></p>${copyResultFallback}` : '';
   const guidance = guide?.prompt && !guide.condition ? '' : `<div class="assist-method"><h3>${escapeHtml(method)}</h3></div>${checklist ? checklistMarkup() : ''}${steps.length ? stepListMarkup(steps, 'action-steps', { checklist }) : `<p class="input-hint">${escapeHtml(hint)}</p>`}`;
   return `<p class="eyebrow">${guide?.inferred ? '이름으로 알아본 종류의 안내' : guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide?.regional ? resultRegionLabel(guide) : regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
@@ -107,7 +113,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
     ${answers.length ? `<details class="assist-answer-history"><summary>지금까지 답한 내용 ${answers.length}개</summary><dl>${answers.map(pair => `<dt>${escapeHtml(pair.question)}</dt><dd>${escapeHtml(pair.answer)}</dd>`).join('')}</dl></details>` : ''}
     ${!guide && steps.length ? '<p class="input-hint">실제 제품 표시와 거주지 수거 기준을 확인해 주세요.</p>' : ''}
     ${guide ? relatedDisposalMarkup(answer.itemName) : ''}
-    <div class="assist-result-actions">${canConfirm && (!guide?.prompt || guide.condition) ? `<button type="button" class="button ${guide?.needsConditions ? 'primary' : 'secondary'}" data-assist-check>${guide?.needsConditions ? '물건 상태 확인하기' : '이 이름으로 기준 확인'}</button>` : ''}<button type="button" class="button secondary" data-assist-refine>입력 수정</button><button type="button" class="button secondary" data-assist-new>다른 물건 찾기</button></div>${correction}`;
+    <div class="assist-result-actions">${canConfirm && (!guide?.prompt || guide.condition) ? `<button type="button" class="button ${guide?.needsConditions ? 'primary' : 'secondary'}" data-assist-check>${guide?.needsConditions ? '물건 상태 확인하기' : '이 이름으로 기준 확인'}</button>` : ''}<button type="button" class="button secondary" data-assist-refine>입력 수정</button><button type="button" class="button secondary" data-assist-new>다른 물건 찾기</button></div>${copy}${correction}`;
 }
 
 export function assistancePage(mode = 'description') {
@@ -148,7 +154,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   if (queued?.sourceName) assistanceDraft.sourceName = queued.sourceName;
   let image = null, previewUrl = '', photoRevision = 0, preparing = false, busy = false, disposed = false, controller, answer, answered = [];
   let currentResult = null;
-  let disposeChecklist = () => {};
+  let disposeResult = () => {};
   const initialRegion = queued && Object.hasOwn(queued, 'region') ? queued.region
     : Object.hasOwn(assistanceDraft, 'region') ? assistanceDraft.region : readJudgementRegion(getCurrentMember());
   const region = bindRegion(form, initialRegion, {
@@ -159,8 +165,8 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   });
   const alive = () => !disposed && root.isConnected;
   function clearResult({ keepAnswers = false } = {}) {
-    disposeChecklist();
-    disposeChecklist = () => {};
+    disposeResult();
+    disposeResult = () => {};
     answer = null;
     currentResult = null;
     if (!keepAnswers) answered = [];
@@ -278,11 +284,24 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   function renderResult(view, moveFocus = true) {
     answer = view.answer;
     currentResult = view;
-    disposeChecklist();
+    disposeResult();
     result.innerHTML = assistanceResultMarkup(answer, view.region, {
       answers: answered, pendingAnswers: view.pendingAnswers, mode, guide: view.guide, fromInput: view.fromInput,
     });
-    disposeChecklist = bindDisposalChecklist(result);
+    const disposeChecklist = bindDisposalChecklist(result);
+    const disposeCopy = bindResultCopy(result, () => resultToText({
+      ...itemPresetInput(view.answer.itemName), region: view.region, handlingCondition: view.guide?.condition,
+    }, view.guide));
+    const correction = result.querySelector('[data-assist-correction]');
+    const autocomplete = correction && bindItemAutocomplete({
+      input: correction.elements.namedItem('itemName'),
+      options: correction.querySelector('#assist-correct-options'),
+      status: correction.querySelector('#assist-correct-status'),
+      search: searchItemNames,
+      onSelect: () => correction.requestSubmit(),
+      noResultsMessage: '이 이름으로 이어서 AI 제안이나 실제 재질을 확인할 수 있어요.',
+    });
+    disposeResult = () => { disposeChecklist(); disposeCopy(); autocomplete?.dispose(); };
     status.textContent = '';
     result.hidden = false;
     form.hidden = true;
@@ -414,7 +433,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       };
       if (mode === 'photo') assistanceDraft.photo = image ? { image, previewUrl } : null;
     }
-    disposeChecklist();
+    disposeResult();
     disposeModes();
     disposed = true; controller?.abort(); gate.dispose(); photoRevision++; image = null;
   };

@@ -9,12 +9,12 @@ import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-12.v14';
+export const RULE_VERSION = '2026-11-12.v15';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
   '음식물류': [['soft', '확인된 음식물·부드러운 껍질 (뼈·포장 등 제외)'], ['excluded', '단단한 뼈·껍데기·씨앗 등 수거 제외 품목'], ['fibrous', '질긴 뿌리·대·겉껍질 등 수거 제외 부산물'], ['residue', '커피·차·약재 찌꺼기·장류 등 수거 제외 품목'], ['unknown', '종류를 모르겠어요']],
-  '플라스틱': [['container', '일반 용기·트레이'], ['other', '그 밖의 플라스틱 제품'], ['unknown', '모르겠어요']],
+  '플라스틱': [['container', '일반 용기·트레이'], ['utensil', '단일 플라스틱 숟가락'], ['other', '그 밖의 플라스틱 제품'], ['unknown', '모르겠어요']],
   '페트병': [['clear-drink', '무색 투명한 생수·음료 페트병'], ['other-pet', '유색 페트병 / 식용유·세제 등 다른 용도'], ['unknown', '모르겠어요']],
   '종이': [['paper', '일반 종이·상자·책'], ['carton', '종이팩 (우유팩·두유팩 등)'], ['cup', '일반 종이컵 (양면 코팅 제외)'], ['food-container', '수거 가능한 종이 식품 용기 (표시·지역 확인)'], ['excluded', '감열 영수증·사진·종이호일·사용한 휴지'], ['coated', '분리되지 않는 코팅 종이·양면 코팅 종이컵'], ['unknown', '모르겠어요']],
   '유리': [['bottle', '깨지지 않은 일반 음료·식품 유리병'], ['broken', '깨진 유리'], ['special', '내열유리·거울·판유리·크리스탈 등'], ['unknown', '모르겠어요']],
@@ -23,10 +23,14 @@ export const TYPES = {
   '스티로폼': [['packaging', '포장용 상자·완충재'], ['other', '건축용·코팅 제품 등'], ['unknown', '모르겠어요']],
 };
 
+const stateTypes = {
+  '플라스틱': ['container', 'utensil'], '페트병': ['clear-drink', 'other-pet'],
+  '종이': ['paper', 'carton', 'cup', 'food-container'], '유리': ['bottle'], '금속·캔': ['food-can'],
+  '비닐': ['packaging'], '스티로폼': ['packaging'],
+};
+
 export function supportsState(part = {}) {
-  return ({ '플라스틱': ['container'], '페트병': ['clear-drink', 'other-pet'],
-    '종이': ['paper', 'carton', 'cup', 'food-container'], '유리': ['bottle'], '금속·캔': ['food-can'],
-    '비닐': ['packaging'], '스티로폼': ['packaging'] })[part.material]?.includes(part.type) || false;
+  return Object.hasOwn(stateTypes, part.material) && stateTypes[part.material].includes(part.type);
 }
 
 export function needsWashQuestion(part = {}) {
@@ -103,7 +107,9 @@ function judgePart(raw, itemName = '') {
     return outcome('general', '종량제봉투로 배출', '제거할 수 없는 오염이 남아 재활용하기 어려워요.', ['내용물은 해당 배출 기준에 따라 따로 비우고, 오염된 물품은 지역 종량제 기준에 따라 배출해 주세요.']);
   }
   const routes = {
-    '플라스틱': ['플라스틱류로 분리배출', '일반 플라스틱 용기·트레이예요.', '내용물을 비우고 물기를 제거해 주세요.'],
+    '플라스틱': p.type === 'utensil'
+      ? ['플라스틱류로 분리배출 · 지역 수거 확인', '단일 플라스틱 숟가락은 이물질을 제거하면 플라스틱류로 안내해요.', '음식물을 헹궈 제거하고 지역에서 작은 플라스틱을 받는지 확인해 주세요.']
+      : ['플라스틱류로 분리배출', '일반 플라스틱 용기·트레이예요.', '내용물을 비우고 물기를 제거해 주세요.'],
     '페트병': p.type === 'clear-drink'
       ? ['투명 페트병으로 별도 분리배출', '무색 투명한 생수·음료 페트병은 별도 수거 대상이에요.', '라벨을 제거하고 가능한 압착한 뒤 뚜껑을 닫아 주세요.']
       : ['플라스틱류로 분리배출', '유색 또는 다른 용도의 페트병은 투명 생수·음료 페트병 수거 대상이 아니에요.', '내용물을 비우고 라벨·부속품을 확인해 주세요.'],
@@ -205,7 +211,7 @@ function judgeBaseDisposal(input = {}) {
     const guarded = dangerous
       ? outcome('check', '추가 확인 필요', '별도 수거 또는 안전한 처리가 필요한 물품일 수 있어요.', ['내용물을 임의로 붓거나 용기에 구멍을 내지 말고 지자체의 품목별 안내를 확인해 주세요.'])
       : conflict
-        ? outcome('check', '추가 확인 필요', '물품 이름과 선택한 재질 또는 세부 종류가 서로 맞지 않아요.', ['물품 이름, 실제 재질 표시와 세부 종류를 다시 확인해 주세요.'])
+        ? { ...outcome('check', '추가 확인 필요', '물품 이름과 선택한 재질 또는 세부 종류가 서로 맞지 않아요.', ['물품 이름, 실제 재질 표시와 세부 종류를 다시 확인해 주세요.']), pendingCondition: input.material === reference.material ? 'type' : 'material' }
         : outcome('check', '추가 확인 필요', name ? '등록되지 않은 물품 이름이어서 일반 수거 대상인지 확인할 수 없어요.' : '물품 이름이 확인되지 않았어요.', ['추천에서 실제 물품과 일치하는 이름을 선택하거나, 품목별 지역 안내를 확인해 주세요. 비슷한 이름을 임의로 선택하지 마세요.']);
     return finish(guarded, [{ label: '물품 전체', material: input.material || '미확인', ...structuredClone(guarded) }]);
   }

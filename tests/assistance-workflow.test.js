@@ -83,6 +83,7 @@ test('등록된 전용 품목명은 AI 없이 안내하고, AI가 확인한 품�
     assert.equal(calls, 1, '선택한 상태는 AI 재요청 없이 등록 기준으로 판별');
     assert.match(ui.result.innerHTML, /재사용 가능한 의류·잡화 · 전용 수거함 확인/);
     assert.match(ui.result.innerHTML, /물건 상태 · 깨끗하고 다시 쓸 수 있어요/);
+    assert.match(ui.result.innerHTML, /data-copy-result/);
   } finally { ui.dispose(); }
 });
 

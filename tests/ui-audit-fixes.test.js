@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { judgeDisposal, normalizePart, RULE_VERSION, MATERIALS } from '../src/domain/disposal/rules.js';
-import { resultForDisplay } from '../src/domain/disposal/result-display.js';
+import { resultForDisplay, resultPendingQuestion } from '../src/domain/disposal/result-display.js';
 import { resultToText } from '../src/domain/disposal/result-text.js';
 import { resultMarkup } from '../src/pages/item-input/item-input.js';
 import { categoryAllowsMaterial } from '../src/domain/disposal/item-categories.js';
@@ -84,6 +84,24 @@ test('복사 결과는 공통 준비와 부속품별 처리 단계를 빠짐없�
   for (const part of result.parts) {
     for (const step of part.steps) assert.equal(text.split(step).length - 1, 1, step);
   }
+});
+
+test('확인할 부속품과 전지 상태를 결과 상단에서 바로 찾을 수 있다', () => {
+  const input = {
+    itemName: '투명생수병', material: '페트병', type: 'clear-drink', contaminated: 'no', combined: 'yes', separable: 'yes',
+    components: [{ label: '라벨', material: '비닐', type: 'packaging', contaminated: 'unknown' }],
+  };
+  const result = judgeDisposal(input);
+  const pending = resultPendingQuestion(input, result);
+  assert.deepEqual(pending, { condition: 'state', prefix: 'part0-', label: '라벨 · 오염 상태 확인하기' });
+  const html = resultMarkup(input, result);
+  assert.match(html, /id="edit-item">라벨 · 오염 상태 확인하기/);
+  assert.equal([...html.matchAll(/id="edit-item"/g)].length, 1);
+  assert.ok(html.indexOf('id="edit-item"') < html.indexOf('data-new-item'));
+  const battery = { itemName: '건전지', handlingCondition: 'unknown' };
+  assert.equal(resultPendingQuestion(battery, judgeDisposal(battery)).condition, 'handling');
+  battery.handlingCondition = 'undamaged';
+  assert.equal(resultPendingQuestion(battery, judgeDisposal(battery)), null);
 });
 
 test('비닐 오염 답변은 해당 질문에서만 유지하고 저장·복원된다', async () => {

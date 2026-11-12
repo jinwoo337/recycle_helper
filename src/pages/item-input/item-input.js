@@ -23,7 +23,7 @@ import { linkedComponentState, stateAnswers, selectedState } from '../../domain/
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
-import { resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails } from '../../domain/disposal/result-display.js';
+import { resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultPendingQuestion } from '../../domain/disposal/result-display.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
@@ -35,7 +35,7 @@ import { inputModesMarkup, bindInputModes } from '../../components/input-modes.j
 import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
 import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
 import { checklistMarkup } from '../../components/disposal-checklist.js';
-import { relatedDisposalMarkup } from '../../components/related-disposal.js';
+import { isAmbiguousSpoonName, relatedDisposalMarkup } from '../../components/related-disposal.js';
 
 let draft = {};
 let componentCount = 1;
@@ -54,6 +54,10 @@ function categoryFields() {
     <summary id="item-category-summary">물건 종류 확인</summary>
     <input type="hidden" name="category" value="">
     <p id="category-guidance" class="input-hint"></p>
+    <div id="spoon-material-choices" class="manual-category-options" role="group" aria-label="숟가락 재질" hidden>
+      <button class="button secondary" type="button" data-item-variant="플라스틱 숟가락">플라스틱 숟가락</button>
+      <button class="button secondary" type="button" data-item-variant="나무 숟가락">나무 숟가락</button>
+    </div>
     <div id="ai-guess-box" class="ai-panel" hidden>
       <p id="ai-guess-text" class="ai-panel-title" role="status"></p>
       <p id="ai-guess-status" class="ai-panel-reason"></p>
@@ -221,6 +225,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
   const sources = [...new Set(Array.isArray(result.sourceUrls) ? result.sourceUrls : [source])]
     .filter(url => [RULE_SOURCE, ...Object.values(REGIONAL_SOURCES), ...Object.keys(CATALOG_DETAIL_SOURCES)].includes(url));
   const { parts, steps } = resultStepsForDisplay(result);
+  const pendingQuestion = resultPendingQuestion(input, result);
   const badge = input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
   const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const details = part => conditionDetails(part).map(([title, value]) =>
@@ -233,6 +238,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
     ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
     <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}">${badge !== result.method ? `<span class="result-badge">${badge}</span>` : ''}<h3>${escapeHtml(result.method)}</h3></div>
     <div class="result-region"><p class="input-hint">${escapeHtml(resultRegionLabel(result))}</p>${editRegion ? '<button type="button" class="history-action" data-edit-region>지역 변경</button>' : ''}</div>
+    ${pendingQuestion ? `<div class="result-check-action"><button type="button" class="button primary" id="edit-item">${escapeHtml(pendingQuestion.label)}</button></div>` : ''}
     ${steps.length || parts.some(part => part.steps.length) ? checklistMarkup() : ''}
     ${steps.length ? `<h3>${parts.length ? '먼저 할 일' : result.status === 'check' ? '배출 전에 확인하세요' : '이렇게 배출하세요'}</h3>${stepListMarkup(steps, 'action-steps', { checklist: true })}` : ''}
     ${parts.length ? `<h3>본체와 부속품 배출 방법</h3><div class="result-parts">${parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${part.steps.length ? stepListMarkup(part.steps, 'part-steps', { checklist: true }) : ''}</article>`).join('')}</div>` : ''}
@@ -241,11 +247,11 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
     ${localGuideMarkup(result, input.itemName)}
     ${relatedDisposalMarkup(input.itemName)}
     ${regionalComparisonMarkup(input, result)}
-    <div class="result-next-actions"><button type="button" class="button primary" data-new-item>다른 물건 찾기</button><button type="button" class="button secondary" id="edit-item">조건 수정</button></div>
+    <div class="result-next-actions"><button type="button" class="button ${pendingQuestion ? 'secondary' : 'primary'}" data-new-item>다른 물건 찾기</button>${pendingQuestion ? '' : '<button type="button" class="button secondary" id="edit-item">조건 수정</button>'}</div>
     <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${sourceLineMarkup(result, sources)}${list(result.reasons)}${result.regional?.notes.length ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">${sources.map(url => outLink(url, sourceLabel(url))).join(' · ')}</p></details>
     <details class="input-details"><summary>입력한 조건</summary><dl><div><dt>물건</dt><dd>${escapeHtml(input.itemName)}</dd></div>${input.category ? `<div><dt>${result.keywordCategory ? '이름으로 알아본 종류' : '직접 선택한 종류'}</dt><dd>${escapeHtml(categoryLabel(input.category))}</dd></div>` : ''}${handlingAnswer ? `<div><dt>물건 상태</dt><dd>${handlingAnswer}</dd></div>` : ''}${details(input)}</dl>${(input.components || []).map((part, index) => `<h4>${escapeHtml(part.label || `부속품 ${index + 1}`)}</h4><dl>${details(part)}</dl>`).join('')}</details>
     <p class="input-hint" data-record-save-status role="status"></p>
-    ${resultToolsMarkup(input)}`;
+    ${resultToolsMarkup(input, result)}`;
 }
 
 export function bindItemInput() {
@@ -296,6 +302,7 @@ export function bindItemInput() {
   const categorySection = document.getElementById('item-category-section');
   const category = form.elements.namedItem('category');
   const manualCategory = document.getElementById('manual-category');
+  const spoonMaterialChoices = document.getElementById('spoon-material-choices');
   const showDisposal = document.getElementById('show-disposal');
   const aiBox = document.getElementById('ai-guess-box');
   const aiText = document.getElementById('ai-guess-text');
@@ -433,6 +440,8 @@ export function bindItemInput() {
       handlingCondition.innerHTML = prompt ? question('handlingCondition', `${prompt.title} <span class="input-hint">(선택)</span>`, prompt.options, { required: false }) : '';
     }
     categorySection.hidden = !unregistered;
+    const choosingSpoon = unregistered && !category.value && isAmbiguousSpoonName(nameInput.value);
+    spoonMaterialChoices.hidden = !choosingSpoon;
     category.disabled = !unregistered;
     showDisposal.hidden = unregistered && !category.value;
     const materialSelect = form.elements.namedItem('material');
@@ -465,9 +474,11 @@ export function bindItemInput() {
     const combined = supported && value('combined') === 'yes';
     toggle(document.getElementById('separable-question'), combined);
     const components = combined && value('separable') === 'yes';
-    if (unregistered && !category.value) categoryGuidance.textContent = verifiedNameGuide(nameInput.value)
-      ? '다른 물건이라면 이름을 고치거나 실제 용도와 재질을 확인해 주세요.'
-      : '이 이름으로 확정된 배출 기준이 없어요. AI가 제안한 종류를 확인하면 필요한 질문만 보여 드려요.';
+    if (unregistered && !category.value) {
+      if (choosingSpoon) categoryGuidance.textContent = '숟가락은 재질에 따라 배출 방법이 달라요. 실제 재질을 골라 주세요.';
+      else if (verifiedNameGuide(nameInput.value)) categoryGuidance.textContent = '다른 물건이라면 이름을 고치거나 실제 용도와 재질을 확인해 주세요.';
+      else categoryGuidance.textContent = '이 이름으로 확정된 배출 기준이 없어요. AI가 제안한 종류를 확인하면 필요한 질문만 보여 드려요.';
+    }
     if (isBatteryPackaging(nameInput.value) && category.value === 'packaging') {
       categorySection.open = true;
       categoryGuidance.textContent = '전지를 빼고 남은 포장만 판별해요. 종이·플라스틱 등 실제 재질 표시를 확인해 주세요.';
@@ -554,6 +565,13 @@ export function bindItemInput() {
   categorySection.addEventListener('click', event => {
     const choice = event.target.closest('[data-category-choice]')?.dataset.categoryChoice;
     if (choice) chooseCategory(choice);
+    const variant = event.target.closest('[data-item-variant]')?.dataset.itemVariant;
+    if (variant && !deleting) {
+      nameInput.value = variant;
+      changed({ target: nameInput });
+      closeSuggestions();
+      focusNextCondition();
+    }
   });
   function refreshAi() { updateAiBox(Boolean(nameInput.value.trim())); renderOpinion(); }
   function updateAiBox(hasName) {
@@ -561,7 +579,8 @@ export function bindItemInput() {
     const entry = opinions.get(aiKey(name));
     const verified = verifiedNameGuide(name);
     const canSuggest = aiEnabled || entry?.manual || entry?.guess?.shared;
-    const suggestion = !verified && !category.disabled && !category.value && canSuggest && suggestedItemCategory(entry?.guess);
+    const choosingSpoon = !spoonMaterialChoices.hidden;
+    const suggestion = !verified && !choosingSpoon && !category.disabled && !category.value && canSuggest && suggestedItemCategory(entry?.guess);
     categorySuggestion.hidden = !suggestion;
     if (suggestion) {
       const guess = entry.guess;
@@ -570,7 +589,7 @@ export function bindItemInput() {
       categorySuggestionText.textContent = ['AI 제안', categoryLabel(suggestion), ...details].filter(Boolean).join(' · ');
       if (document.activeElement === aiButton) applyCategorySuggestion.focus();
     }
-    aiBox.hidden = !hasName || Boolean(verified || suggestion || category.value || category.disabled);
+    aiBox.hidden = !hasName || Boolean(verified || choosingSpoon || suggestion || category.value || category.disabled);
     if (aiBox.hidden) return;
     if (!cleanAiName(name)) {
       aiBox.classList.remove('is-loading');
@@ -636,7 +655,7 @@ export function bindItemInput() {
     aiEnabled = enabled;
     if (aiEnabled) {
       const name = nameInput.value.trim();
-      if (name && !category.value && !lookupItem(name)?.material && summary.hidden) askAi(name);
+      if (name && !category.value && spoonMaterialChoices.hidden && !lookupItem(name)?.material && summary.hidden) askAi(name);
       if (!summary.hidden && shownInput && attachOpinionPanel()) askAi(shownInput.itemName, shownAiState());
     }
     else {
@@ -728,7 +747,8 @@ export function bindItemInput() {
   }
   function focusCategory() {
     categorySection.open = true;
-    const target = !categorySuggestion.hidden ? applyCategorySuggestion
+    const target = !spoonMaterialChoices.hidden ? spoonMaterialChoices.querySelector('button')
+      : !categorySuggestion.hidden ? applyCategorySuggestion
       : !aiBox.hidden && !aiButton.hidden ? aiButton
         : manualCategory.querySelector('summary');
     target.focus();
@@ -738,6 +758,23 @@ export function bindItemInput() {
     const target = firstInvalidField() || handlingCondition.querySelector('input') || form.querySelector('[type="submit"]');
     reveal(target);
     target.focus();
+  }
+  function focusResultQuestion(question) {
+    let target;
+    if (question) {
+      const { condition, prefix } = question;
+      if (condition === 'handling') target = handlingCondition.querySelector('input');
+      else if (['combined', 'separable'].includes(condition)) target = form.querySelector(`input[name="${condition}"]:not(:disabled)`);
+      else if (condition === 'material') target = form.elements.namedItem(`${prefix}material`);
+      else {
+        const part = form.querySelector(`.part-fields[data-prefix="${prefix}"]`);
+        target = part?.querySelector(`[data-condition="${condition}"] :is(input:not([type="hidden"]),select):not(:disabled)`);
+      }
+    }
+    target ||= form.querySelector('.current-state input:checked:not(:disabled), #handling-condition input:checked') || handlingCondition.querySelector('input');
+    if (target && !target.disabled) { reveal(target); target.focus(); }
+    else if (!category.disabled) focusCategory();
+    else { nameInput.focus(); closeSuggestions(); }
   }
   function validateConditions() {
     clearFieldError();
@@ -811,17 +848,7 @@ export function bindItemInput() {
     });
     document.getElementById('edit-item').addEventListener('click', () => {
       showInput(); restore(editingInput); saveStatus.textContent = '';
-      const partIndex = shownResult.parts.findIndex(part => part.pendingCondition);
-      const pending = shownResult.pendingCondition || shownResult.parts[partIndex]?.pendingCondition;
-      const prefix = shownResult.pendingCondition || partIndex < 1 ? '' : `part${partIndex - 1}-`;
-      const part = form.querySelector(`.part-fields[data-prefix="${prefix}"]`);
-      const pendingField = ['combined', 'separable'].includes(pending) ? form.querySelector(`input[name="${pending}"]:not(:disabled)`)
-        : pending === 'material' ? form.elements.namedItem(`${prefix}material`)
-          : ['state', 'type', 'removable', 'vinyl-residue'].includes(pending) && part?.querySelector(`[data-condition="${pending}"] :is(input:not([type="hidden"]),select):not(:disabled)`);
-      const target = pendingField || form.querySelector('.current-state input:checked:not(:disabled), #handling-condition input:checked') || form.querySelector('#handling-condition input');
-      if (target && !target.disabled) { reveal(target); target.focus(); }
-      else if (!category.disabled) focusCategory();
-      else { nameInput.focus(); closeSuggestions(); }
+      focusResultQuestion(resultPendingQuestion(editingInput, shownResult));
     });
     summary.querySelector('[data-edit-region]').addEventListener('click', () => {
       showInput(); restore(editingInput); saveStatus.textContent = '';
@@ -896,7 +923,8 @@ export function bindItemInput() {
   refreshCatalog();
   if (queued?.editCategory) {
     focusCategory();
-  } else if (queued?.itemName) focusNextCondition();
+  } else if (queued?.editPendingQuestion) focusResultQuestion(queued.editPendingQuestion);
+  else if (queued?.itemName) focusNextCondition();
   savedTools.addEventListener('toggle', () => { if (savedTools.open) { renderRecent(); renderFavorites(); } });
   form.querySelectorAll('[data-item-example]').forEach(button => button.addEventListener('click', () => {
     if (deleting) return;
@@ -997,7 +1025,7 @@ export function bindItemInput() {
   function scheduleAiPrefetch() {
     clearTimeout(prefetchTimer);
     const name = nameInput.value.trim();
-    if (!cleanAiName(name) || category.value || lookupItem(name)?.material || verifiedNameGuide(name)) return;
+    if (!cleanAiName(name) || category.value || isAmbiguousSpoonName(name) || lookupItem(name)?.material || verifiedNameGuide(name)) return;
     // 저장된 답 조회는 가벼워서 0.3초, AI는 0.7초 기다린 뒤 묻습니다.
     prefetchTimer = setTimeout(() => {
       if (form.isConnected && !category.value && nameInput.value.trim() === name) {

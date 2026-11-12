@@ -36,6 +36,22 @@ test('한글 조합을 엔터로 확정한 뒤 compositionend가 와도 추천�
   input.value = '약'; event(input, 'compositionend'); event(input, 'input');
   assert.equal(options.hidden, true); binding.dispose();
 });
+
+test('한글 조합을 확정하는 Enter의 제출은 막고 다음 Enter로는 제출할 수 있다', () => {
+  const { input, binding } = setup();
+  let submissions = 0;
+  input.form.addEventListener('submit', () => { submissions++; });
+  input.value = '야';
+  event(input, 'keydown', { key: 'Enter', keyCode: 229 });
+  assert.equal(event(input.form, 'submit').defaultPrevented, true);
+  assert.equal(submissions, 0);
+  input.value = '약';
+  event(input, 'compositionend');
+  event(input, 'keydown', { key: 'Enter' });
+  assert.equal(event(input.form, 'submit').defaultPrevented, false);
+  assert.equal(submissions, 1);
+  binding.dispose();
+});
 test('방향키·엔터 선택은 선택 콜백을 한 번 실행하고 Esc 후 방향키로 다시 탐색할 수 있다', () => {
   const { input, options, binding, selections } = setup(); input.value = '약'; event(input, 'input');
   event(input, 'keydown', { key: 'ArrowDown' });

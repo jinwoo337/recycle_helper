@@ -141,7 +141,11 @@
 .collection-help, .large-waste-help { background: #f7faf8; padding: 18px; }
 .collection-links .button, .large-waste-links .button { min-height: 44px; }
 .result-next-actions { padding-top: 18px; border-top: 1px solid var(--line); }
+.result-check-action { margin: 12px 0; }
+.result-check-action .button { white-space: normal; text-align: left; }
 .result-actions .history-action { min-height: 44px; }
+.feedback-context { display: grid; gap: 4px; padding: 12px; border-radius: 8px; background: #f7faf8; color: var(--muted); font-size: 13px; }
+.feedback-context strong { color: var(--green); }
 .related-disposal { margin-block: 18px; }
 .related-disposal h3 { font-size: 16px; }
 .related-disposal ul { list-style: none; padding: 0; display: grid; gap: 6px; }

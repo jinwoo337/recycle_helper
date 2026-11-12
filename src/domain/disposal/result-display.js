@@ -1,4 +1,5 @@
 import { judgeDisposal, RULE_VERSION, TYPES } from './rules.js';
+import { handlingConditionQuestion } from './special-guides.js';
 
 const conditionTitles = {
   material: '주요 재질',
@@ -20,9 +21,10 @@ const conditionLabels = {
 };
 
 export function conditionDetails(part) {
+  const types = Object.hasOwn(TYPES, part.material) ? TYPES[part.material] : [];
   return Object.entries(conditionTitles).filter(([key]) => part[key]).map(([key, title]) => {
     const answer = part[key];
-    const label = key === 'type' ? TYPES[part.material]?.find(([type]) => type === answer)?.[1]
+    const label = key === 'type' ? types.find(([type]) => type === answer)?.[1]
       : Object.hasOwn(conditionLabels, answer) ? conditionLabels[answer] : undefined;
     return [title, label || answer];
   });
@@ -38,6 +40,32 @@ export function inputForDisplay(input, savedResult) {
   if (savedResult.ruleVersion === RULE_VERSION) return input;
   const { aiGuess, ...confirmedInput } = input;
   return confirmedInput;
+}
+
+const pendingQuestionLabels = {
+  material: '재질 확인하기',
+  type: '세부 종류 확인하기',
+  state: '오염 상태 확인하기',
+  removable: '오염 제거 여부 확인하기',
+  'vinyl-residue': '비닐에 남은 오염 확인하기',
+  combined: '붙어 있는 재질 확인하기',
+  separable: '재질 분리 여부 확인하기',
+  handling: '물건 상태 확인하기',
+};
+
+export function resultPendingQuestion(input, result) {
+  if (result.status !== 'check') return null;
+  const partIndex = result.pendingCondition ? 0 : result.parts.findIndex(part => part.pendingCondition);
+  const unconfirmedHandling = !input.handlingCondition || input.handlingCondition === 'unknown';
+  const condition = result.pendingCondition || result.parts[partIndex]?.pendingCondition
+    || (unconfirmedHandling && handlingConditionQuestion(result.handling) ? 'handling' : '');
+  if (!Object.hasOwn(pendingQuestionLabels, condition)) return null;
+  const part = partIndex > 0 ? result.parts[partIndex] : null;
+  return {
+    condition,
+    prefix: part ? `part${partIndex - 1}-` : '',
+    label: part ? `${part.label} · ${pendingQuestionLabels[condition]}` : pendingQuestionLabels[condition],
+  };
 }
 
 export function resultStepsForDisplay(result) {

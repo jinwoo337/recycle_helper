@@ -3,6 +3,7 @@ import { itemMatchLabel } from '../domain/disposal/item-suggestions.js';
 
 export function bindItemAutocomplete({ input, options, status, search, onSelect = () => {}, onCompositionEnd = () => {}, noResultsMessage = '등록되지 않은 이름도 아래에서 물건 종류를 선택해 안내받을 수 있어요.' }) {
   let candidates = [], active = -1, dismissedQuery = null, compositionCommitted = false;
+  let composingSubmit = false, compositionTimer;
   let suggestionMessage = '';
   let pointerOutside = false;
   const optionPrefix = options.id ? `${options.id}-option-` : 'item-option-';
@@ -39,7 +40,15 @@ export function bindItemAutocomplete({ input, options, status, search, onSelect 
   listen(input, 'keydown', event => {
     if (event.key === 'Enter') {
       dismissedQuery = input.value;
-      if (event.isComposing || event.keyCode === 229) { compositionCommitted = true; close(); return; }
+      if (event.isComposing || event.keyCode === 229) {
+        compositionCommitted = true;
+        composingSubmit = true;
+        clearTimeout(compositionTimer);
+        compositionTimer = setTimeout(() => { composingSubmit = false; }, 0);
+        close();
+        return;
+      }
+      composingSubmit = false;
       if (active >= 0 && !options.hidden) { event.preventDefault(); select(active); return; }
       close(); return;
     }
@@ -54,6 +63,7 @@ export function bindItemAutocomplete({ input, options, status, search, onSelect 
     input.setAttribute('aria-activedescendant', `${optionPrefix}${active}`);
     options.children[active].scrollIntoView({ block: 'nearest' });
   });
+  listen(input, 'compositionstart', () => { compositionCommitted = false; });
   listen(input, 'compositionend', () => {
     if (compositionCommitted) { dismissedQuery = input.value; compositionCommitted = false; }
     onCompositionEnd(); show();
@@ -67,5 +77,10 @@ export function bindItemAutocomplete({ input, options, status, search, onSelect 
   listen(owner, 'pointercancel', () => { if (pointerOutside) close(); pointerOutside = false; }, true);
   listen(owner, 'click', event => { pointerOutside = false; if (outside(event.target)) close(); });
   listen(input.form, 'invalid', close, true);
-  return { close, dispose() { listeners.forEach(remove => remove()); } };
+  listen(input.form, 'submit', event => {
+    if (!composingSubmit) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+  return { close, dispose() { clearTimeout(compositionTimer); listeners.forEach(remove => remove()); } };
 }

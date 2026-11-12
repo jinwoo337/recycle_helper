@@ -103,7 +103,7 @@ export const expandedItemEntries = [
   row('내열유리컵|유리냄비뚜껑', '유리', 'special', '내열·특수 유리는 일반 유리병 수거함에 넣지 않아요.'),
   row('유리접시|유리그릇', '유리', 'special', '유리병이 아닌 식기 기준이에요. 지역 불연성 폐기물 기준을 확인해 주세요.'),
   row('플라스틱빨대|일회용플라스틱빨대', '플라스틱', 'other', '일반 용기·트레이와 구분되는 작은 제품이에요. 지역 수거 기준을 확인해 주세요.'),
-  row('플라스틱숟가락|일회용플라스틱숟가락|일회용스푼|플라스틱포크|플라스틱나이프', '플라스틱', 'other', '작은 일회용 식기예요. 단일 플라스틱인지 확인하고 지역에서 작은 플라스틱 제품을 받는지 확인해 주세요.'),
+  row('플라스틱포크|플라스틱나이프', '플라스틱', 'other', '일반 용기·트레이가 아닌 일회용 식기예요. 재질 표시와 지역 기준을 확인해 주세요.'),
   row('플라스틱볼펜|볼펜|유성볼펜|젤펜|중성펜', '플라스틱', 'other', '일반적인 필기구 기준이에요. 전기·배터리가 있는 제품이면 전자제품으로 확인해 주세요.', undefined, 'stationery-general', 'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=316'),
   row('일회용면도기|플라스틱면도기', '플라스틱', 'other', '날과 플라스틱이 결합된 제품이에요. 억지로 분해하지 말고 날을 안전하게 보호해 지역 기준을 확인해 주세요.'),
   row('건전지|폐건전지|일회용건전지|알카라인건전지|알칼라인건전지', '기타', '', '전지류로 안내하므로 주요 재질을 몰라도 돼요. 충전식·버튼형·손상 제품은 해당 이름으로 다시 선택해 주세요.', undefined, 'battery'),
@@ -433,4 +433,6 @@ export const expandedItemEntries = [
   row('공책|수학공책|줄노트|노트내지','종이','paper','일반 종이 내지 기준이에요. 스프링·비닐 표지·부록 등 다른 재질은 실제 구성에 맞춰 확인해 주세요.'),
   row('약|폐의약품|의약품|남은약|먹다남은약|안먹는약|유통기한지난약|알약|가루약|물약|시럽약|캡슐약|연고|안약|감기약|진통제|처방약', '기타', '', '약 자체는 재질을 고르지 않고 폐의약품으로 안내해요. 건강기능식품·빈 약 포장재는 구분해 주세요.', undefined, 'medicine', 'https://news.seoul.go.kr/env/archives/564807'),
   row('나무젓가락|일회용나무젓가락|목재젓가락|대나무젓가락', '기타', '', '나무젓가락 본체 기준이에요. 겉포장은 분리해서 확인해 주세요.', undefined, 'wood-chopsticks', 'https://clean.yongsan.go.kr/resources/images/user/recycleExhaust.pdf', '2026-11-12'),
+  row('플라스틱숟가락|일회용플라스틱숟가락|플라스틱스푼|아이스크림숟가락', '플라스틱', 'utensil', '단일 플라스틱 숟가락 기준이에요. 음식물이 남았는지 확인하고, 포장과 다른 재질은 분리해 주세요.', undefined, undefined, 'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=416', '2026-11-12'),
+  row('나무숟가락|일회용나무숟가락|목재숟가락|나무스푼', '기타', '', '나무로 된 숟가락 본체 기준이에요. 겉포장은 따로 확인해 주세요.', undefined, 'wood-spoon', 'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=775', '2026-11-12'),
 ];

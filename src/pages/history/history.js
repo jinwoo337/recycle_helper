@@ -5,7 +5,7 @@ import { getCurrentMember } from '../../services/auth.js';
 import { resultMarkup } from '../item-input/item-input.js';
 import { bindResultTools } from '../../components/result-tools.js';
 import { queueInput } from '../../services/input-draft.js';
-import { inputForDisplay, resultForDisplay } from '../../domain/disposal/result-display.js';
+import { inputForDisplay, resultForDisplay, resultPendingQuestion } from '../../domain/disposal/result-display.js';
 
 export function historyPage() {
   return `<section class="container history-page">
@@ -86,7 +86,12 @@ export function bindHistory() {
     selectedId = record.id;
     detail.innerHTML = record.legacy ? `<p class="eyebrow">이전 이름 기록</p><h2 id="summary-title">${escapeHtml(record.itemName)}</h2><p class="demo-notice">이 기록에는 물품 이름만 저장되어 있어요. 당시 조건과 판별 결과는 없어요.</p><a class="button secondary" href="#/item-input">새로 판별하기</a>` : resultMarkup(record.input, record.result, record.createdAt);
     if (!record.legacy) {
-      detail.querySelector('#edit-item').addEventListener('click', () => { queueInput(inputForDisplay(record.input, record.result)); location.hash = '/item-input'; });
+      detail.querySelector('#edit-item').addEventListener('click', () => {
+        const input = inputForDisplay(record.input, record.result);
+        const editPendingQuestion = resultPendingQuestion(input, resultForDisplay(input, record.result));
+        queueInput({ ...input, editPendingQuestion });
+        location.hash = '/item-input';
+      });
       detail.querySelector('#category-other')?.addEventListener('click', () => { queueInput({ ...record.input, category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }); location.hash = '/item-input'; });
       disposeTools = bindResultTools(detail, record.input, record.result, {
         onNewItem: () => { queueInput({}); location.hash = '/item-input'; },

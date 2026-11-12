@@ -14,4 +14,6 @@ export const CATALOG_DETAIL_SOURCES = {
   'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=779':'품목사전 · 물 아이스팩',
   'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=179':'품목사전 · 젤 아이스팩',
   'https://clean.yongsan.go.kr/resources/images/user/recycleExhaust.pdf': '재활용품 분리배출 가이드라인 · 나무젓가락',
+  'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=416': '품목사전 · 작은 플라스틱 숟가락',
+  'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=775': '품목사전 · 목재 숟가락',
 };

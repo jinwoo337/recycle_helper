@@ -1,6 +1,6 @@
 # 품목 정보 확장
 
-확인일: 2026-10-27. 대표 품목 402개 유형, 검색 명칭 815개. 기존 명칭의 보완을 포함하며, 모두 신규 제품이라는 뜻은 아닙니다.
+확인일: 2026-10-27. 대표 품목 404개 유형, 검색 명칭 820개. 기존 명칭의 보완을 포함하며, 모두 신규 제품이라는 뜻은 아닙니다.
 
 기준: [공개 분리배출 지침](https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003), [품목사전](https://wasteguide.or.kr/front/dischargeMethod/dictionary.do). 제품별 구성은 물건 이름·재질 표시에 맞춰 확인할 수정 가능한 예시이며 모든 브랜드의 실물을 검증한 것은 아닙니다.
 
@@ -91,7 +91,7 @@
 | 77 | 내열유리컵 | 유리냄비뚜껑 | 유리 / special | 재질·종류 · [출처: 공개 분리배출 지침](https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003) |
 | 78 | 유리접시 | 유리그릇 | 유리 / special | 재질·종류 · [출처: 공개 분리배출 지침](https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003) |
 | 79 | 플라스틱빨대 | 일회용플라스틱빨대 | 플라스틱 / other | 재질·종류 · [출처: 공개 분리배출 지침](https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003) |
-| 80 | 플라스틱숟가락 | 일회용플라스틱숟가락、일회용스푼、플라스틱포크、플라스틱나이프 | 플라스틱 / other | 재질·종류 · [출처: 공개 분리배출 지침](https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003) |
+| 80 | 플라스틱포크 | 플라스틱나이프 | 플라스틱 / other | 재질·종류 · [출처: 공개 분리배출 지침](https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003) |
 | 81 | 플라스틱볼펜 | 볼펜、유성볼펜、젤펜、중성펜 | 플라스틱 / other | 소량 필기구 종량제 안내 · [출처: 품목사전 · 연필·필기구](https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=316) |
 | 82 | 일회용면도기 | 플라스틱면도기 | 플라스틱 / other | 재질·종류 · [출처: 공개 분리배출 지침](https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003) |
 | 83 | 건전지 | 폐건전지、일회용건전지、알카라인건전지、알칼라인건전지 | 기타 | 품목별 처리·지역 확인 · [출처: 공개 분리배출 지침](https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003) |
@@ -414,3 +414,5 @@
 | 400 | 공책 | 수학공책、줄노트、노트내지 | 종이 / paper | 재질·종류 · [출처: 공개 분리배출 지침](https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003) |
 | 401 | 약 | 폐의약품、의약품、남은약、먹다남은약、안먹는약、유통기한지난약、알약、가루약、물약、시럽약、캡슐약、연고、안약、감기약、진통제、처방약 | 기타 | 품목별 처리·지역 확인 · [출처: 서울시 · 폐의약품 수거 안내](https://news.seoul.go.kr/env/archives/564807) |
 | 402 | 나무젓가락 | 일회용나무젓가락、목재젓가락、대나무젓가락 | 기타 | 품목별 처리·지역 확인 · [출처: 재활용품 분리배출 가이드라인 · 나무젓가락](https://clean.yongsan.go.kr/resources/images/user/recycleExhaust.pdf) |
+| 403 | 플라스틱숟가락 | 일회용플라스틱숟가락、플라스틱스푼、아이스크림숟가락 | 플라스틱 / utensil | 재질·종류 · [출처: 품목사전 · 작은 플라스틱 숟가락](https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=416) |
+| 404 | 나무숟가락 | 일회용나무숟가락、목재숟가락、나무스푼 | 기타 | 품목별 처리·지역 확인 · [출처: 품목사전 · 목재 숟가락](https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=775) |

@@ -35,7 +35,7 @@ const localEntries = [
   ...expandedItemEntries,
   ...bundledItemEntries,
   [BATTERY_PACKAGING_NAMES, '', ''],
-  [['일회용숟가락', '일회용수저'], '', '', '숟가락의 재질을 확인해 주세요.'],
+  [['일회용숟가락', '일회용수저', '일회용스푼'], '', '', '숟가락의 재질을 확인해 주세요.'],
 ];
 const aliases = { '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔' };
 const foldItemName = name => typeof name === 'string' ? name.normalize('NFKC').replace(/\s+/g, '').toLowerCase() : '';
@@ -64,8 +64,8 @@ function catalogIndex(source) {
   const index = new Map();
   for (const [key, entry] of entryIndex(source)) {
     const local = expandedIndex.get(key);
-    // 검토한 전용 수거 경로를 오래된 DB 값보다 우선하는 기존 정책을 유지합니다.
-    const chosen = local && (local[4]?.handling || !entry[1]) ? local : entry;
+    // 검토한 전용 경로와 숟가락 기준은 이전 카탈로그의 일반 플라스틱 분류보다 우선합니다.
+    const chosen = local && (local[4]?.handling || local[2] === 'utensil' || !entry[1]) ? local : entry;
     const [, material, type, note = '실제 재질 표시를 확인해 주세요. 오염과 결합 상태는 직접 선택해 주세요.'] = chosen;
     const compatible = local && local[1] === material && (!type || local[2] === type || local[4]?.defaults?.type === type);
     index.set(key, { material, type, note: compatible ? local[3] : note,

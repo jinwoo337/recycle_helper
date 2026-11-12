@@ -2,21 +2,39 @@ import { memberTools } from '../services/member-tools.js';
 import { getCurrentMember } from '../services/auth.js';
 import { lookupItem, normalizeItemName } from '../domain/disposal/item-suggestions.js';
 import { resultToText } from '../domain/disposal/result-text.js';
+import { resultRegionLabel } from '../domain/disposal/regions.js';
 import { inputForDisplay, resultForDisplay } from '../domain/disposal/result-display.js';
 import { bindDisposalChecklist } from './disposal-checklist.js';
+import { bindResultCopy, copyResultButton, copyResultFallback } from './result-copy.js';
+import { escapeHtml } from '../utils/html.js';
 
-export function resultToolsMarkup(input) {
-  return `<div class="result-actions"><button type="button" class="history-action" data-share-result hidden>공유하기</button><button type="button" class="history-action" data-copy-result>결과 복사</button><button type="button" class="history-action" data-favorite aria-pressed="false">즐겨찾기</button></div>
+const feedbackIssues = {
+  destination: '수거처·배출 장소',
+  method: '재질·배출 방법',
+  preparation: '준비 단계·주의사항',
+  local: '지역 기준·공식 링크',
+};
+
+export function resultToolsMarkup(input, result) {
+  const context = [input.itemName, resultRegionLabel(result), result.method].map(escapeHtml).join(' · ');
+  return `<div class="result-actions"><button type="button" class="history-action" data-share-result hidden>공유하기</button>${copyResultButton}<button type="button" class="history-action" data-favorite aria-pressed="false">즐겨찾기</button></div>
     <p class="input-hint" data-result-tools-status role="status" aria-live="polite"></p>
-    <textarea class="copy-fallback" data-copy-fallback aria-label="복사할 판별 결과" readonly hidden></textarea>
+    ${copyResultFallback}
     <details class="feedback-panel"><summary>결과 오류 또는 미등록 품목 제보</summary>
-    <p class="input-hint">제보는 관리자 검토 대기로 저장되며, 검증 없이 판별 데이터에 반영되지 않아요. 개인정보는 적지 말아 주세요.</p>
-    ${getCurrentMember() ? `<form data-feedback-form><div class="field"><label>제보 종류<select name="kind"><option value="correction">판별 결과 오류</option><option value="missing_item" ${!lookupItem(input.itemName) ? 'selected' : ''}>미등록 품목 / 배출 방법 제안</option></select></label></div><div class="field"><label>제보 내용<textarea name="message" rows="4" minlength="10" maxlength="2000" required placeholder="실제 물품과 지역 안내 등 확인할 내용을 10자 이상 적어 주세요."></textarea></label></div><button class="button secondary" type="submit">검토 요청 보내기</button><p data-feedback-status class="input-hint" role="status" aria-live="polite"></p></form>`
+    ${getCurrentMember() ? `<p class="feedback-context"><strong>함께 보내는 안내</strong><span>${context}</span></p>
+    <form data-feedback-form>
+      <div class="field"><label>제보 종류<select name="kind"><option value="correction">판별 결과 오류</option><option value="missing_item" ${!lookupItem(input.itemName)?.material ? 'selected' : ''}>미등록 품목 / 배출 방법 제안</option></select></label></div>
+      <div class="field"><label>문제가 있는 부분<select name="issue"><option value="">선택 안 함</option>${Object.entries(feedbackIssues).map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></label></div>
+      <div class="field"><label>제보 내용<textarea name="message" rows="3" maxlength="2000" required placeholder="예: 공식 신청 링크가 열리지 않아요."></textarea></label></div>
+      <p class="input-hint">관리자에게 검토를 요청해요. 개인정보는 적지 말아 주세요.</p>
+      <button class="button secondary" type="submit">검토 요청 보내기</button><p data-feedback-status class="input-hint" role="status" aria-live="polite"></p>
+    </form>`
       : '<p class="input-hint"><a href="#/login">로그인</a>한 뒤 제보를 보낼 수 있어요.</p>'}</details>`;
 }
 
 export function bindResultTools(root, input, result, { onNewItem, onRelatedItem, tools = memberTools } = {}) {
   const disposeChecklist = bindDisposalChecklist(root);
+  const disposeCopy = bindResultCopy(root, () => resultToText(input, result));
   const status = root.querySelector('[data-result-tools-status]');
   const favorite = root.querySelector('[data-favorite]');
   let selected = false, disposed = false, loaded = false, busy = false, refreshVersion = 0;
@@ -45,14 +63,6 @@ export function bindResultTools(root, input, result, { onNewItem, onRelatedItem,
     catch (error) { if (alive()) status.textContent = error.message; }
     finally { busy = false; if (alive()) favorite.disabled = false; }
   });
-  root.querySelector('[data-copy-result]').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(resultToText(input, result)); if (alive()) status.textContent = '판별 결과를 복사했어요.'; }
-    catch {
-      if (!alive()) return;
-      const field = root.querySelector('[data-copy-fallback]'); field.hidden = false; field.value = resultToText(input, result); field.focus(); field.select();
-      status.textContent = '자동 복사를 사용할 수 없어요. 선택된 내용을 직접 복사해 주세요.';
-    }
-  });
   // 휴대폰 등 공유 기능이 있는 브라우저에서는 카카오톡·문자로 바로 보낼 수 있게 공유 버튼을 보여 줍니다.
   const share = root.querySelector('[data-share-result]');
   if (typeof navigator.share === 'function') {
@@ -69,12 +79,23 @@ export function bindResultTools(root, input, result, { onNewItem, onRelatedItem,
   });
   const feedbackForm = root.querySelector('[data-feedback-form]');
   feedbackForm?.elements.message.addEventListener('input', () => feedbackForm.elements.message.setCustomValidity(''));
+  feedbackForm?.elements.issue?.addEventListener('change', () => feedbackForm.elements.message.setCustomValidity(''));
   feedbackForm?.addEventListener('submit', async event => {
     event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('button'); if (button.disabled || !form.reportValidity()) return;
-    const message = form.elements.message.value.trim();
-    if (message.length < 10) { form.elements.message.setCustomValidity('앞뒤 공백을 제외하고 10자 이상 적어 주세요.'); form.elements.message.reportValidity(); return; }
+    const note = form.elements.message.value.trim();
+    const issueId = form.elements.issue?.value;
+    const issue = Object.hasOwn(feedbackIssues, issueId) ? feedbackIssues[issueId] : '';
+    const message = issue ? `[${issue}] ${note}` : note;
+    if (!note || message.length < 10 || message.length > 2000) {
+      const validation = message.length > 2000 ? '선택한 부분과 제보 내용을 합쳐 2,000자 이내로 적어 주세요.'
+        : issue ? '안내와 다른 점을 짧게 적어 주세요.'
+          : '앞뒤 공백을 제외하고 10자 이상 적거나 문제가 있는 부분을 골라 주세요.';
+      form.elements.message.setCustomValidity(validation);
+      form.elements.message.reportValidity();
+      return;
+    }
     const feedbackStatus = form.querySelector('[data-feedback-status]'); button.disabled = true;
-    const controls = [form.elements.kind, form.elements.message];
+    const controls = [form.elements.kind, form.elements.issue, form.elements.message].filter(Boolean);
     const kind = form.elements.kind.value;
     controls.forEach(control => { control.disabled = true; });
     feedbackStatus.textContent = '제보를 보내고 있어요…';
@@ -88,5 +109,5 @@ export function bindResultTools(root, input, result, { onNewItem, onRelatedItem,
   });
   window.addEventListener('favorites-changed', refreshFavorite);
   refreshFavorite();
-  return () => { disposeChecklist(); disposed = true; refreshVersion++; window.removeEventListener('favorites-changed', refreshFavorite); };
+  return () => { disposeCopy(); disposeChecklist(); disposed = true; refreshVersion++; window.removeEventListener('favorites-changed', refreshFavorite); };
 }

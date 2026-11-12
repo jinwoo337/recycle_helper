@@ -69,6 +69,7 @@ export function regionalSourceLabel(url) {
 }
 // 재활용 품목의 재질·세부 종류에 맞는 서울시 공통 안내 문장 이름(SEOUL_RECYCLE_NOTES의 키)입니다.
 function seoulRecycleKey({ material, type }) {
+  if (type === 'utensil') return null;
   if (material === '종이') return ({ paper: 'paper', carton: 'carton', cup: 'cup' })[type] || null;
   if (material === '페트병' && type === 'clear-drink') return 'pet';
   if (material === '스티로폼') return 'foam';
@@ -76,6 +77,7 @@ function seoulRecycleKey({ material, type }) {
 }
 // 광역시(대구·광주·울산) 시청 공통 안내에서 재질에 맞는 문장 이름을 고릅니다.
 function metroRecycleKey({ material, type }) {
+  if (type === 'utensil') return null;
   if (material === '종이') return ({ paper: 'paper', carton: 'carton' })[type] || null;
   if (material === '페트병') return type === 'clear-drink' ? 'pet' : 'container';
   if (material === '플라스틱') return 'container';
@@ -86,6 +88,7 @@ function metroRecycleKey({ material, type }) {
 }
 // 대전 구청 자료에서 재질에 맞는 안내 문장을 고릅니다. 자료가 없으면 null입니다.
 function daejeonRecycleNote(guide, { material, type }) {
+  if (type === 'utensil') return null;
   const key = material === '종이' ? (type === 'carton' ? 'carton' : type === 'paper' ? 'paper' : null)
     : material === '비닐' ? 'vinyl' : ['플라스틱', '페트병', '유리', '금속·캔', '스티로폼'].includes(material) ? 'container' : null;
   if (!key) return null;
@@ -157,7 +160,7 @@ export function applyRegionalRules(input, base) {
           result.status = 'check'; result.method = '비닐의 내용물·고형물 확인 필요 · 서울시 안내';
           if (input.vinylResidue !== 'solids') result.pendingCondition = 'vinyl-residue';
           result.reasons = [input.vinylResidue === 'solids' ? '제거하기 어려운 고형물이 남아 있어 구별 수거 기준을 확인해야 해요.' : '남은 오염이 기름·물 자국인지 고형물인지 아직 확인되지 않았어요.'];
-          result.steps = ['‘조건 수정’에서 비닐에 남은 오염 종류를 확인해 주세요.', '음식물·소스·부스러기는 비우거나 헹궈 제거해 주세요. 제거되지 않는 고형물은 구청·관리사무소에 수거 방법을 확인해 주세요.'];
+          result.steps = ['비닐에 남은 것이 기름·물 자국인지 고형물인지 확인해 주세요.', '음식물·소스·부스러기는 비우거나 헹궈 제거해 주세요. 제거되지 않는 고형물은 구청·관리사무소에 수거 방법을 확인해 주세요.'];
         }
         result.parts[0] = { label: result.parts[0].label, material: result.parts[0].material, status: result.status, method: result.method, reasons: [...result.reasons], steps: [...result.steps] };
       }

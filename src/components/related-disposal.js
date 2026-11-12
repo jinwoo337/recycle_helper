@@ -1,9 +1,13 @@
 import { normalizeItemName, lookupItem } from '../domain/disposal/item-suggestions.js';
 import { escapeHtml } from '../utils/html.js';
 
+const ambiguousSpoons = ['일회용스푼', '일회용숟가락', '일회용수저'];
+export const isAmbiguousSpoonName = name => ambiguousSpoons.includes(normalizeItemName(name));
+
 const mealItems = [
   { name: '나무젓가락', hint: '종량제봉투', matches: name => lookupItem(name)?.handling === 'wood-chopsticks' },
-  { name: '플라스틱 숟가락', hint: '작은 식기 · 지역 수거 기준 확인', matches: name => ['플라스틱숟가락', '일회용플라스틱숟가락', '일회용스푼', '일회용숟가락', '일회용수저'].includes(name) },
+  { name: '플라스틱 숟가락', hint: '헹구기 · 단일 플라스틱 수거 확인', matches: name =>
+    isAmbiguousSpoonName(name) || lookupItem(name)?.type === 'utensil' || lookupItem(name)?.handling === 'wood-spoon' },
   { name: '배달 용기', hint: '비우기 · 재질과 오염 확인', matches: name => name === '배달용기' },
 ];
 
