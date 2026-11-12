@@ -27,15 +27,20 @@ export function comparisonPanelMarkup(comparison) {
   const verified = current.regional.coverage === 'verified';
   const currentLabel = verified ? (current.regional.scope === 'city' ? cityGuidanceLabel(current) : '현재 지역 기준') : '현재 기본 안내';
   const hasCityGuidance = current.regional.scope === 'city' || groups.some(group => group.result.regional.scope === 'city');
+  const shared = new Set(current.steps.filter(step =>
+    step !== SEOUL_SCOPE_NOTE && step !== current.regional.scopeNote && groups.every(group => group.result.steps.includes(step))
+  ));
   return `<p class="comparison-explanation">${verified ? '같은 조건에서 배출 방식이 다른 지역이에요.' : '공식 자료가 확인된 지역끼리 비교한 안내예요.'}</p>
     <article class="comparison-current"><span class="comparison-label">${escapeHtml(currentLabel)}</span><h3>${escapeHtml(current.regional.label)}</h3><strong>${escapeHtml(current.method)}</strong>${!verified && current.region ? '<p class="input-hint">현재 지역의 이 품목 기준은 추가 확인이 필요해요.</p>' : ''}</article>
     <div class="comparison-groups">${groups.map(group => {
       const highlights = comparisonHighlights(group.result, current);
       const label = group.result.regional.scope === 'city' ? cityGuidanceLabel(group.result) : '이 지역에서 버릴 때';
       return `<article class="comparison-card"><span class="comparison-label">${escapeHtml(label)}</span><h3>${escapeHtml(groupLabel(group.regions))}</h3><p class="comparison-method">${escapeHtml(group.result.method)}</p>${highlights.length ? list(highlights) : ''}
-      <details><summary>전체 배출 방법·근거 보기</summary>${list(group.result.steps.filter(step => step !== SEOUL_SCOPE_NOTE))}
+      <details><summary>${shared.size ? '지역별 배출 방법·근거 보기' : '전체 배출 방법·근거 보기'}</summary>${list(group.result.steps.filter(step => step !== SEOUL_SCOPE_NOTE && !shared.has(step)))}
       ${group.regions.length > 1 ? `<details><summary>해당 지역 ${group.regions.length}곳 보기</summary><p class="input-hint">${group.regions.map(region => escapeHtml(`${region.province} ${region.district}`)).join(' · ')}</p></details>` : ''}
       <p class="input-hint comparison-sources">확인일 ${escapeHtml(group.result.regional.checkedAt)} · ${group.sources.filter(url => Object.values(REGIONAL_SOURCES).includes(url)).map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(regionalSourceLabel(url))} ↗</a>`).join(' · ')}</p></details></article>`; }).join('')}</div>
+    ${shared.size ? `<section class="comparison-common"><h3>공통 준비</h3>${list([...shared])}</section>` : ''}
+    <p class="input-hint">내 판별 지역을 바꾸려면 결과 상단의 ‘지역 변경’을 선택해 주세요.</p>
     ${hasCityGuidance ? '<p class="input-hint">시 공통 안내가 표시된 곳은 해당 구의 수거 기준도 확인해 주세요.</p>' : ''}
     ${unverifiedCount ? `<p class="input-hint">품목별 기준을 확인하지 못한 ${unverifiedCount}곳은 비교에서 제외했어요.</p>` : ''}`;
 }

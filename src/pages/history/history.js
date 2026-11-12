@@ -84,15 +84,19 @@ export function bindHistory() {
     if (selectedId === record.id && !detail.hidden) { if (focus) detail.focus(); return; }
     disposeTools();
     selectedId = record.id;
-    detail.innerHTML = record.legacy ? `<p class="eyebrow">이전 이름 기록</p><h2 id="summary-title">${escapeHtml(record.itemName)}</h2><p class="demo-notice">이 기록에는 물품 이름만 저장되어 있어요. 당시 조건과 판별 결과는 없어요.</p><a class="button secondary" href="#/item-input">새로 판별하기</a>` : resultMarkup(record.input, record.result, record.createdAt);
+    detail.innerHTML = record.legacy ? `<p class="eyebrow">이전 이름 기록</p><h2 id="summary-title">${escapeHtml(record.itemName)}</h2><p class="demo-notice">이 기록에는 물품 이름만 저장되어 있어요. 당시 조건과 판별 결과는 없어요.</p><a class="button secondary" href="#/item-input">새로 판별하기</a>` : resultMarkup(record.input, record.result, record.createdAt, { editRegion: true });
     if (!record.legacy) {
-      detail.querySelector('#edit-item').addEventListener('click', () => {
-        const input = inputForDisplay(record.input, record.result);
-        const editPendingQuestion = resultPendingQuestion(input, resultForDisplay(input, record.result));
-        queueInput({ ...input, editPendingQuestion });
+      const input = inputForDisplay(record.input, record.result);
+      const edit = extra => {
+        queueInput({ ...input, ...extra });
         location.hash = '/item-input';
+      };
+      detail.querySelector('#edit-item').addEventListener('click', () => {
+        const editPendingQuestion = resultPendingQuestion(input, resultForDisplay(input, record.result));
+        edit({ editPendingQuestion });
       });
-      detail.querySelector('#category-other')?.addEventListener('click', () => { queueInput({ ...record.input, category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }); location.hash = '/item-input'; });
+      detail.querySelector('[data-edit-region]').addEventListener('click', () => edit({ editRegion: true }));
+      detail.querySelector('#category-other')?.addEventListener('click', () => edit({ category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }));
       disposeTools = bindResultTools(detail, record.input, record.result, {
         onNewItem: () => { queueInput({}); location.hash = '/item-input'; },
         onRelatedItem(itemName) { queueInput({ itemName, region: record.input.region }); location.hash = '/item-input'; },

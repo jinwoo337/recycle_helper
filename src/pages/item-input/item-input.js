@@ -921,7 +921,9 @@ export function bindItemInput() {
   }
   restore(draft);
   refreshCatalog();
-  if (queued?.editCategory) {
+  if (queued?.editRegion) {
+    judgementRegion.focus();
+  } else if (queued?.editCategory) {
     focusCategory();
   } else if (queued?.editPendingQuestion) focusResultQuestion(queued.editPendingQuestion);
   else if (queued?.itemName) focusNextCondition();

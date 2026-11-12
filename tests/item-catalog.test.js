@@ -24,6 +24,13 @@ test('DB 품목을 추천·자동 입력·판별에 공통 사용하며 잘못�
     await loadItemCatalog(client);
     assert.equal(lookupItem('건전지').handling,'battery');
     assert.equal(lookupItem('플라스틱두부용기').type,'container');
+    rows.push(
+      { id: 'expanded-20261027-080', aliases: ['플라스틱숟가락', '플라스틱포크', '플라스틱나이프'], material: '플라스틱', item_type: 'other', note: '이전 식기 기준' },
+      { id: 'expanded-20261027-403', aliases: ['플라스틱포크', '플라스틱나이프'], material: '플라스틱', item_type: 'other', note: '포크와 나이프' },
+    );
+    await loadItemCatalog(client);
+    assert.equal(lookupItem('플라스틱숟가락').type, 'utensil');
+    assert.equal(lookupItem('플라스틱포크').type, 'other');
     rows.push({id:'invalid-material',aliases:['잘못된재질'],material:'없는재질',item_type:'',note:'잘못된 값'});
     await assert.rejects(loadItemCatalog(client), /재질/);
     rows.splice(2); rows.push(null);

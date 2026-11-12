@@ -104,6 +104,9 @@
 .guide-faq .history-action{margin:0 0 12px}
 .comparison-card{background:#f5f6f4;border-color:#e1e4df;color:#3d463d}
 .comparison-card .comparison-label{color:#6b736b}
+.comparison-common { margin-block: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.comparison-common h3 { font-size: 15px; margin-bottom: 4px; }
+.comparison-common ol { margin: 0; padding-left: 20px; }
 .collection-days{margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:0 18px}
 .collection-days>summary{cursor:pointer;min-height:56px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding-block:10px}
 .collection-days-title{font-weight:700;font-size:15px}.collection-days-summary{font-size:13px;color:var(--green);font-weight:600}
@@ -121,7 +124,7 @@
 .home-page { max-width: 900px; }
 .home-heading { max-width: 640px; }
 .home-search { border-color: #d3dfd6; padding: 28px; }
-.home-search .example-items button, .input-examples .history-action { min-height: 40px; padding-inline: 12px; }
+.home-search .example-items button, .input-examples .history-action { min-height: 44px; padding-inline: 12px; }
 .item-name-options button { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; }
 .item-name-options button > span { min-width: 0; overflow-wrap: anywhere; }
 .item-match-label { flex: none; color: var(--muted); font-size: 12px; }
@@ -143,6 +146,7 @@
 .result-next-actions { padding-top: 18px; border-top: 1px solid var(--line); }
 .result-check-action { margin: 12px 0; }
 .result-check-action .button { white-space: normal; text-align: left; }
+.item-summary :is(.result-evidence, .input-details, .regional-comparison) > summary { min-height: 44px; align-content: center; }
 .result-actions .history-action { min-height: 44px; }
 .feedback-context { display: grid; gap: 4px; padding: 12px; border-radius: 8px; background: #f7faf8; color: var(--muted); font-size: 13px; }
 .feedback-context strong { color: var(--green); }
@@ -175,7 +179,8 @@
   .item-summary .result-verdict h3 { font-size: 20px; }
   .item-summary .result-verdict { padding: 14px; }
   .collection-help, .large-waste-help { padding: 14px; }
-  body:has(input:not([type="checkbox"]):not([type="radio"]):focus, textarea:focus, select:focus) .bottom-nav { display: none; }
+  html { scroll-padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  body:has(input:is([type="text"], [type="search"], [type="email"], [type="password"], [type="tel"], [type="url"], [type="number"], :not([type])):focus, textarea:focus) .bottom-nav { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .home-shortcut { transition: none; }

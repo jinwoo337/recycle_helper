@@ -136,6 +136,12 @@ test('지역 비교는 현재 지침을 반복하지 않고 차이를 요약하�
     assert.ok(comparisonHighlights(group.result, comparison.current).length <= 2);
     assert.ok(comparisonHighlights(group.result, comparison.current).every(step => !comparison.current.steps.includes(step)));
   }
+  const preparation = '유리가 드러나지 않게 감싸 주세요.';
+  comparison.current.steps.unshift(preparation);
+  comparison.groups.forEach(group => group.result.steps.unshift(preparation));
+  const withCommonPreparation = comparisonPanelMarkup(comparison);
+  assert.equal(withCommonPreparation.split(preparation).length - 1, 1);
+  assert.match(withCommonPreparation, /공통 준비/);
 });
 
 test('연습 종료 안내는 회원에게 불필요한 로그인을 요구하지 않는다', () => {
