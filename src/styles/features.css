@@ -43,6 +43,12 @@
   background: white;
 }
 .category-suggestion p { margin: 0; font-size: 13px; }
+.item-category-section .ai-panel { margin: 8px 0 12px; }
+.item-category-section .ai-panel p:empty { display: none; }
+.manual-category { border-top: 1px solid var(--line); margin-top: 12px; }
+.manual-category > summary { min-height: 44px; align-content: center; color: var(--green); cursor: pointer; }
+.manual-category-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.item-category-section .history-action { min-height: 44px; }
 .item-page:has(#item-summary:not([hidden])) .item-heading { display: none; }
 #item-form .field-error {
   margin: 8px 0 0;
@@ -135,6 +141,11 @@
 .collection-links .button, .large-waste-links .button { min-height: 44px; }
 .result-next-actions { padding-top: 18px; border-top: 1px solid var(--line); }
 .result-actions .history-action { min-height: 44px; }
+.related-disposal { margin-block: 18px; }
+.related-disposal h3 { font-size: 16px; }
+.related-disposal ul { list-style: none; padding: 0; display: grid; gap: 6px; }
+.related-disposal button { width: 100%; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; text-align: left; }
+.related-disposal button strong { color: var(--green); }
 .disposal-checklist { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 14px 0; }
 .disposal-checklist .history-action { min-height: 44px; }
 .disposal-checklist [aria-pressed="true"] { color: var(--green); background: #edf5f0; border-color: #8caa98; }

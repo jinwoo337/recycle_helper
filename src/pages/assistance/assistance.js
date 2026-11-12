@@ -19,6 +19,7 @@ import { handlingConditionQuestion } from '../../domain/disposal/special-guides.
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
 import { bindDisposalChecklist, checklistMarkup } from '../../components/disposal-checklist.js';
+import { relatedDisposalMarkup } from '../../components/related-disposal.js';
 
 const titles = { description: '물건 설명하기', photo: '사진으로 인식하기' };
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
@@ -89,6 +90,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], mode = 'd
     ${sources.length ? `<details class="assist-answer-history"><summary>등록 안내의 출처</summary><ul>${sources.map(url => `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a></li>`).join('')}</ul></details>` : ''}
     ${answers.length ? `<details class="assist-answer-history"><summary>지금까지 답한 내용 ${answers.length}개</summary><dl>${answers.map(pair => `<dt>${escapeHtml(pair.question)}</dt><dd>${escapeHtml(pair.answer)}</dd>`).join('')}</dl></details>` : ''}
     ${!guide && steps.length ? '<p class="input-hint">실제 제품 표시와 거주지 수거 기준을 확인해 주세요.</p>' : ''}
+    ${guide ? relatedDisposalMarkup(answer.itemName) : ''}
     <div class="assist-result-actions">${canConfirm ? `<button type="button" class="button ${guide?.needsConditions ? 'primary' : 'secondary'}" data-assist-check>${guide?.needsConditions ? '물건 상태 확인하기' : '이 이름으로 기준 확인'}</button>` : ''}<button type="button" class="button secondary" data-assist-refine>입력 수정</button><button type="button" class="button secondary" data-assist-new>다른 물건 찾기</button></div>${correction}`;
 }
 
@@ -340,7 +342,9 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       else { clearResult(); description.focus(); }
     }
     const candidate = event.target.closest('[data-assist-candidate]')?.dataset.assistCandidate;
-    if (candidate) openNameSearch(candidate);
+    const related = event.target.closest('[data-related-item]')?.dataset.relatedItem;
+    if (related) openNameSearch(related);
+    else if (candidate) openNameSearch(candidate);
     else if (event.target.closest('[data-assist-check]') && answer) openNameSearch(answer.itemName);
   });
   return () => {

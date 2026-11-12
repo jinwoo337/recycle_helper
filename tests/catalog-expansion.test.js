@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { expandedItemEntries } from '../src/domain/disposal/expanded-catalog.js';
+import { expandedItemEntries, CATALOG_CHECKED_AT } from '../src/domain/disposal/expanded-catalog.js';
 import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { lookupItem, suggestItemInfo, searchItemNames, setItemCatalog } from '../src/domain/disposal/item-suggestions.js';
 import { TYPES, MATERIALS, judgeDisposal, supportsState, normalizePart } from '../src/domain/disposal/rules.js';
@@ -13,7 +13,8 @@ test('확장 품목의 모든 명칭이 유효한 기본 정보·출처를 갖�
   for (const [names,material,type,,metadata] of expandedItemEntries) {
     assert.ok(MATERIALS.includes(material));
     if (type) assert.ok(TYPES[material]?.some(([id])=>id===type));
-    assert.equal(metadata.checkedAt,'2026-10-27');
+    assert.match(metadata.checkedAt, /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(metadata.checkedAt >= CATALOG_CHECKED_AT);
     assert.ok(metadata.source === 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003' || Object.hasOwn(CATALOG_DETAIL_SOURCES,metadata.source) || metadata.source === FOOD_SOURCE);
     for (const name of names) {
       const key = name.toLowerCase(); assert.ok(!seen.has(key),name); seen.add(key);

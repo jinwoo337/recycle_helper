@@ -15,7 +15,7 @@ export function resultToolsMarkup(input) {
       : '<p class="input-hint"><a href="#/login">로그인</a>한 뒤 제보를 보낼 수 있어요.</p>'}</details>`;
 }
 
-export function bindResultTools(root, input, result, { onNewItem, tools = memberTools } = {}) {
+export function bindResultTools(root, input, result, { onNewItem, onRelatedItem, tools = memberTools } = {}) {
   const disposeChecklist = bindDisposalChecklist(root);
   const status = root.querySelector('[data-result-tools-status]');
   const favorite = root.querySelector('[data-favorite]');
@@ -63,6 +63,10 @@ export function bindResultTools(root, input, result, { onNewItem, tools = member
     });
   }
   root.querySelector('[data-new-item]').addEventListener('click', () => onNewItem?.());
+  root.querySelector('.related-disposal')?.addEventListener('click', event => {
+    const related = event.target.closest('[data-related-item]');
+    if (related && alive()) onRelatedItem?.(related.dataset.relatedItem);
+  });
   const feedbackForm = root.querySelector('[data-feedback-form]');
   feedbackForm?.elements.message.addEventListener('input', () => feedbackForm.elements.message.setCustomValidity(''));
   feedbackForm?.addEventListener('submit', async event => {

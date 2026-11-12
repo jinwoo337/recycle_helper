@@ -1,7 +1,8 @@
 // 미등록 물품에 대한 AI 추정값을 검증합니다. AI는 재질·경로만 고르고 배출 방법은 규칙이 정합니다.
 // rules.js와 서로 가져오므로 모듈 최상위에서 MATERIALS·TYPES를 사용하지 않습니다.
-import { MATERIALS, TYPES } from './rules.js';
+import { MATERIALS, TYPES, supportsState } from './rules.js';
 import { normalizeItemName } from './item-suggestions.js';
+import { ITEM_CATEGORIES, categoryAllowsMaterial, validItemCategory } from './item-categories.js';
 
 export const AI_ROUTES = ['recyclable', 'general', 'large', 'hazardous', 'unknown'];
 export const AI_CONFIDENCE = ['high', 'medium', 'low'];
@@ -17,6 +18,21 @@ export function aiOpinionNeedsReview(result, guess) {
   return false;
 }
 const aiMaterials = () => MATERIALS.filter(material => material !== '모르겠어요');
+const aiCategories = ITEM_CATEGORIES.filter(([id]) => id !== 'material-only');
+
+export function suggestedItemCategory(guess) {
+  if (!guess || guess.confidence === 'low') return '';
+  const { category, material, route, type } = guess;
+  if (category === 'food' && material === '음식물류' && type && ['general', 'recyclable'].includes(route)) return 'food';
+  if (route === 'large' && (!category || category === 'large')) return 'large';
+  if (category === 'packaging' && ['recyclable', 'general'].includes(route) &&
+      categoryAllowsMaterial(category, material) && material !== '기타' && type) return category;
+  if (route === 'hazardous' && guess.confidence === 'high' && validItemCategory(category) &&
+      !['unknown', 'material-only', 'packaging', 'food', 'large'].includes(category)) return category;
+  // 이전에 저장된 답에는 종류가 없습니다. 용기·포장인지 구분 가능한 세부 종류만 제안합니다.
+  if (!category && route === 'recyclable' && supportsState(guess) && !(material === '종이' && type === 'paper')) return 'packaging';
+  return '';
+}
 
 export function cleanAiName(name) {
   const value = typeof name === 'string' ? name.normalize('NFKC').trim().replace(/\s+/g, ' ') : '';
@@ -35,7 +51,9 @@ export function validateAiGuess(raw, itemName) {
   const reason = typeof raw.reason === 'string' ? raw.reason.trim().slice(0, 160) : '';
   // 위험 가능성은 항상 유지합니다. 확신이 낮거나, 재활용 경로인데 재질·종류가 확정되지 않으면 배출 방법을 안내하지 않습니다.
   const route = raw.route === 'hazardous' ? 'hazardous' : raw.confidence === 'low' || (raw.route === 'recyclable' && (!types.length || !type)) ? 'unknown' : raw.route;
-  return { itemName: name, material, type, route, confidence: raw.confidence, reason, source: 'gemini' };
+  const guess = { itemName: name, material, type, route, confidence: raw.confidence, reason, source: 'gemini' };
+  if (validItemCategory(raw.category)) guess.category = suggestedItemCategory({ ...guess, category: raw.category }) || 'unknown';
+  return guess;
 }
 
 // Gemini 응답 형식을 고정하는 JSON 스키마입니다.
@@ -50,10 +68,11 @@ export function aiResponseSchema() {
       route: { type: 'STRING', enum: AI_ROUTES },
       confidence: { type: 'STRING', enum: AI_CONFIDENCE },
       reason: { type: 'STRING' },
+      category: { type: 'STRING', enum: aiCategories.map(([id]) => id) },
       // 같은 물건을 부르는 다른 이름들입니다. 공용 저장소에 함께 저장해 다음에는 AI 없이 바로 답합니다.
       aliases: { type: 'ARRAY', items: { type: 'STRING' }, maxItems: 5 },
     },
-    required: ['material', 'type', 'route', 'confidence', 'reason', 'aliases'],
+    required: ['material', 'type', 'route', 'confidence', 'reason', 'aliases', 'category'],
   };
 }
 
@@ -71,6 +90,8 @@ route:
 - hazardous: 배터리·전자제품·가스·약품·스프레이·형광등 등 별도 수거나 안전 처리가 필요한 것
 - unknown: 판단하기 어려움
 confidence: 확실하면 high, 대체로 맞으면 medium, 추측이면 low.
+category: 물건 자체의 용도나 종류를 아래 코드 중 하나로 고른다. 예를 들어 일반 플라스틱 용기·포장은 packaging, 음식물은 food다. 재질만 알거나 용도를 모르면 unknown이다. 가스·전지·가전 등 전용 수거가 필요한 물건은 route를 hazardous로 두고 해당 종류 코드를 고른다.
+${aiCategories.map(([id, label]) => `- ${id}: ${label}`).join('\n')}
 reason: 판단 근거를 한국어 한 문장(80자 이내)으로.
 aliases: 같은 물건을 사람들이 다르게 부르는 한국어 이름 최대 5개(띄어쓰기 없이, 15자 이내). 더 넓은 분류나 다른 물건은 넣지 마. 없으면 빈 배열.
 현재 상태가 함께 주어지면 그 상태를 반영해 route를 정해. 예: 지울 수 없는 오염이나 고형물이 남은 포장재, 분리하기 어려운 복합재질은 general.

@@ -34,7 +34,7 @@ export function resultToText(input, result) {
   ].filter(Boolean).join('\n');
   const evidence = [
     '판단 이유', ...result.reasons, ...regionNotes, '', result.notice,
-    `규칙 ${result.ruleVersion} · 확인일 ${result.regional?.checkedAt || result.checkedAt || '미기록'}`,
+    `규칙 ${result.ruleVersion} · 확인일 ${(result.regional?.coverage === 'verified' ? result.regional.checkedAt : result.checkedAt) || '미기록'}`,
     '공식 출처', ...sources,
   ].join('\n');
   return `${prefix}${heading}${preparation}${partInstructions}${conditions ? `\n\n입력한 조건\n${conditions}` : ''}\n\n${evidence}`;

@@ -88,7 +88,10 @@ export function bindHistory() {
     if (!record.legacy) {
       detail.querySelector('#edit-item').addEventListener('click', () => { queueInput(inputForDisplay(record.input, record.result)); location.hash = '/item-input'; });
       detail.querySelector('#category-other')?.addEventListener('click', () => { queueInput({ ...record.input, category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }); location.hash = '/item-input'; });
-      disposeTools = bindResultTools(detail, record.input, record.result, { onNewItem: () => { queueInput({}); location.hash = '/item-input'; } });
+      disposeTools = bindResultTools(detail, record.input, record.result, {
+        onNewItem: () => { queueInput({}); location.hash = '/item-input'; },
+        onRelatedItem(itemName) { queueInput({ itemName, region: record.input.region }); location.hash = '/item-input'; },
+      });
     }
     detail.hidden = false;
     if (focus) { detail.focus(); detail.scrollIntoView({ behavior: 'auto', block: 'start' }); }

@@ -9,7 +9,7 @@ import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-11.v13';
+export const RULE_VERSION = '2026-11-12.v14';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -132,7 +132,10 @@ function judgePart(raw, itemName = '') {
 function baseDisposalWithSources(input) {
   const base = judgeBaseDisposal(input);
   const item = lookupItem(input.itemName), source = item?.source;
-  if (item && (item.handling || (item.material === input.material && (!item.type || item.type === input.type))) && Object.hasOwn(CATALOG_DETAIL_SOURCES, source)) base.sourceUrls = [...new Set([...base.sourceUrls, source])];
+  if (item && (item.handling || (item.material === input.material && (!item.type || item.type === input.type))) && Object.hasOwn(CATALOG_DETAIL_SOURCES, source)) {
+    base.sourceUrls = [...new Set([...base.sourceUrls, source])];
+    base.checkedAt = item.checkedAt || base.checkedAt;
+  }
   return base;
 }
 
@@ -172,7 +175,14 @@ function judgeBaseDisposal(input = {}) {
     if (category === 'medicine') result.sourceUrls.push('https://news.seoul.go.kr/env/archives/564807');
     return { ...result, handling: manualGuide.handling || category, ...(fromKeyword ? { keywordCategory: { ...detected } } : {}) };
   }
-  if (category === 'unknown') return finish(outcome('check', '물건 종류·수거처 확인 필요', '이름과 선택한 정보만으로 배출 경로를 확정할 수 없어요.', ['제품 이름·용도와 분리배출 표시를 확인해 주세요.', '제품 사진·설명서를 준비해 제조사나 거주지 폐기물 담당 부서에 수거 경로를 문의해 주세요.']));
+  if (category === 'unknown' || category === 'material-only') {
+    const material = category === 'material-only' && MATERIALS.includes(input.material) && input.material !== '모르겠어요' ? input.material : '';
+    const reason = material ? `${material} 재질을 확인했어요. 물건의 용도와 구조에 따라 수거 방식이 달라져요.` : '이름과 선택한 정보만으로 배출 경로를 확정할 수 없어요.';
+    return finish(outcome('check', '물건 종류·수거처 확인 필요', reason, [
+      '제품의 용도와 분리배출 표시를 확인해 주세요.',
+      `제품 사진이나 설명서${material ? `와 재질(${material})` : ''}를 준비해 제조사나 거주지 폐기물 담당 부서에 수거 경로를 문의해 주세요.`,
+    ]));
+  }
   if (category === 'large') return { ...finish(outcome('check', '대형폐기물 품목·접수 조건 확인', fromKeyword ? categoryReason : '가구·큰 생활용품으로 직접 선택했어요.', [
     ...(/책상/.test(name) ? ['책상 상판의 가로·세로를 재고 서랍이나 책장이 붙어 있는지 확인해 주세요. 철제라는 이유만으로 금속캔 수거함에 넣지 마세요.'] : []),
     '구청 대형폐기물 안내에서 실제 품목·크기에 맞는 접수 대상을 확인해 주세요.', '접수 후 안내받은 필증·배출일·지정 장소에 따라 배출해 주세요.'])), handling: 'large', ...(fromKeyword ? { keywordCategory: { ...detected } } : {}) };

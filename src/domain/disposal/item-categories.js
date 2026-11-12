@@ -26,7 +26,7 @@ export const ITEM_CATEGORY_GROUPS = [
     ['ceramic', '도자기·사기 식기'],
     ['large', '가구·큰 생활용품 (전기제품 제외)'],
   ]],
-  ['', [['unknown', '종류를 모르겠어요 / 위에 없어요']]],
+  ['', [['material-only', '재질만 확인한 물건'], ['unknown', '종류를 모르겠어요']]],
 ];
 export const ITEM_CATEGORIES = ITEM_CATEGORY_GROUPS.flatMap(([, entries]) => entries);
 export const validItemCategory = value => ITEM_CATEGORIES.some(([id]) => id === value);

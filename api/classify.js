@@ -1,6 +1,6 @@
 // Vercel 서버리스 함수: 미등록 물품 이름을 Gemini로 분류합니다.
 // API 키는 Vercel 환경변수 GEMINI_API_KEY에만 두고 브라우저에 보내지 않습니다.
-import { cleanAiName, cleanAiAliases, validateAiGuess, aiResponseSchema, aiInstruction } from '../src/domain/disposal/ai-classification.js';
+import { cleanAiName, cleanAiAliases, validateAiGuess, aiResponseSchema, aiInstruction, suggestedItemCategory } from '../src/domain/disposal/ai-classification.js';
 import { lookupItem, normalizeItemName } from '../src/domain/disposal/item-suggestions.js';
 import { detectItemCategory } from '../src/domain/disposal/category-keywords.js';
 import { describeAiState } from '../src/domain/disposal/ai-state.js';
@@ -251,26 +251,32 @@ export default async function handler(req, res) {
   // 등록된 품목은 기존 규칙을 쓰므로 AI를 부르지 않습니다. 단, mode=opinion이면 화면에 참고 의견으로만 보여 줄 AI 답을 받습니다.
   const mode = Array.isArray(req.query?.mode) ? req.query.mode[0] : req.query?.mode;
   const opinion = mode === 'opinion';
+  const identify = mode === 'identify';
   // 기존 AI 캐시·공용 저장소를 읽기 전에 검토된 전용 품목을 구분합니다.
   if (verifiedNameGuide(name) && (opinion || !lookupItem(name))) { send(res, 200, { guess: null, reason: 'verified_guide' }); return; }
   // mode=shared: AI를 부르지 않고 공용 저장소에 있는 답만 찾습니다(AI 안내가 꺼져 있을 때).
   if (mode === 'shared') {
-    if (lookupItem(name)) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
+    if (lookupItem(name)?.material) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
     const shared = await readSharedGuess(name);
     send(res, 200, shared ? { guess: shared, cached: 'shared' } : { guess: null, reason: 'not_found' }, shared ? 3600 : 60);
     return;
   }
-  const known = Boolean(lookupItem(name));
+  const known = Boolean(lookupItem(name)?.material);
   if (known && !opinion) { send(res, 200, { guess: null, reason: 'known_item' }, 86400); return; }
   // 상태(오염·결합 등)를 함께 보내면 그 상태를 반영한 답을 받습니다. 상태별 답은 공용 저장소에 넣지 않습니다.
   const stateCode = Array.isArray(req.query?.state) ? req.query.state[0] : req.query?.state;
   const state = describeAiState(stateCode);
-  const key = `${name.toLowerCase()}|${state}`;
+  const key = `${name.toLowerCase()}|${state}${identify ? '|identify' : ''}`;
   if (cache.has(key)) { send(res, 200, cache.get(key), 3600); return; }
   // 미등록 품목은 다른 사용자가 이미 물어본 답이 있으면 AI 없이 바로 돌려줍니다.
   if (!known && !state) {
     const shared = await readSharedGuess(name);
-    if (shared) { const body = { guess: shared, cached: 'shared' }; cache.set(key, body); send(res, 200, body, 3600); return; }
+    if (shared && (!identify || suggestedItemCategory(shared))) {
+      const body = { guess: shared, cached: 'shared' };
+      cache.set(key, body);
+      send(res, 200, body, 3600);
+      return;
+    }
   }
   if (!process.env.GEMINI_API_KEY) { send(res, 503, { error: 'not_configured' }); return; }
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';

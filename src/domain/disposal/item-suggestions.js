@@ -31,7 +31,12 @@ export const bundledItemEntries = [
   [['음식물', '과일껍질', '채소찌꺼기'], '음식물류', '', '단단한 껍데기·뼈·씨앗 포함 여부를 확인한 뒤 종류를 선택해 주세요.'],
 ];
 
-const localEntries = [...expandedItemEntries, ...bundledItemEntries, [BATTERY_PACKAGING_NAMES, '', '']];
+const localEntries = [
+  ...expandedItemEntries,
+  ...bundledItemEntries,
+  [BATTERY_PACKAGING_NAMES, '', ''],
+  [['일회용숟가락', '일회용수저'], '', '', '숟가락의 재질을 확인해 주세요.'],
+];
 const aliases = { '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔' };
 const foldItemName = name => typeof name === 'string' ? name.normalize('NFKC').replace(/\s+/g, '').toLowerCase() : '';
 export const normalizeItemName = name => {
