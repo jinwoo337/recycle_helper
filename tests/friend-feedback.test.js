@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
+import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { applyRegionalRules } from '../src/domain/disposal/regions.js';
 import { largeWasteHelp, DISTRICT_HOMEPAGES } from '../src/domain/disposal/large-waste.js';
 import { isHeicFile, PHOTO_ACCEPT } from '../src/services/assistance-photo.js';
@@ -76,6 +77,7 @@ test('신고한 이름은 브라우저 캐시를 피해 새로 묻는다', async
 });
 
 import { collectionPointHelp, nearbyMapUrl } from '../src/domain/disposal/collection-points.js';
+import { collectionPointMarkup } from '../src/components/collection-help.js';
 import { normalizeCollectionDays, collectionSummary, buildCollectionIcs } from '../src/domain/disposal/collection-days.js';
 import { queueDescription, takeQueuedDescription } from '../src/services/input-draft.js';
 
@@ -102,6 +104,17 @@ test('수거 요일: 오늘·내일 안내와 매주 반복 알림 캘린더 파
   assert.match(ics, /RRULE:FREQ=WEEKLY;BYDAY=TU/);
   assert.match(ics, /DTSTART;TZID=Asia\/Seoul:20261105T200000/);
   assert.match(ics, /BEGIN:VALARM/);
+});
+
+test('손상 전지의 문의처와 일반 전지의 수거처가 구분되고 위치를 허용하지 않아도 지도를 열 수 있다', () => {
+  const region = { province: '서울특별시', district: '강남구' };
+  const normal = collectionPointMarkup(judgeDisposal({ ...itemPresetInput('건전지'), region, handlingCondition: 'undamaged' }));
+  const damaged = collectionPointMarkup(judgeDisposal({ ...itemPresetInput('건전지'), region, handlingCondition: 'damaged' }));
+  assert.match(normal, /폐건전지 수거처 확인/);
+  assert.match(damaged, /배출 방법 문의할 곳/);
+  assert.match(damaged, /정상 전지 수거함에 넣지 마세요/);
+  assert.match(damaged, /href="https:\/\/www\.google\.com\/maps\/search\//);
+  assert.doesNotMatch(damaged, /9시|18시|대형마트/);
 });
 test('상태 대신 설명하기로 넘어갈 때 물건 이름을 미리 적어 둔다', () => {
   queueDescription('컵라면 용기인데, 상태는 ');

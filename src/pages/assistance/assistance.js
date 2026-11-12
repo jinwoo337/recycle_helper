@@ -18,6 +18,7 @@ import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js
 import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
+import { bindDisposalChecklist, checklistMarkup } from '../../components/disposal-checklist.js';
 
 const titles = { description: '물건 설명하기', photo: '사진으로 인식하기' };
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
@@ -73,7 +74,8 @@ export function assistanceResultMarkup(answer, region, { answers = [], mode = 'd
   const correction = `<form class="assist-correction" data-assist-correction><div class="field"><label for="assist-correct-name">다른 물건이면 이름을 고쳐 주세요</label><input id="assist-correct-name" name="itemName" maxlength="80" required autocomplete="off"></div><button type="submit" class="button secondary">이 이름으로 기준 확인</button></form>`;
   const candidates = uncertain && answer.candidates?.length ? `<div class="assist-result-actions" aria-label="인식 후보">${answer.candidates.map(name => `<button type="button" class="button secondary" data-assist-candidate="${escapeHtml(name)}">${escapeHtml(name)} 기준 확인</button>`).join('')}</div>` : '';
   const hint = guide?.hint || '제품에 적힌 재질 표시와 용도를 확인해 주세요. 알 수 없다면 사진이나 제품명을 준비해 거주지 폐기물 담당 부서에 수거 여부를 문의해 주세요.';
-  const guidance = `<div class="assist-method"><h3>${escapeHtml(method)}</h3></div>${steps.length ? stepListMarkup(steps) : `<p class="input-hint">${escapeHtml(hint)}</p>`}`;
+  const checklist = Boolean(guide && steps.length);
+  const guidance = `<div class="assist-method"><h3>${escapeHtml(method)}</h3></div>${checklist ? checklistMarkup() : ''}${steps.length ? stepListMarkup(steps, 'action-steps', { checklist }) : `<p class="input-hint">${escapeHtml(hint)}</p>`}`;
   return `<p class="eyebrow">${guide?.inferred ? '이름으로 알아본 종류의 안내' : guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide?.regional ? resultRegionLabel(guide) : regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
     ${guide && !fromInput ? '<p class="assist-identification">사진이나 설명에서 추정한 이름이에요. 실제 물건과 같은지 확인해 주세요.</p>' : !guide && answer.identification ? `<p class="assist-identification">${escapeHtml(answer.identification)}</p>` : ''}
@@ -127,6 +129,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   }
   if (queued?.sourceName) assistanceDraft.sourceName = queued.sourceName;
   let image = null, previewUrl = '', photoRevision = 0, preparing = false, busy = false, disposed = false, controller, answer, answered = [];
+  let disposeChecklist = () => {};
   const region = bindRegion(form, readJudgementRegion(getCurrentMember()), {
     onChange(value) {
       rememberJudgementRegion(value, getCurrentMember());
@@ -135,6 +138,8 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   });
   const alive = () => !disposed && root.isConnected;
   function clearResult({ keepAnswers = false } = {}) {
+    disposeChecklist();
+    disposeChecklist = () => {};
     answer = null;
     if (!keepAnswers) answered = [];
     result.hidden = true;
@@ -269,6 +274,8 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       answer = { ...response, questions: remaining.map(entry => entry.question), questionChoices: remaining.map(entry => entry.choices) };
       if (guide) answer.questions = [];
       result.innerHTML = assistanceResultMarkup(answer, selectedRegion, { answers: answered, mode, guide, fromInput: Boolean(typedGuide) });
+      disposeChecklist();
+      disposeChecklist = bindDisposalChecklist(result);
       status.textContent = '';
       result.hidden = false;
       form.hidden = true;
@@ -342,6 +349,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       (assistanceDraft.sessions ||= {})[mode] = { description: description.value, answers: answered };
       if (mode === 'photo') assistanceDraft.photo = image ? { image, previewUrl } : null;
     }
+    disposeChecklist();
     disposed = true; controller?.abort(); gate.dispose(); photoRevision++; image = null;
   };
 }

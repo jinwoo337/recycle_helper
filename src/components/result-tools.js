@@ -2,6 +2,8 @@ import { memberTools } from '../services/member-tools.js';
 import { getCurrentMember } from '../services/auth.js';
 import { lookupItem, normalizeItemName } from '../domain/disposal/item-suggestions.js';
 import { resultToText } from '../domain/disposal/result-text.js';
+import { inputForDisplay, resultForDisplay } from '../domain/disposal/result-display.js';
+import { bindDisposalChecklist } from './disposal-checklist.js';
 
 export function resultToolsMarkup(input) {
   return `<div class="result-actions"><button type="button" class="history-action" data-share-result hidden>공유하기</button><button type="button" class="history-action" data-copy-result>결과 복사</button><button type="button" class="history-action" data-favorite aria-pressed="false">즐겨찾기</button></div>
@@ -14,6 +16,7 @@ export function resultToolsMarkup(input) {
 }
 
 export function bindResultTools(root, input, result, { onNewItem, tools = memberTools } = {}) {
+  const disposeChecklist = bindDisposalChecklist(root);
   const status = root.querySelector('[data-result-tools-status]');
   const favorite = root.querySelector('[data-favorite]');
   let selected = false, disposed = false, loaded = false, busy = false, refreshVersion = 0;
@@ -72,12 +75,14 @@ export function bindResultTools(root, input, result, { onNewItem, tools = member
     controls.forEach(control => { control.disabled = true; });
     feedbackStatus.textContent = '제보를 보내고 있어요…';
     try {
-      await tools.submitFeedback({ kind, input, result, message });
+      await tools.submitFeedback({
+        kind, message, input: inputForDisplay(input, result), result: resultForDisplay(input, result),
+      });
       if (alive()) { form.reset(); feedbackStatus.textContent = '검토 요청을 보냈어요. 공식 데이터에는 아직 반영되지 않았어요.'; }
     } catch (error) { if (alive()) feedbackStatus.textContent = error.message; }
     finally { if (alive()) { button.disabled = false; controls.forEach(control => { control.disabled = false; }); } }
   });
   window.addEventListener('favorites-changed', refreshFavorite);
   refreshFavorite();
-  return () => { disposed = true; refreshVersion++; window.removeEventListener('favorites-changed', refreshFavorite); };
+  return () => { disposeChecklist(); disposed = true; refreshVersion++; window.removeEventListener('favorites-changed', refreshFavorite); };
 }

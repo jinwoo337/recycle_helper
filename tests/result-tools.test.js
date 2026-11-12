@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bindResultTools } from '../src/components/result-tools.js';
+import { RULE_VERSION } from '../src/domain/disposal/rules.js';
 
 class Node extends EventTarget {
   attributes = new Map(); disabled = false; textContent = '';
@@ -66,6 +67,7 @@ test('제보는 공백을 제외한 길이를 확인하고 전송 중 중복·�
     form.dispatchEvent(new Event('submit',{cancelable:true}));await flush();
     assert.equal(message.disabled,true);assert.equal(kind.disabled,true);assert.equal(button.disabled,true);
     assert.equal(payload.message,'정확한 품목과 지역의 안내를 확인해 주세요.');
+    assert.equal(payload.result.ruleVersion, RULE_VERSION, '제보에는 오래된 기록 대신 화면에 표시한 현재 안내를 첨부한다');
     form.dispatchEvent(new Event('submit',{cancelable:true}));assert.equal(calls,1);
     sending.resolve({id:'test-only'});await flush();
     assert.equal(message.disabled,false);assert.equal(button.disabled,false);assert.equal(message.value,'');

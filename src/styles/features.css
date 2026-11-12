@@ -109,3 +109,62 @@
 .weekday-chips input:focus-visible+span{outline:2px solid var(--green);outline-offset:2px}
 .collection-hour{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px}.collection-hour select{min-height:40px;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font:inherit}
 .collection-actions{margin-top:14px}.collection-days-form a{color:var(--green);text-decoration:underline}
+
+/* Search, questions and results share one calm, readable surface. */
+.home-page { max-width: 900px; }
+.home-heading { max-width: 640px; }
+.home-search { border-color: #d3dfd6; padding: 28px; }
+.home-search .example-items button, .input-examples .history-action { min-height: 40px; padding-inline: 12px; }
+.item-name-options button { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.item-name-options button > span { min-width: 0; overflow-wrap: anywhere; }
+.item-match-label { flex: none; color: var(--muted); font-size: 12px; }
+.home-shortcut { transition: border-color .15s, background-color .15s; }
+.item-heading { padding-inline: 2px; }
+.item-summary { padding: 26px; }
+.item-summary .result-verdict { border: 0; border-left: 4px solid var(--green); padding: 18px 20px; background: #edf5f0; }
+.item-summary .result-verdict.needs-check { border-left-color: #a76b16; background: #fff7e9; }
+.item-summary .result-verdict h3 { font-size: 22px; line-height: 1.45; }
+.item-summary .result-region { margin-top: 12px; }
+.result-parts > article { background: #fafcfb; border-color: var(--line); }
+.icon-steps > li { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 14px 0; background: transparent; }
+.icon-steps > li + li { margin-top: 0; }
+.icon-steps > li:last-child { border-bottom: 0; }
+.icon-steps .step-icon { width: 30px; height: 30px; font-size: 16px; background: #edf3ef; }
+.icon-steps .step-text { padding-top: 3px; }
+.collection-help, .large-waste-help { background: #f7faf8; padding: 18px; }
+.collection-links .button, .large-waste-links .button { min-height: 44px; }
+.result-next-actions { padding-top: 18px; border-top: 1px solid var(--line); }
+.result-actions .history-action { min-height: 44px; }
+.disposal-checklist { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 14px 0; }
+.disposal-checklist .history-action { min-height: 44px; }
+.disposal-checklist [aria-pressed="true"] { color: var(--green); background: #edf5f0; border-color: #8caa98; }
+[data-checklist-progress] { font-size: 13px; color: var(--muted); }
+.step-check { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; }
+.step-check:has(input:not([hidden])) { min-height: 44px; cursor: pointer; }
+.step-check input { flex: none; width: 20px; height: 20px; margin-top: 7px; accent-color: var(--green); }
+.step-check input[hidden] { display: none; }
+.collection-status:empty, .disposal-checklist [data-checklist-progress]:empty { display: none; }
+.step-check:has(input:checked) { background: #edf5f0; border-radius: 6px; }
+.step-check:has(input:focus-visible) { outline: 2px solid var(--green); outline-offset: 4px; border-radius: 6px; }
+@media (max-width: 720px) {
+  .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; }
+  .site-header nav { margin-top: 0; gap: 2px; }
+  .site-header nav > a:is([href="#/"], [href="#/history"], [href="#/game"]) { display: none; }
+  .site-header nav > a, .site-header .logout-button { padding-inline: 8px; min-height: 44px; }
+  .brand small { display: none; }
+  .home-page { padding-top: 28px; }
+  .home-heading h1 { font-size: 30px; }
+  .home-search { padding: 18px; }
+  .item-summary { padding: 18px; }
+  .item-summary .result-verdict h3 { font-size: 20px; }
+  .item-summary .result-verdict { padding: 14px; }
+  .collection-help, .large-waste-help { padding: 14px; }
+  body:has(input:not([type="checkbox"]):not([type="radio"]):focus, textarea:focus, select:focus) .bottom-nav { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-shortcut { transition: none; }
+}
+@media (max-width: 360px) {
+  .header-inner { padding-inline: 12px; gap: 6px; }
+  .brand { gap: 6px; font-size: 14px; }
+}

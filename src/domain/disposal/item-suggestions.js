@@ -33,10 +33,17 @@ export const bundledItemEntries = [
 
 const localEntries = [...expandedItemEntries, ...bundledItemEntries, [BATTERY_PACKAGING_NAMES, '', '']];
 const aliases = { '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔' };
+const foldItemName = name => typeof name === 'string' ? name.normalize('NFKC').replace(/\s+/g, '').toLowerCase() : '';
 export const normalizeItemName = name => {
-  const value = typeof name === 'string' ? name.normalize('NFKC').trim().replace(/\s+/g, '').toLowerCase() : '';
-  return aliases[value] || value;
+  const value = foldItemName(name);
+  return Object.hasOwn(aliases, value) ? aliases[value] : value;
 };
+
+export function itemMatchLabel(query, name) {
+  if (foldItemName(query) === foldItemName(name)) return '입력한 이름';
+  if (normalizeItemName(query) === normalizeItemName(name)) return '다른 표기';
+  return '비슷한 이름';
+}
 
 function entryIndex(source) {
   const index = new Map();
@@ -67,7 +74,7 @@ function searchIndex(source) {
   const names = [...new Set([...bundledItemEntries, ...source].flatMap(([names]) => names))];
   const keys = new Set(names.map(normalizeItemName));
   const extra = Object.keys(aliases).filter(alias => keys.has(aliases[alias]));
-  return [...new Set([...names, ...extra])].map(name => ({ name, key: normalizeItemName(name) }));
+  return [...new Set([...names, ...extra])].map(name => ({ name, spelling: foldItemName(name), key: normalizeItemName(name) }));
 }
 let items = catalogIndex(localEntries);
 let suggestions = searchIndex(localEntries);
@@ -103,9 +110,9 @@ export function lookupItem(name) {
 export function searchItemNames(query, limit = 6) {
   const normalized = normalizeItemName(query);
   if (!normalized || !Number.isInteger(limit) || limit < 1) return [];
-  const raw = query.trim().toLowerCase();
-  return suggestions.filter(entry => entry.key.includes(normalized) || entry.name.includes(raw))
-    .sort((a, b) => Number(b.name === raw) - Number(a.name === raw)
+  const raw = foldItemName(query);
+  return suggestions.filter(entry => entry.key.includes(normalized) || entry.spelling.includes(raw))
+    .sort((a, b) => Number(b.spelling === raw) - Number(a.spelling === raw)
       || Number(b.key === normalized) - Number(a.key === normalized)
       || Number(b.key.startsWith(normalized)) - Number(a.key.startsWith(normalized)) || a.name.length - b.name.length)
     .slice(0, Math.min(limit, 10)).map(entry => entry.name);

@@ -77,6 +77,8 @@ test('복사 결과는 공통 준비와 부속품별 처리 단계를 빠짐없�
     components: [{ label: '분리한 라벨', material: '비닐', type: 'packaging', contaminated: 'no' }] };
   const result = judgeDisposal(input);
   const text = resultToText(input, result);
+  assert.match(text, /입력한 조건\n주요 재질 · 페트병/);
+  assert.match(text, /분리한 라벨\n주요 재질 · 비닐/);
   assert.match(text, /먼저 할 일\n1\. 다른 재질/);
   assert.match(text, /분리한 라벨 \(비닐\)/);
   for (const part of result.parts) {

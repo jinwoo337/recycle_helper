@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { suggestItemInfo, searchItemNames, lookupItem } from '../src/domain/disposal/item-suggestions.js';
+import { itemMatchLabel, suggestItemInfo, searchItemNames, lookupItem } from '../src/domain/disposal/item-suggestions.js';
 
 test('명확한 품목은 재질과 종류를 채우되 상태를 추정하지 않는다', () => {
   const carton = suggestItemInfo(' 우유 팩 ');
@@ -45,4 +45,14 @@ test('정확한 예외 품목은 안전한 세부 종류를 채우고 모호한 
   assert.ok(lookupItem('도시락 용기'));
   assert.equal(suggestItemInfo('도시락용기').material, '플라스틱');
   assert.ok(suggestItemInfo('도시락용기').variants['종이']);
+});
+
+test('같은 품목의 표기 차이와 배출 방법이 다른 이름을 구분한다', () => {
+  assert.equal(searchItemNames('건전지 포장')[0], '건전지포장');
+  assert.equal(itemMatchLabel('건전지', '건전지포장'), '비슷한 이름');
+  assert.equal(itemMatchLabel('유리병', '깨진유리병'), '비슷한 이름');
+  assert.equal(itemMatchLabel('깨진 유리병', '깨진유리병'), '입력한 이름');
+  assert.equal(searchItemNames('ｐｅｔ병')[0], 'pet병');
+  assert.equal(itemMatchLabel('ｐｅｔ병', '페트병'), '다른 표기');
+  assert.deepEqual(searchItemNames('constructor'), []);
 });

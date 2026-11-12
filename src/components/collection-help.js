@@ -10,13 +10,16 @@ export function collectionPointMarkup(result) {
   const link = (url, text, extra = '') => `<a class="button secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"${extra}>${text}</a>`;
   const officialMedicine = result.handling === 'medicine' && result.regional?.coverage === 'verified'
     && result.regional.sources.find(url => Object.values(MEDICINE_SOURCES).includes(url));
-  return `<section class="collection-help" aria-labelledby="collection-title"><h3 id="collection-title">📍 가까운 ${escapeHtml(help.name)} 수거처 찾기</h3>
+  const heading = help.inquiryOnly ? '배출 방법 문의할 곳' : `${escapeHtml(help.name)} 수거처 확인`;
+  return `<section class="collection-help" aria-labelledby="collection-title"><h3 id="collection-title">${heading}</h3>
     <p class="input-hint">${escapeHtml(help.note)}</p>
     ${officialMedicine ? `<div class="collection-links">${link(officialMedicine, '공식 폐의약품 수거처·접수 안내 ↗')}</div>` : ''}
-    <div class="collection-links">${help.targets.map(target => `<button type="button" class="button ${target === help.targets[0] ? 'primary' : 'secondary'}" data-nearby-map="${escapeHtml(target.search)}" data-fallback="${escapeHtml(target.mapUrl)}">📍 내 주변 ${escapeHtml(target.label)} 찾기</button>`).join('')}</div>
-    ${help.pickup ? `<div class="collection-links">${link(help.pickup.url, `🚚 ${escapeHtml(help.pickup.label)} ↗`)}</div>` : ''}
+    ${help.pickup ? `<div class="collection-links">${link(help.pickup.url, `${escapeHtml(help.pickup.label)} ↗`)}</div>` : ''}
+    <div class="collection-links">${help.targets.map(target => link(target.mapUrl, `${escapeHtml(target.label)} 지도 검색 ↗`, ` data-collection-target="${escapeHtml(target.search)}"`)).join('')}</div>
+    <p class="input-hint"><span data-collection-scope>${help.place ? `판별 지역 ‘${escapeHtml(help.place)}’의 시설을 Google 지도로 검색해요.` : 'Google 지도로 시설을 검색해요.'}</span> ${escapeHtml(help.hours)}</p>
+    ${typeof navigator !== 'undefined' && navigator.geolocation ? '<button type="button" class="history-action" data-nearby-map>지도 검색에 내 위치 사용</button>' : ''}
     <p class="input-hint collection-status" data-nearby-status role="status" aria-live="polite"></p>
-    <p class="input-hint">Google 지도로 열려요. 🕘 ${escapeHtml(help.hours)}${help.place ? '' : ' 위치를 허용하지 않을 때는 판별 지역 이름으로 찾아요.'}</p></section>`;
+    </section>`;
 }
 
 let installed = false;
@@ -25,30 +28,32 @@ function ensureNearbyHandler() {
   installed = true;
   document.addEventListener('click', event => {
     const button = event.target.closest?.('[data-nearby-map]');
-    if (button) openNearbyMap(button);
+    if (button) useNearbyLocation(button);
   });
 }
 
-// 위치를 먼저 받은 뒤 지도를 엽니다. 브라우저가 새 탭을 막으면 누를 수 있는 링크를 대신 보여 줍니다.
-// 위치는 지도 주소에만 쓰고 저장하지 않습니다.
-function openNearbyMap(button) {
-  const keyword = button.dataset.nearbyMap;
-  const status = button.closest('.collection-help')?.querySelector('[data-nearby-status]');
-  const fallback = button.dataset.fallback;
-  const show = (message, url, label) => {
-    if (!status) return;
-    status.innerHTML = `${escapeHtml(message)}${url ? ` <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)} ↗</a>` : ''}`;
-  };
-  const open = (url, message) => {
-    const win = window.open(url, '_blank');
-    if (win) win.opener = null;
-    show(win ? message : '새 탭이 막혀서 열지 못했어요. 여기를 눌러 주세요:', url, '지도 열기');
-  };
-  if (!navigator.geolocation) { open(fallback, '이 브라우저는 위치를 지원하지 않아 지역 이름으로 찾았어요.'); return; }
-  show('위치를 확인하고 있어요… 브라우저 위쪽의 위치 권한 창에서 "허용"을 눌러 주세요.');
+// 위치는 사용자가 직접 여는 지도 검색 링크에만 반영합니다.
+function useNearbyLocation(button) {
+  const section = button.closest('.collection-help');
+  const status = section.querySelector('[data-nearby-status]');
+  if (button.disabled || !navigator.geolocation) return;
+  button.disabled = true;
+  status.textContent = '현재 위치를 확인하고 있어요…';
   navigator.geolocation.getCurrentPosition(
-    position => { const url = nearbyMapUrl(keyword, position.coords.latitude, position.coords.longitude); const win = window.open(url, '_blank'); if (win) win.opener = null; show(win ? '내 주변 지도를 열었어요. 안 열리면:' : '위치를 찾았어요. 여기를 눌러 지도를 열어 주세요:', url, '내 주변 지도 열기'); },
-    () => open(fallback, '위치를 쓸 수 없어서 판별 지역 이름으로 찾았어요.'),
+    ({ coords }) => {
+      if (!section.isConnected) return;
+      section.querySelectorAll('[data-collection-target]').forEach(link => {
+        link.href = nearbyMapUrl(link.dataset.collectionTarget, coords.latitude, coords.longitude);
+      });
+      section.querySelector('[data-collection-scope]').textContent = '내 위치 주변의 시설을 Google 지도로 검색해요.';
+      status.textContent = '내 위치 주변으로 검색 범위를 바꿨어요.';
+      button.disabled = false;
+    },
+    () => {
+      if (!section.isConnected) return;
+      status.textContent = '위치를 확인하지 못했어요. 위의 지도 검색을 사용할 수 있어요.';
+      button.disabled = false;
+    },
     { timeout: 10000, maximumAge: 300000 },
   );
 }

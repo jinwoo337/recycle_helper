@@ -12,21 +12,21 @@ const MART = { label: '대형마트', search: '대형마트' };
 const ELECTRONICS = { label: '전자제품 매장', search: '전자제품 매장' };
 
 const POINTS = {
-  battery: { name: '폐건전지', targets: [CENTER, MART], note: '행정복지센터와 대형마트·아파트 단지에 폐건전지 수거함이 있는 경우가 많아요.' },
-  rechargeable: { name: '충전지·보조배터리', targets: [CENTER, ELECTRONICS], note: '행정복지센터의 폐건전지 수거함이나 전자제품 매장 회수함을 이용해요.' },
-  'damaged-battery': { name: '손상 전지', targets: [CENTER], note: '부풀거나 샌 전지는 수거함에 넣기 전에 행정복지센터에 먼저 물어봐 주세요.' },
+  battery: { name: '폐건전지', targets: [CENTER, MART], note: '전지에 손상이 없는지 먼저 확인하세요. 정상 전지는 근처 시설에 폐건전지 수거함이 있는지 확인해 주세요.' },
+  rechargeable: { name: '충전지·보조배터리', targets: [CENTER, ELECTRONICS], note: '전지에 손상이 없는지 먼저 확인하세요. 정상 전지도 충전지·보조배터리를 받는 곳인지 확인해 주세요.' },
+  'damaged-battery': { name: '손상 전지', targets: [CENTER], note: '부풀거나 샌 전지는 정상 전지 수거함에 넣지 마세요. 담당 부서 또는 제조사에 안전한 회수 방법을 먼저 물어봐 주세요.', inquiryOnly: true },
   medicine: { name: '폐의약품', targets: [PHARMACY, HEALTH, CENTER], note: '보건소·행정복지센터와 폐의약품을 받는 약국에 수거함이 있어요. 모든 약국이 받지는 않아서 가기 전에 전화로 확인해 주세요.' },
   fluorescent: { name: '폐형광등', targets: [CENTER], note: '행정복지센터와 아파트 단지에 폐형광등 수거함이 있는 경우가 많아요.' },
-  'broken-lamp': { name: '깨진 조명', targets: [CENTER], note: '깨진 형광등은 수거함에 넣지 말고 행정복지센터에 처리 방법을 물어봐 주세요.' },
-  led: { name: 'LED 조명', targets: [CENTER], note: '행정복지센터와 아파트 단지의 폐형광등·LED 수거함을 이용해요.' },
-  bulb: { name: '전구', targets: [CENTER], note: '전구 수거 여부는 행정복지센터에 확인해 주세요.' },
-  electronic: { name: '소형 폐가전', targets: [CENTER, ELECTRONICS], note: '행정복지센터·아파트 단지의 소형 폐가전 수거함을 이용하거나, 5개 이상이면 무상 방문수거를 예약할 수 있어요.', pickup: true },
-  'large-electronic': { name: '폐가전', targets: [ELECTRONICS], note: '냉장고·세탁기처럼 큰 가전은 무상 방문수거를 예약하면 집으로 가지러 와요.', pickup: true },
+  'broken-lamp': { name: '깨진 조명', targets: [CENTER], note: '깨진 조명은 정상 형광등 수거함에 넣지 말고 지역의 배출 방법을 문의해 주세요.', inquiryOnly: true },
+  led: { name: 'LED 조명', targets: [CENTER], note: '근처 조명 수거함에서 LED 조명을 받는지 확인해 주세요.' },
+  bulb: { name: '전구', targets: [CENTER], note: '전구 수거 여부는 행정복지센터에 확인해 주세요.', inquiryOnly: true },
+  electronic: { name: '소형 폐가전', targets: [CENTER, ELECTRONICS], note: '소형 폐가전 수거함의 접수 품목이나 방문수거 서비스의 접수 조건을 확인해 주세요.', pickup: true },
+  'large-electronic': { name: '폐가전', targets: [ELECTRONICS], note: '판매처 회수나 방문수거를 이용할 수 있는지 확인해 주세요. 방문수거는 품목과 설치 상태에 따라 접수 조건이 달라요.', pickup: true },
   'cooking-oil': { name: '폐식용유', targets: [CENTER], note: '행정복지센터와 아파트 단지에 폐식용유 수거함이 있는 경우가 많아요.' },
-  clothing: { name: '헌 옷', targets: [CENTER], note: '의류수거함은 지도에 잘 나오지 않아요. 아파트 단지나 길가 수거함을 이용하고, 위치는 행정복지센터에 물어볼 수 있어요.' },
+  clothing: { name: '헌 옷', targets: [CENTER], note: '깨끗하고 다시 쓸 수 있는 의류인지 확인하세요. 수거함 위치는 행정복지센터에, 접수 품목은 수거함 표시에서 확인해 주세요.' },
 };
 
-export const COLLECTION_HOURS_NOTE = '운영시간은 지도에서 장소를 누르면 나와요. 행정복지센터·보건소는 보통 평일 9시~18시이고, 약국·마트는 영업시간에만 이용할 수 있어요.';
+export const COLLECTION_HOURS_NOTE = '방문 전에 해당 시설에 접수 여부와 수거함 이용 시간 또는 운영시간을 확인해 주세요.';
 export const PICKUP_SERVICE = { label: '폐가전 무상 방문수거 예약', url: 'https://www.15990903.or.kr' };
 
 const shortPlace = region => region ? [region.province.replace(/특별시|광역시|특별자치시|특별자치도/, ''), region.district].filter(Boolean).join(' ') : '';
@@ -62,6 +62,7 @@ export function collectionPointHelp(result, regionValue = result?.region) {
   const place = shortPlace(normalizeRegion(regionValue));
   return {
     name: point.name, note: point.note, place, hours: COLLECTION_HOURS_NOTE,
+    inquiryOnly: Boolean(point.inquiryOnly),
     targets: point.targets.map(target => {
       const query = [place, target.search].filter(Boolean).join(' ');
       return { ...target, query, mapUrl: googleSearchUrl(query) };

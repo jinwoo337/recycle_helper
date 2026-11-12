@@ -23,7 +23,7 @@ import { stateAnswers, selectedState } from '../../domain/disposal/input-state.j
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { ITEM_CATEGORY_GROUPS, categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
-import { resultForDisplay, inputForDisplay, resultStepsForDisplay } from '../../domain/disposal/result-display.js';
+import { resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails } from '../../domain/disposal/result-display.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
@@ -34,13 +34,13 @@ import { stepListMarkup } from '../../components/step-list.js';
 import { inputModeSelectMarkup, photoShortcutMarkup, bindInputModeSelect } from '../../components/input-modes.js';
 import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
 import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
+import { checklistMarkup } from '../../components/disposal-checklist.js';
 
 let draft = {};
 let componentCount = 1;
 let autoFillEnabled = true;
 let draftOwner;
 const yesNo = [['yes', '네'], ['no', '아니요'], ['unknown', '모르겠어요']];
-const titles = { material: '주요 재질', type: '세부 종류', contaminated: '현재 오염 여부', washed: '세척 여부', removable: '남은 오염 제거 가능 여부', vinylResidue: '비닐에 남은 오염', combined: '다른 재질과 결합', separable: '재질 분리 가능 여부', foodSeparated: '포장재·뼈 등 이물질 제거 완료' };
 function question(name, title, options = yesNo, { required = true } = {}) {
   return `<fieldset class="item-question"><legend>${title}</legend><div class="choice-row">${options.map(([value, label]) => `<label class="choice"><input type="radio" name="${name}" value="${value}"${required ? ' required' : ''}><span>${label}</span></label>`).join('')}</div></fieldset>`;
 }
@@ -198,14 +198,12 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
   const source = result.sourceUrl === 'https://geumcheon.go.kr/portal/contents.do?key=818' ? result.sourceUrl : RULE_SOURCE;
   const sources = [...new Set(Array.isArray(result.sourceUrls) ? result.sourceUrls : [source])]
     .filter(url => [RULE_SOURCE, ...Object.values(REGIONAL_SOURCES), ...Object.keys(CATALOG_DETAIL_SOURCES)].includes(url));
-  const labels = { yes: '네', no: '아니요', unknown: '모르겠어요', 'liquid-only': '내용물·고형물 없이 기름·물 자국만 남음', solids: '고형물이 남음' };
   const { parts, steps } = resultStepsForDisplay(result);
   const badge = input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
   const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
-  const details = part => Object.entries(titles).filter(([key]) => part[key]).map(([key, title]) => {
-    const value = key === 'type' ? TYPES[part.material]?.find(([value]) => value === part.type)?.[1] || part.type : labels[part[key]] || part[key];
-    return `<div><dt>${title}</dt><dd>${escapeHtml(value)}</dd></div>`;
-  }).join('');
+  const details = part => conditionDetails(part).map(([title, value]) =>
+    `<div><dt>${title}</dt><dd>${escapeHtml(value)}</dd></div>`
+  ).join('');
   return `<p class="eyebrow">${createdAt ? '저장된 결과' : '분리배출 결과'}</p><h2 id="summary-title">${escapeHtml(input.itemName)}</h2>
     ${createdAt ? `<p class="input-hint">${escapeHtml(new Date(createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))} · 기록 저장일</p>` : ''}
     ${updated ? '<p class="input-hint">현재 기준으로 다시 확인한 안내예요.</p>' : ''}
@@ -213,8 +211,9 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
     ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
     <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}">${badge !== result.method ? `<span class="result-badge">${badge}</span>` : ''}<h3>${escapeHtml(result.method)}</h3></div>
     <div class="result-region"><p class="input-hint">${escapeHtml(resultRegionLabel(result))}</p>${editRegion ? '<button type="button" class="history-action" data-edit-region>지역 변경</button>' : ''}</div>
-    ${steps.length ? `<h3>${parts.length ? '먼저 할 일' : result.status === 'check' ? '배출 전에 확인하세요' : '이렇게 배출하세요'}</h3>${stepListMarkup(steps)}` : ''}
-    ${parts.length ? `<h3>본체와 부속품 배출 방법</h3><div class="result-parts">${parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${part.steps.length ? stepListMarkup(part.steps, 'part-steps') : ''}</article>`).join('')}</div>` : ''}
+    ${steps.length || parts.some(part => part.steps.length) ? checklistMarkup() : ''}
+    ${steps.length ? `<h3>${parts.length ? '먼저 할 일' : result.status === 'check' ? '배출 전에 확인하세요' : '이렇게 배출하세요'}</h3>${stepListMarkup(steps, 'action-steps', { checklist: true })}` : ''}
+    ${parts.length ? `<h3>본체와 부속품 배출 방법</h3><div class="result-parts">${parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${part.steps.length ? stepListMarkup(part.steps, 'part-steps', { checklist: true }) : ''}</article>`).join('')}</div>` : ''}
     ${largeWasteMarkup(result)}
     ${collectionPointMarkup({ ...result, itemName: input.itemName })}
     ${localGuideMarkup(result, input.itemName)}
@@ -745,18 +744,19 @@ export function bindItemInput() {
     closeSuggestions();
     disposeResultTools();
     shownInput = input; shownResult = resultForDisplay(input, result);
+    const editingInput = inputForDisplay(input, result);
     shownRecordId = recordId;
     summary.innerHTML = resultMarkup(input, result, createdAt, { editRegion: true });
     if (!createdAt && (aiEnabled || shownResult.aiGuess || opinions.get(aiKey(input.itemName))?.guess?.shared)) { attachOpinionPanel(); renderOpinion(); if (!shownResult.aiGuess) askAi(input.itemName, shownAiState()); }
     summary.hidden = false; form.hidden = true;
     summary.focus({ preventScroll: true }); summary.scrollIntoView({ behavior: 'auto', block: 'start' });
     document.getElementById('category-other')?.addEventListener('click', () => {
-      showInput(); restore({ ...shownInput, category: '', categoryOrigin: '', keywordCategory: false }); saveStatus.textContent = '';
+      showInput(); restore({ ...editingInput, category: '', categoryOrigin: '', keywordCategory: false }); saveStatus.textContent = '';
       document.getElementById('item-category-section').open = true;
       form.elements.namedItem('category').focus();
     });
     document.getElementById('edit-item').addEventListener('click', () => {
-      showInput(); restore(shownInput); saveStatus.textContent = '';
+      showInput(); restore(editingInput); saveStatus.textContent = '';
       const partIndex = shownResult.parts.findIndex(part => part.pendingCondition);
       const pending = shownResult.pendingCondition || shownResult.parts[partIndex]?.pendingCondition;
       const prefix = shownResult.pendingCondition || partIndex < 1 ? '' : `part${partIndex - 1}-`;
@@ -769,7 +769,7 @@ export function bindItemInput() {
       else { nameInput.focus(); closeSuggestions(); }
     });
     summary.querySelector('[data-edit-region]').addEventListener('click', () => {
-      showInput(); restore(shownInput); saveStatus.textContent = '';
+      showInput(); restore(editingInput); saveStatus.textContent = '';
       judgementRegion.focus();
     });
     disposeResultTools = bindResultTools(summary, input, result, { onNewItem: resetInput });
@@ -822,7 +822,7 @@ export function bindItemInput() {
     if (!document.getElementById('all-history-link')) {
       document.getElementById('recent-items-content').insertAdjacentHTML('afterend', '<a id="all-history-link" class="all-history-link" href="#/history">전체 기록 및 통계 보기 →</a>');
     }
-    document.getElementById('recent-items-content').innerHTML = history.length ? `<div class="history-toolbar"><button type="button" class="history-action" id="clear-history">전체 삭제</button></div><ol class="recent-list">${history.map((record, index) => `<li><button type="button" data-history="${index}"><strong>${escapeHtml(record.itemName)}</strong><small>${record.legacy ? '이전 이름 기록 · 다시 판별하기' : escapeHtml(record.result.method)}</small>${record.legacy ? '' : `<small>${escapeHtml(new Date(record.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))}</small>`}</button><button type="button" class="recent-delete" data-delete-history="${index}" aria-label="${index + 1}번째 ${escapeHtml(record.itemName)} 기록 삭제">삭제</button></li>`).join('')}</ol>` : '<p class="recent-empty">아직 저장한 물건이 없어요.</p>';
+    document.getElementById('recent-items-content').innerHTML = history.length ? `<div class="history-toolbar"><button type="button" class="history-action" id="clear-history">전체 삭제</button></div><ol class="recent-list">${history.map((record, index) => `<li><button type="button" data-history="${index}"><strong>${escapeHtml(record.itemName)}</strong><small>${record.legacy ? '이전 이름 기록 · 다시 판별하기' : escapeHtml(resultForDisplay(record.input, record.result).method)}</small>${record.legacy ? '' : `<small>${escapeHtml(new Date(record.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))}</small>`}</button><button type="button" class="recent-delete" data-delete-history="${index}" aria-label="${index + 1}번째 ${escapeHtml(record.itemName)} 기록 삭제">삭제</button></li>`).join('')}</ol>` : '<p class="recent-empty">아직 저장한 물건이 없어요.</p>';
     if (history.length) {
       const content = document.getElementById('recent-items-content');
       content.innerHTML = `<details class="recent-disclosure" ${wasOpen ? 'open' : ''}><summary>최근 ${history.length}개 기록 보기</summary>${content.innerHTML}</details>`;
