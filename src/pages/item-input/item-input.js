@@ -1,7 +1,7 @@
 import { escapeHtml } from '../../utils/html.js';
 import { getDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisposalHistory } from '../../services/disposal-history.js';
 import { MATERIALS, TYPES, supportsState, needsWashQuestion, normalizePart, judgeDisposal, RULE_SOURCE, RULE_VERSION } from '../../domain/disposal/rules.js';
-import { suggestItemInfo, searchItemNames, lookupItem, normalizeItemName, nearbyItemNames } from '../../domain/disposal/item-suggestions.js';
+import { suggestItemInfo, searchItemNames, lookupItem, normalizeItemName, relatedItemCandidates, itemCandidateHint, itemTypeClarification } from '../../domain/disposal/item-suggestions.js';
 import { cleanAiName, validateAiGuess, aiOpinionNeedsReview, suggestedItemCategory } from '../../domain/disposal/ai-classification.js';
 import { requestAiGuess, reportAiGuess } from '../../services/ai-classify.js';
 import { aiToggleMarkup, bindAiToggle, readAiEnabled } from '../../components/ai-toggle.js';
@@ -24,7 +24,7 @@ import { regionalComparisonMarkup } from '../../components/regional-comparison.j
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
 import { resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultPendingQuestions } from '../../domain/disposal/result-display.js';
-import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
+import { detectItemCategory, isBatteryPackaging, splitItemList } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
@@ -39,7 +39,7 @@ import { handlingConditionQuestion } from '../../domain/disposal/special-guides.
 import { checklistMarkup } from '../../components/disposal-checklist.js';
 import { isAmbiguousSpoonName, relatedDisposalMarkup } from '../../components/related-disposal.js';
 import { applyItemObservations } from '../../domain/disposal/item-observations.js';
-import { readDisposalBatch, updateBatchItem } from '../../services/disposal-batch.js';
+import { addDisposalBatchItems, canResolveBatchName, readDisposalBatch, updateBatchItem } from '../../services/disposal-batch.js';
 import { confirmedItemType, forgetConfirmedItemType, rememberConfirmedItemType } from '../../services/confirmed-item-types.js';
 
 let draft = {};
@@ -50,6 +50,7 @@ let draftVersion;
 let lastVisibleResult;
 let appliedEvidence = '';
 let draftBatchId;
+let draftBatchResolution = false;
 const yesNo = [['yes', '네'], ['no', '아니요'], ['unknown', '모르겠어요']];
 const attachments = {
   none: ['no', ''], detachable: ['yes', 'yes'], fixed: ['yes', 'no'], unknown: ['unknown', ''],
@@ -93,7 +94,10 @@ function categoryFields() {
       <button class="button secondary" type="button" data-item-variant="나무 숟가락">나무 숟가락</button>
       <button class="button secondary" type="button" data-category-choice="material-only">다른 재질이에요</button>
     </div>
-    <div id="name-variants" class="manual-category-options" role="group" aria-label="비슷한 등록 품목" hidden></div>
+    <div id="name-variants" class="manual-category-options" role="group" aria-label="찾으시던 물건인가요?" hidden></div>
+    <button class="history-action" type="button" id="clarification-unknown" data-category-choice="unknown" hidden>종류를 모르겠어요</button>
+    <button class="history-action" type="button" id="add-searched-items" hidden>모두 함께 버릴 목록에 담기</button>
+    <p class="input-hint" id="add-searched-items-status" role="status"></p>
     <div class="category-suggestion" id="category-suggestion" hidden>
       <p id="category-suggestion-text" role="status"></p>
       <div class="choice-row"><button class="button primary" id="apply-category-suggestion" type="button" aria-describedby="category-suggestion-text">제안 내용이 맞아요</button>
@@ -288,11 +292,12 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
   const { parts, steps } = resultStepsForDisplay(result);
   const pendingQuestions = resultPendingQuestions(input, result);
   const pendingQuestion = pendingQuestions[0];
+  const resultCandidates = Array.isArray(result.itemCandidates) ? result.itemCandidates.filter(name => typeof name === 'string').slice(0, 6) : [];
   const canSplit = input.separable === 'yes' && parts.length > 1;
   const partial = canSplit && parts.some(part => part.status === 'check') && parts.some(part => part.status !== 'check');
   const collection = collectionAction(input, result);
-  const canCheckMark = ['unknown', 'material-only'].includes(input.category)
-    || (input.category === 'packaging' && pendingQuestion?.condition === 'material');
+  const canCheckMark = !itemTypeClarification(input.itemName) && (['unknown', 'material-only'].includes(input.category)
+    || (input.category === 'packaging' && pendingQuestion?.condition === 'material'));
   const firstStep = steps[0] || (canSplit ? '쉽게 떼어낼 수 있는 부분을 분리해 주세요.' : '');
   const badge = input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
   const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
@@ -313,6 +318,8 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
         ${canSplit && part.status === 'check' && questionIndex >= 0 ? `<button type="button" class="history-action" data-edit-pending="${questionIndex}">${escapeHtml(pendingQuestions[questionIndex].label)}</button>` : ''}</div></li>`;
     }).join('')}</ul>` : ''}
     ${partial ? '<p class="input-hint result-partial-note">쉽게 분리한 뒤, 배출 방법이 확인된 부분부터 버릴 수 있어요.</p>' : ''}
+    ${resultCandidates.length ? `<p class="input-hint">${splitItemList(input.itemName).length ? '물건마다 배출 방법이 달라요. 먼저 확인할 물건을 골라 주세요.' : '찾으시던 물건인가요? 실제로 맞는 이름만 골라 주세요.'}</p><div class="manual-category-options item-related-candidates" role="group" aria-label="확인할 물건">${resultCandidates.map(name =>
+      `<button type="button" class="history-action" data-result-candidate="${escapeHtml(name)}">${escapeHtml(name)}${itemCandidateHint(name) ? `<small>${escapeHtml(itemCandidateHint(name))}</small>` : ''}</button>`).join('')}</div>` : ''}
     ${result.status !== 'check' && firstStep ? `<p class="result-first-step"><strong>먼저</strong> ${escapeHtml(firstStep)}</p>` : ''}
     ${steps.length || parts.length || pendingQuestion || collection ? '<h3 class="result-action-title">지금 할 일</h3>' : ''}
     ${pendingQuestion ? `<div class="result-check-action"><button type="button" class="button ${canCheckMark ? 'secondary' : 'primary'}" id="edit-item">${escapeHtml(pendingQuestion.label)}</button></div>` : ''}
@@ -341,7 +348,7 @@ export function bindItemInput() {
   const owner = getCurrentMember()?.id || 'guest';
   if (draftOwner !== owner || draftVersion !== inputSearchVersion()) {
     draft = {}; componentCount = 1; appliedEvidence = ''; draftBatchId = undefined; draftOwner = owner; draftVersion = inputSearchVersion();
-    lastVisibleResult = undefined;
+    lastVisibleResult = undefined; draftBatchResolution = false;
   }
   const queued = takeQueuedInput();
   if (queued) {
@@ -357,7 +364,7 @@ export function bindItemInput() {
     if (queued.manualLookup && !confirmedSame && !lookupItem(next.itemName)?.material) {
       draft = { itemName: next.itemName || unnamedItem, ...(Object.hasOwn(next, 'region') ? { region: next.region } : {}), keywordCategory: false };
     }
-    if (!same) { appliedEvidence = ''; draftBatchId = batchItemId; }
+    if (!same) { appliedEvidence = ''; draftBatchId = batchItemId; draftBatchResolution = false; }
     const evidence = observations?.length ? JSON.stringify(observations) : '';
     if (evidence && evidence !== appliedEvidence) {
       appliedEvidence = evidence;
@@ -424,10 +431,24 @@ export function bindItemInput() {
   const categorySection = document.getElementById('item-category-section');
   const categorySummary = document.getElementById('item-category-summary');
   const category = form.elements.namedItem('category');
+  const needsNameChoice = name => Boolean(itemTypeClarification(name) || splitItemList(name).length);
+  function retainBatchForCandidate(candidate) {
+    const entry = draftBatchId && readDisposalBatch().items.find(({ id }) => id === draftBatchId);
+    if (entry && normalizeItemName(entry.input.itemName) === normalizeItemName(candidate)) {
+      draftBatchResolution = false;
+    } else if (entry && canResolveBatchName(entry.input.itemName, candidate)) {
+      draftBatchResolution = true;
+    } else {
+      draftBatchId = undefined; draftBatchResolution = false;
+    }
+  }
   let packagingShape = '';
   const manualCategory = document.getElementById('manual-category');
   const spoonMaterialChoices = document.getElementById('spoon-material-choices');
   const nameVariants = document.getElementById('name-variants');
+  const addSearchedItems = document.getElementById('add-searched-items');
+  const addSearchedItemsStatus = document.getElementById('add-searched-items-status');
+  const clarificationUnknown = document.getElementById('clarification-unknown');
   const showDisposal = document.getElementById('show-disposal');
   const aiBox = document.getElementById('ai-guess-box');
   const aiText = document.getElementById('ai-guess-text');
@@ -472,7 +493,7 @@ export function bindItemInput() {
   }
   retryCatalog.addEventListener('click', refreshCatalog);
   const autocomplete = bindItemAutocomplete({ input: nameInput, options: nameOptions, status: nameStatus, search: searchItemNames,
-    onSelect: () => { changed({ target: nameInput }); advanceLookup(); }, onCompositionEnd: () => changed({ target: nameInput }) });
+    onSelect: () => { changed({ target: nameInput, selectCandidate: true }); advanceLookup(); }, onCompositionEnd: () => changed({ target: nameInput }) });
   const closeSuggestions = autocomplete.close;
   let history = [];
   let shownInput, shownResult, shownSnapshot;
@@ -647,12 +668,20 @@ export function bindItemInput() {
     categorySection.hidden = !unregistered;
     const choosingSpoon = unregistered && !category.value && isAmbiguousSpoonName(nameInput.value);
     spoonMaterialChoices.hidden = !choosingSpoon;
-    const alternatives = unregistered && !category.value ? nearbyItemNames(nameInput.value) : [];
+    const itemList = unregistered ? splitItemList(nameInput.value) : [];
+    const clarification = unregistered && itemTypeClarification(nameInput.value);
+    if (clarification || itemList.length) missing.hidden = true;
+    const alternatives = itemList.length ? itemList : unregistered && (clarification || !category.value) && !choosingSpoon && !isBatteryPackaging(nameInput.value)
+      ? relatedItemCandidates(nameInput.value) : [];
+    manualCategory.hidden = itemList.length > 1 || Boolean(clarification);
+    clarificationUnknown.hidden = !clarification;
+    addSearchedItems.hidden = itemList.length < 2;
+    if (addSearchedItems.hidden) addSearchedItemsStatus.textContent = '';
     nameVariants.hidden = !alternatives.length;
     const variantKey = alternatives.join('|');
     if (nameVariants.dataset.options !== variantKey) {
       nameVariants.dataset.options = variantKey;
-      nameVariants.innerHTML = alternatives.map(name => `<button class="history-action" type="button" data-item-variant="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join('');
+      nameVariants.innerHTML = alternatives.map(name => `<button class="history-action" type="button" data-item-variant="${escapeHtml(name)}">${escapeHtml(name)}${itemCandidateHint(name) ? `<small>${escapeHtml(itemCandidateHint(name))}</small>` : ''}</button>`).join('');
     }
     category.disabled = !unregistered;
     const materialSelect = form.elements.namedItem('material');
@@ -665,9 +694,9 @@ export function bindItemInput() {
     }
     // 자동 인식했거나 직접 고른 별도 수거 종류면 재질을 묻지 않고, 그 밖에는 재질·상태만 묻습니다.
     const materialOnly = category.value === 'material-only';
-    const needsMaterial = !dedicated && (!unregistered || materialOnly || ['packaging', 'food'].includes(category.value));
+    const needsMaterial = !dedicated && !clarification && !itemList.length && (!unregistered || materialOnly || ['packaging', 'food'].includes(category.value));
     const detected = keywordCategory();
-    if (!category.value && unregistered) categorySection.open = true;
+    if (unregistered && (!category.value || clarification || itemList.length)) categorySection.open = true;
     categorySummary.textContent = category.value
       ? `${categoryOrigin === 'keyword' ? '이름으로 추정' : '물건 종류'}: ${categoryLabel(category.value)} · 바꾸기`
       : '어떤 물건인가요?';
@@ -688,9 +717,12 @@ export function bindItemInput() {
     document.querySelectorAll('#composition-storage input').forEach(control => { control.required = false; });
     const combined = supported && value('combined') === 'yes';
     const components = combined && value('separable') === 'yes';
-    if (unregistered && !category.value) {
+    if (clarification) {
+      categoryGuidance.textContent = `${clarification.question} ${clarification.hint}`;
+    } else if (unregistered && !category.value) {
       if (choosingSpoon) categoryGuidance.textContent = '숟가락은 재질에 따라 배출 방법이 달라요. 실제 재질을 골라 주세요.';
-      else if (alternatives.length) categoryGuidance.textContent = '실제로 같은 물건이 있으면 골라 주세요. 다르면 아래에서 종류나 표시를 확인할 수 있어요.';
+      else if (itemList.length > 1) categoryGuidance.textContent = '여러 물건을 입력했어요. 먼저 확인할 물건을 골라 주세요.';
+      else if (alternatives.length) categoryGuidance.textContent = '찾으시던 물건인가요? 실제로 같으면 고르고, 없으면 아래에서 종류나 표시를 확인해 주세요.';
       else if (verifiedNameGuide(nameInput.value)) categoryGuidance.textContent = '다른 물건이라면 이름을 고치거나 실제 용도와 재질을 확인해 주세요.';
       else categoryGuidance.textContent = nameInput.value === unnamedItem
         ? '알고 있는 종류나 포장에 적힌 표시를 골라 주세요.'
@@ -759,7 +791,7 @@ export function bindItemInput() {
   const aiKey = (name, state = '') => `${normalizeItemName(name)}|${state}`;
   function askAi(name, state = '', { manual = false } = {}) {
     const key = aiKey(name, state);
-    if ((!aiEnabled && !manual) || !cleanAiName(name) || verifiedNameGuide(name)) return Promise.resolve();
+    if ((!aiEnabled && !manual) || !cleanAiName(name) || needsNameChoice(name) || verifiedNameGuide(name)) return Promise.resolve();
     const existing = opinions.get(key);
     if (existing?.status === 'loading' || (existing?.status === 'done' && (!manual || suggestedItemCategory(existing.guess)))) return existing.promise;
     const known = Boolean(lookupItem(name)?.material);
@@ -774,7 +806,7 @@ export function bindItemInput() {
   }
   // AI가 꺼져 있을 때는 저장된 제안만 확인합니다.
   async function askShared(name) {
-    if (verifiedNameGuide(name)) return;
+    if (needsNameChoice(name) || verifiedNameGuide(name)) return;
     const key = aiKey(name);
     const existing = opinions.get(key);
     if (existing?.status === 'done' && existing.guess?.shared) { refreshAi(); return; }
@@ -831,10 +863,16 @@ export function bindItemInput() {
     const variant = event.target.closest('[data-item-variant]')?.dataset.itemVariant;
     if (variant && !deleting) {
       nameInput.value = variant;
-      changed({ target: nameInput });
+      changed({ target: nameInput, selectCandidate: true });
       closeSuggestions();
       advanceLookup();
     }
+  });
+  addSearchedItems.addEventListener('click', () => {
+    if (!judgementRegion.validate()) return;
+    const names = splitItemList(nameInput.value);
+    if (addDisposalBatchItems(names, judgementRegion.get())) location.hash = '/batch';
+    else addSearchedItemsStatus.textContent = '목록이 가득 찼거나 다른 지역의 물건이 있어요. 하나씩 골라 확인할 수도 있어요.';
   });
   function refreshAi() { updateAiBox(Boolean(nameInput.value.trim())); renderOpinion(); }
   function updateAiBox(hasName) {
@@ -843,10 +881,11 @@ export function bindItemInput() {
     const verified = verifiedNameGuide(name);
     const canSuggest = aiEnabled || entry?.manual || entry?.guess?.shared;
     const choosingSpoon = !spoonMaterialChoices.hidden;
-    const prior = name !== unnamedItem && !verified && !choosingSpoon && !category.disabled && !category.value && confirmedItemType(name, owner);
+    const manualFirst = needsNameChoice(name);
+    const prior = name !== unnamedItem && !manualFirst && !verified && !choosingSpoon && !category.disabled && !category.value && confirmedItemType(name, owner);
     confirmedCategory.hidden = !prior;
     if (prior) confirmedCategoryText.textContent = `이 브라우저에서 전에 확인한 종류 · ${categoryLabel(prior)}`;
-    const suggestion = !prior && !verified && !choosingSpoon && !category.disabled && !category.value && canSuggest && suggestedItemCategory(entry?.guess);
+    const suggestion = !prior && !manualFirst && !verified && !choosingSpoon && !category.disabled && !category.value && canSuggest && suggestedItemCategory(entry?.guess);
     categorySuggestion.hidden = !suggestion;
     applyCategoryOnly.hidden = !['packaging', 'food'].includes(suggestion);
     if (suggestion) {
@@ -856,7 +895,7 @@ export function bindItemInput() {
       categorySuggestionText.textContent = ['AI 제안', categoryLabel(suggestion), ...details].filter(Boolean).join(' · ');
       if ([aiButton, aiCancel].includes(document.activeElement)) applyCategorySuggestion.focus();
     }
-    aiBox.hidden = !hasName || name === unnamedItem || Boolean(prior || verified || choosingSpoon || suggestion || category.value || category.disabled);
+    aiBox.hidden = !hasName || name === unnamedItem || Boolean(manualFirst || prior || verified || choosingSpoon || suggestion || category.value || category.disabled);
     aiCancel.hidden = aiBox.hidden || !canSuggest || entry?.status !== 'loading';
     if (aiBox.hidden) return;
     if (!cleanAiName(name)) {
@@ -982,7 +1021,7 @@ export function bindItemInput() {
     if (form.isConnected) refreshAi();
   }
   function attachOpinionPanel() {
-    if (verifiedNameGuide(shownInput?.itemName) || (shownInput?.category && !shownResult?.aiAssisted)) return false;
+    if (needsNameChoice(shownInput?.itemName) || verifiedNameGuide(shownInput?.itemName) || (shownInput?.category && !shownResult?.aiAssisted)) return false;
     if (!summary.querySelector('#ai-opinion')) {
       summary.querySelector('.result-evidence')?.insertAdjacentHTML('beforebegin', '<details class="result-evidence"><summary>AI 의견 보기</summary><section id="ai-opinion" class="ai-panel ai-opinion" aria-live="polite"></section></details>');
     }
@@ -1076,7 +1115,8 @@ export function bindItemInput() {
       || (!confirmedCategory.hidden && applyConfirmedCategory)
       || (!nameVariants.hidden && nameVariants.querySelector('button'))
       || (!categorySuggestion.hidden && applyCategorySuggestion)
-      || manualCategory.querySelector('button');
+      || (!clarificationUnknown.hidden && clarificationUnknown)
+      || (!manualCategory.hidden && manualCategory.querySelector('button')) || categorySummary;
     target.focus();
   }
   function openMarkPicker() {
@@ -1240,6 +1280,8 @@ export function bindItemInput() {
     document.getElementById('edit-item').addEventListener('click', () => editQuestion(questions[0]));
     summary.querySelectorAll('[data-edit-pending]').forEach(button => button.addEventListener('click', () =>
       editQuestion(questions[Number(button.dataset.editPending)])));
+    summary.querySelectorAll('[data-result-candidate]').forEach(button => button.addEventListener('click', () =>
+      openRelatedItem(button.dataset.resultCandidate, true)));
     summary.querySelector('[data-check-mark]')?.addEventListener('click', () => {
       showInput(); restore(editingInput); saveStatus.textContent = '';
       openMarkPicker();
@@ -1251,21 +1293,23 @@ export function bindItemInput() {
     }));
     disposeResultTools = bindResultTools(summary, input, result, {
       onNewItem: resetInput,
-      onRelatedItem(itemName) {
-        draftVersion = startInputSearch();
-        draftBatchId = undefined;
-        showInput();
-        restore({ itemName, region: shownResult.region });
-        saveStatus.textContent = '';
-        advanceLookup();
-      },
+      onRelatedItem: openRelatedItem,
     });
+    function openRelatedItem(itemName, confirmCandidate = false) {
+      draftVersion = startInputSearch();
+      if (confirmCandidate) retainBatchForCandidate(itemName);
+      else { draftBatchId = undefined; draftBatchResolution = false; }
+      showInput();
+      restore({ itemName, region: shownResult.region });
+      saveStatus.textContent = '';
+      advanceLookup();
+    }
   }
   function resetInput() {
     if (deleting) return;
     draftVersion = startInputSearch();
     appliedEvidence = '';
-    draftBatchId = undefined;
+    draftBatchId = undefined; draftBatchResolution = false;
     showInput(); restore({}); saveStatus.textContent = '';
     savedTools.open = false;
     nameInput.focus({ preventScroll: true });
@@ -1276,7 +1320,7 @@ export function bindItemInput() {
   let favorites = [];
   function beginSavedReview() {
     draftVersion = startInputSearch();
-    draftBatchId = undefined;
+    draftBatchId = undefined; draftBatchResolution = false;
     appliedEvidence = '';
   }
   async function renderFavorites() {
@@ -1405,10 +1449,12 @@ export function bindItemInput() {
     if (event.target === nameInput && !changedName) { draft.itemName = nameInput.value.trim(); return; }
     // 사전에 없는 이름이면 이름 속 낱말로 물건 종류를 자동으로 골라 둡니다. 사용자가 바꿀 수 있습니다.
     if (changedName) {
+      addSearchedItemsStatus.textContent = '';
       packagingShape = '';
       draftVersion = startInputSearch();
       appliedEvidence = ''; pendingObservations = []; observedStates.clear(); unopenedParts = []; pendingCombination = ''; pendingSeparation = '';
-      draftBatchId = undefined;
+      if (event.selectCandidate) retainBatchForCandidate(nameInput.value);
+      else { draftBatchId = undefined; draftBatchResolution = false; }
       compositionIsPreset = false;
       missing.open = false;
       if (missingStatus) missingStatus.textContent = '';
@@ -1508,7 +1554,7 @@ export function bindItemInput() {
   function scheduleAiPrefetch() {
     clearTimeout(prefetchTimer);
     const name = nameInput.value.trim();
-    if (name === unnamedItem || !cleanAiName(name) || category.value || isAmbiguousSpoonName(name) || lookupItem(name)?.material || verifiedNameGuide(name) || confirmedItemType(name, owner)) return;
+    if (name === unnamedItem || !cleanAiName(name) || category.value || needsNameChoice(name) || isAmbiguousSpoonName(name) || lookupItem(name)?.material || verifiedNameGuide(name) || confirmedItemType(name, owner)) return;
     // 저장된 답 조회는 가벼워서 0.3초, AI는 0.7초 기다린 뒤 묻습니다.
     prefetchTimer = setTimeout(() => {
       if (form.isConnected && !category.value && nameInput.value.trim() === name) {
@@ -1715,7 +1761,8 @@ export function bindItemInput() {
       const input = confirmedDisposalInput(draft);
       const result = judgeDisposal(input);
       if (result.status !== 'check' && input.itemName !== unnamedItem) rememberConfirmedItemType(input, owner);
-      if (draftBatchId && !updateBatchItem(draftBatchId, input, result)) draftBatchId = undefined;
+      if (draftBatchId && !updateBatchItem(draftBatchId, input, result, { resolveName: draftBatchResolution })) draftBatchId = undefined;
+      draftBatchResolution = false;
       showResult(input, result);
       void persistResult(input, result);
     } catch (error) { saveStatus.textContent = error.message; }

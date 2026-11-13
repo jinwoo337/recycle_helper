@@ -46,20 +46,32 @@ export function observationsFromDescription(value) {
   let part = 'body';
   for (const chunk of source.split(/[,.!?;·\n]|그리고/)) {
     const clause = chunk.trim();
-    if (!clause || /아닌|아니|같아|인 듯|아마|추정|불확실|모르|인가|일까/.test(clause)) continue;
+    if (!clause || /아닌|아니|같아|같고|인 듯|아마|추정|불확실|모르|인가|일까|라면|라든지/.test(clause)) continue;
     if (/^(본체|몸체|용기|통|안에|안에는|속에|내부)/.test(clause)) part = 'body';
     else if (/^(뚜껑|캡)/.test(clause)) part = 'lid';
     else if (/^라벨/.test(clause)) part = 'label';
     else if (/^(포장\s*)?필름/.test(clause)) part = 'film';
-    if (/(?:붙어\s*있|달려\s*있)/.test(clause) && /라벨|뚜껑|캡|필름/.test(clause)) entries.push({ part: 'body', field: 'combined', value: 'yes' });
-    const separable = /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*없|분리되지\s*않/.test(clause) ? 'no'
+    if (/다른\s*재질(?:이|은)?\s*(?:전혀\s*)?(?:없어요|없습니다|붙어\s*있지\s*않아요|붙지\s*않았어요)(?=\s*$)/.test(clause)) {
+      entries.push({ part: 'body', field: 'combined', value: 'no' });
+    } else if (/(?:붙어\s*있|달려\s*있)(?:어요|습니다|는\s*상태|고\s|$)/.test(clause) && /라벨|뚜껑|캡|필름/.test(clause)) {
+      entries.push({ part: 'body', field: 'combined', value: 'yes' });
+    }
+    const separable = /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*없|분리되지\s*않|떼어지지\s*않/.test(clause) ? 'no'
       : /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*있|분리돼요/.test(clause) ? 'yes' : '';
     if (separable) entries.push({ part: 'body', field: 'separable', value: separable });
+    const possibleCodes = clause.match(/\b(?:PP|HDPE|LDPE|PE|PS|PET)\b/gi) || [];
     if (/(?:재질(?:은|이)?\s*)?비닐(?:류|이에요|입니다|이고|이예요|\s|$)/.test(clause)) entries.push({ part, field: 'material', value: '비닐' });
-    else if (/\b(?:PP|HDPE|LDPE|PE|PS)\b/i.test(clause)) entries.push({ part, field: 'material', value: '플라스틱' });
-    if (/씻(?:었는데|어도)|세척(?:했지만|해도)/.test(clause) && /남[았아]|오염/.test(clause)) entries.push({ part, field: 'state', value: 'washed-dirty' });
-    else if (/오염(?:이|은)?\s*없|(?:상태가\s*)?깨끗(?:해요|합니다|하네요|한\s*상태)/.test(clause) && !/깨끗.{0,8}(?:않|못)|않(?:아|습)|못(?:했|해)/.test(clause)) entries.push({ part, field: 'state', value: 'clean' });
-    else if (/(?:음식물|내용물|기름기|오염)(?:이|가|은)?\s*(?:조금\s*)?(?:남[았아]|묻[었어]|있[어습])/.test(clause)) entries.push({ part, field: 'state', value: 'dirty' });
+    else if (possibleCodes.length && !/표시.{0,9}없|표기가?\s*없|또는|[\/]\s*(?:PP|PE|PS|PET)\b/i.test(clause)) {
+      for (const code of new Set(possibleCodes.map(value => value.toUpperCase()))) {
+        entries.push({ part, field: 'material', value: code === 'PET' ? '페트병' : '플라스틱' });
+      }
+    }
+    const clean = /(?:오염(?:이|은)?\s*(?:없어요|없습니다)|깨끗(?:해요|합니다|하네요|한\s*상태(?:예요|입니다)?))\s*$/.test(clause)
+      && !/깨끗.{0,8}(?:않|못)|않(?:아|습)|못(?:했|해)/.test(clause);
+    const dirty = /(?:음식물|내용물|기름기|오염|얼룩)(?:이|가|은)?\s*(?:조금\s*)?(?:남았어요|남았습니다|남아\s*있어요|남아\s*있습니다|묻었어요|묻어\s*있어요|있어요|있습니다)|오염된\s*상태/.test(clause)
+      && !/남아\s*있지\s*않|남아\s*있진\s*않|남[은아].{0,9}없/.test(clause);
+    if (clean) entries.push({ part, field: 'state', value: 'clean' });
+    if (dirty) entries.push({ part, field: 'state', value: /씻(?:었는데|어도)|세척(?:했지만|해도)/.test(clause) ? 'washed-dirty' : 'dirty' });
   }
   return cleanItemObservations(entries);
 }

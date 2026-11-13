@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { judgeDisposal, normalizePart, needsWashQuestion } from '../src/domain/disposal/rules.js';
 
-const clean = { itemName: '용기', material: '플라스틱', type: 'container', contaminated: 'no', combined: 'no' };
+const clean = { itemName: '용기', category: 'packaging', categoryOrigin: 'manual', material: '플라스틱', type: 'container', contaminated: 'no', combined: 'no' };
 test('주요 7개 재질의 깨끗한 수거 대상', () => {
   for (const [material, type, method] of [
     ['플라스틱', 'container', '플라스틱류'], ['페트병', 'clear-drink', '투명 페트병'],
@@ -122,12 +122,22 @@ test('다양한 실제 물품 이름의 정상·예외 안내', () => {
 
 test('미등록·부분 이름·복수 물품은 선택한 재질만으로 확정하지 않는다', () => {
   for (const itemName of ['정체불명제품', '우유', '우유팩 모양 장난감', '우유팩과 생수병', '생수병 뚜껑', '', 42, null]) {
-    const result = judgeDisposal({ ...clean, itemName });
+    const result = judgeDisposal({ ...clean, itemName, category: undefined });
     assert.equal(result.status, 'check', String(itemName));
     assert.ok(result.parts.every(part => part.status === 'check'));
   }
   for (const invalid of [null, 42, [], '용기']) assert.equal(judgeDisposal(invalid).status, 'check');
   assert.deepEqual(normalizePart(null), { material: '', type: '' });
+});
+
+test('검색 사전에 이름만 있는 물건은 재질을 골라도 종류 확인이 필요하다', () => {
+  const result = judgeDisposal({ ...clean, itemName: '뚜껑', category: undefined });
+  assert.equal(result.status, 'check');
+  assert.equal(result.pendingCondition, 'category');
+  assert.match(result.reasons[0], /재질이나 용도가 다를 수/);
+  const confirmed = judgeDisposal({ ...clean, itemName: '뚜껑' });
+  assert.equal(confirmed.status, 'recycle');
+  assert.match(confirmed.reasons.join(' '), /직접 확인한 물건 종류/);
 });
 
 test('띄어 쓴 위험 품목과 복합 전자제품은 부속품도 임의 수거 안내하지 않는다', () => {
@@ -166,4 +176,37 @@ test('주요 재질의 오염·세척·결합 조건 7680개 조합 검증', () 
               count++;
             }
   assert.equal(count, 7680);
+});
+test('영수증의 재질이 불명확하면 보류하고 확인된 두 종류에는 서로 다른 배출 안내를 적용한다', () => {
+  const paper = { material: '종이', type: 'paper', contaminated: 'no', combined: 'no' };
+  const unknown = judgeDisposal({ ...paper, itemName: '영수증', category: 'packaging' });
+  assert.equal(unknown.status, 'check');
+  assert.deepEqual(unknown.itemCandidates, ['감열영수증', '일반종이영수증']);
+  assert.equal(judgeDisposal({ ...paper, itemName: '일반종이영수증' }).status, 'recycle');
+  assert.equal(judgeDisposal({ itemName: '감열영수증', material: '종이', type: 'excluded' }).status, 'general');
+  assert.equal(judgeDisposal({ ...paper, itemName: '감열영수증' }).status, 'check');
+});
+
+test('아이스팩의 내용물이 확인되기 전에는 뜯도록 안내하지 않는다', () => {
+  const unresolved = judgeDisposal({ ...clean, itemName: '택배 아이스팩' });
+  assert.equal(unresolved.status, 'check');
+  assert.deepEqual(unresolved.itemCandidates, ['물아이스팩', '젤아이스팩']);
+  assert.match(unresolved.steps.join(' '), /팩을 뜯지 말고/);
+  const gel = judgeDisposal({ itemName: '젤 아이스팩' });
+  assert.equal(gel.handling, 'gel-ice-pack');
+  assert.match(gel.steps[0], /하수구에 붓지 마세요/);
+  const water = judgeDisposal({ itemName: '물 아이스팩' });
+  assert.equal(water.handling, 'water-ice-pack');
+  assert.match(water.steps[0], /물이라고 적혀 있을 때만/);
+});
+
+test('커피캡슐은 실제 재질별 회수 안내가 있을 때만 제시한다', () => {
+  const result = judgeDisposal({ ...clean, itemName: '사용한 커피캡슐' });
+  assert.deepEqual(result.itemCandidates, ['알루미늄커피캡슐', '플라스틱커피캡슐']);
+  const aluminum = judgeDisposal({ itemName: result.itemCandidates[0] });
+  const mixed = judgeDisposal({ itemName: result.itemCandidates[1] });
+  assert.match(aluminum.steps.join(' '), /우편/);
+  assert.doesNotMatch(mixed.steps.join(' '), /우편/);
+  assert.equal(aluminum.status, 'check');
+  assert.equal(mixed.status, 'check');
 });

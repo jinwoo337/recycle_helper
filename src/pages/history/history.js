@@ -100,6 +100,11 @@ export function bindHistory() {
       detail.querySelector('#edit-item').addEventListener('click', () => edit({ editPendingQuestion: questions[0] }));
       detail.querySelectorAll('[data-edit-pending]').forEach(button => button.addEventListener('click', () =>
         edit({ editPendingQuestion: questions[Number(button.dataset.editPending)] })));
+      detail.querySelectorAll('[data-result-candidate]').forEach(button => button.addEventListener('click', () => {
+        startInputSearch();
+        queueInput({ itemName: button.dataset.resultCandidate, region: input.region, quickLookup: true });
+        location.hash = '/item-input';
+      }));
       detail.querySelector('[data-check-mark]')?.addEventListener('click', () => edit({ showMarkPicker: true }));
       detail.querySelectorAll('[data-edit-region]').forEach(button => button.addEventListener('click', () => edit({ editRegion: true })));
       detail.querySelector('#category-other')?.addEventListener('click', () => edit({ category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }));

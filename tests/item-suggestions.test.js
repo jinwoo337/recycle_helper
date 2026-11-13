@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { itemMatchLabel, suggestItemInfo, searchItemNames, lookupItem } from '../src/domain/disposal/item-suggestions.js';
+import { describedReceiptName, explicitDescriptionItemName, itemMatchLabel, relatedItemCandidates, suggestItemInfo, searchItemNames, lookupItem } from '../src/domain/disposal/item-suggestions.js';
 
 test('명확한 품목은 재질과 종류를 채우되 상태를 추정하지 않는다', () => {
   const carton = suggestItemInfo(' 우유 팩 ');
@@ -9,6 +9,42 @@ test('명확한 품목은 재질과 종류를 채우되 상태를 추정하지 �
   assert.equal(suggestItemInfo('두유팩').type, 'carton');
   assert.equal(suggestItemInfo('참치캔').type, 'food-can');
   assert.equal(suggestItemInfo('과자봉지').material, '비닐');
+});
+
+test('영수증은 감열지와 일반 인쇄용지를 후보로 묻고 일반 명칭이나 오타로 자동 확정하지 않는다', () => {
+  for (const term of ['영수증', '마트 영수증', '영수증은 어디에 버려요?', '영수증어디버려', '영수즹', '영슈증']) {
+    assert.deepEqual(searchItemNames(term), ['감열영수증', '일반종이영수증']);
+    assert.deepEqual(relatedItemCandidates(term), ['감열영수증', '일반종이영수증']);
+    assert.equal(suggestItemInfo(term), null);
+  }
+  assert.equal(describedReceiptName('감열지에 출력한 영수증이에요.'), '감열영수증');
+  assert.equal(describedReceiptName('코팅 없는 일반 인쇄용지에 출력한 영수증이에요.'), '일반종이영수증');
+  assert.equal(describedReceiptName('감열지인지 모르는 영수증이에요.'), '');
+});
+
+test('짧은 질문과 한 글자 오타는 후보를 내되 정확한 품목 조회와 분리한다', () => {
+  assert.equal(relatedItemCandidates('우유퍽')[0], '우유팩');
+  assert.equal(relatedItemCandidates('우유팩은 어디에 버려요?')[0], '우유팩');
+  assert.equal(lookupItem('우유퍽'), null);
+  assert.equal(lookupItem('우유팩은 어디에 버려요?'), null);
+  assert.equal(relatedItemCandidates('배송 라벨')[0], '택배송장');
+  assert.equal(lookupItem('택배 송장')?.type, 'excluded');
+});
+
+test('재질을 모르는 흔한 이름에서 물건 자체를 장식이 붙은 다른 물건보다 먼저 제안한다', () => {
+  assert.equal(relatedItemCandidates('뚜껑')[0], '플라스틱용기뚜껑');
+  assert.deepEqual(relatedItemCandidates('컵'), ['종이컵', '플라스틱컵', '유리컵', '도자기컵']);
+  assert.deepEqual(relatedItemCandidates('택배 아이스팩'), ['물아이스팩', '젤아이스팩']);
+  assert.equal(lookupItem('아이스팩'), null);
+});
+
+test('설명 첫 문장에 물건을 명시하면 확인한 이름만 조건 선택으로 넘긴다', () => {
+  assert.equal(explicitDescriptionItemName('우유팩이에요. 안에 내용물이 남았어요.'), '우유팩');
+  assert.equal(explicitDescriptionItemName('젤 아이스팩.'), '젤 아이스팩');
+  assert.equal(explicitDescriptionItemName('영수증이에요. 글씨가 잘 안 보여요.'), '영수증');
+  for (const text of ['우유팩인지 모르겠어요.', '깨끗한 우유팩 모양의 용기예요.', '유리병이에요, 아니고 플라스틱 같아요.']) {
+    assert.equal(explicitDescriptionItemName(text), '');
+  }
 });
 test('생수병은 수정 가능한 대표 구성을 제공하며 모호한 종이컵은 종류 확인을 유지한다', () => {
   assert.equal(suggestItemInfo('생수병').material, '페트병');

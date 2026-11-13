@@ -1,5 +1,5 @@
 import { escapeHtml } from '../utils/html.js';
-import { itemMatchLabel } from '../domain/disposal/item-suggestions.js';
+import { itemMatchLabel, lookupItem } from '../domain/disposal/item-suggestions.js';
 
 export function bindItemAutocomplete({ input, options, status, search, onSelect = () => {}, onCompositionEnd = () => {}, noResultsMessage = '등록되지 않은 이름도 아래에서 물건 종류를 선택해 안내받을 수 있어요.' }) {
   let candidates = [], active = -1, dismissedQuery = null, compositionCommitted = false;
@@ -22,7 +22,9 @@ export function bindItemAutocomplete({ input, options, status, search, onSelect 
       `<button type="button" role="option" tabindex="-1" aria-selected="false" id="${optionPrefix}${index}" data-candidate="${index}"><span>${escapeHtml(name)}</span><small class="item-match-label">${itemMatchLabel(input.value, name)}</small></button>`
     ).join('');
     options.hidden = !candidates.length; input.setAttribute('aria-expanded', String(candidates.length > 0));
-    suggestionMessage = candidates.length ? `${candidates.length}개 추천 · 방향키와 Enter로 선택할 수 있어요.` : '';
+    suggestionMessage = candidates.length ? (lookupItem(input.value)?.material
+      ? `${candidates.length}개 추천 · 방향키와 Enter로 선택할 수 있어요.`
+      : '찾으시던 물건인가요? 같은 물건을 고르거나 입력한 이름으로 계속할 수 있어요.') : '';
     status.textContent = suggestionMessage || (input.value.trim() ? noResultsMessage : '');
   }
   function select(index) {

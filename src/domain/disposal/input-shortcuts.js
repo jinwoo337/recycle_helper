@@ -1,11 +1,11 @@
-import { lookupItem } from './item-suggestions.js';
+import { itemTypeClarification, lookupItem } from './item-suggestions.js';
 import { supportsState } from './rules.js';
 import { categoryAllowsMaterial } from './item-categories.js';
 import { itemPresetInput } from './input-presets.js';
 
 export function cleanSingleMaterialInput(input) {
   const known = lookupItem(input?.itemName);
-  if (!input?.itemName?.trim() || !supportsState(input)) return null;
+  if (!input?.itemName?.trim() || itemTypeClarification(input.itemName) || !supportsState(input)) return null;
   const matches = (known?.material === input.material && (!known.type || known.type === input.type))
     || known?.variants?.[input.material]?.includes(input.type);
   const packaging = !known?.material && input.category === 'packaging' && input.categoryOrigin === 'manual'

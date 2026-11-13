@@ -1,5 +1,11 @@
+export const PAPER_DISPOSAL_SOURCE = 'https://www.wasteguide.or.kr/front/dischargeMethod/typeItemHtml.do';
+export const WATER_ICE_PACK_SOURCE = 'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=779';
+export const GEL_ICE_PACK_SOURCE = 'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=179';
+export const ALUMINUM_CAPSULE_SOURCE = 'https://www.koreapost.go.kr/user/extra/kpost/99/1205/bbs/pressRelease/pressReleaseView/jsp/ExtraUser.do?bbsDataIdx=100087072';
+export const MIXED_CAPSULE_SOURCE = 'https://www.kca.go.kr/smartconsumer/sub.do?cate2=00000406&menukey=7800&mode=view&no=1003195658&page=18';
 // 실제 검토한 공개 자료만 결과 화면의 출처로 허용합니다.
 export const CATALOG_DETAIL_SOURCES = {
+  [PAPER_DISPOSAL_SOURCE]: '분리배출 누리집 · 종이, 택배 송장, 감열 영수증',
   'https://news.seoul.go.kr/env/archives/564807': '서울시 · 폐의약품 수거 안내',
   'https://www.daejeon.go.kr/drh/depart/board/boardNormalView.do?boardId=normal_0096&menuSeq=1631&ntatcSeq=1438964404': '대전시 · 폐의약품 안내 (2023)',
   'https://www.donggu.go.kr/dg/kor/article/noticeDong13/142796': '대전 동구 · 폐의약품 안내 (2026)',
@@ -11,8 +17,10 @@ export const CATALOG_DETAIL_SOURCES = {
   'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=622':'품목사전 · 비닐 식품 포장',
   'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=409':'품목사전 · 알루미늄 호일',
   'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=593':'품목사전 · 플라스틱 치약 용기',
-  'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=779':'품목사전 · 물 아이스팩',
-  'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=179':'품목사전 · 젤 아이스팩',
+  [WATER_ICE_PACK_SOURCE]: '품목사전 · 물 아이스팩',
+  [GEL_ICE_PACK_SOURCE]: '품목사전 · 젤 아이스팩',
+  [ALUMINUM_CAPSULE_SOURCE]: '우정사업본부 · 알루미늄 커피캡슐 회수',
+  [MIXED_CAPSULE_SOURCE]: '한국소비자원 · 커피캡슐 재질 조사',
   'https://clean.yongsan.go.kr/resources/images/user/recycleExhaust.pdf': '재활용품 분리배출 가이드라인 · 나무젓가락',
   'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=416': '품목사전 · 작은 플라스틱 숟가락',
   'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=775': '품목사전 · 목재 숟가락',

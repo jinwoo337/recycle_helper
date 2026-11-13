@@ -1,6 +1,7 @@
 // 품목명은 정확히 일치할 때만 사용합니다. 제품 상태(오염·세척)는 기본값에 넣지 않습니다.
 // 포장 구성은 대표적인 예시이며, 사용자가 실제 제품에 맞춰 수정해야 합니다.
 import { FOOD_SOURCE } from './food.js';
+import { ALUMINUM_CAPSULE_SOURCE, GEL_ICE_PACK_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, WATER_ICE_PACK_SOURCE } from './catalog-sources.js';
 export const CATALOG_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const CATALOG_CHECKED_AT = '2026-10-27';
 const plastic = { material:'플라스틱', type:'container', label:'플라스틱 덮개·마개' };
@@ -94,7 +95,11 @@ export const expandedItemEntries = [
   row('화장지심|휴지심|종이심', '종이', 'paper', '휴지를 제외한 종이 심 기준이에요. 남은 휴지나 접착 부속품이 있으면 확인해 주세요.'),
   row('종이완충재|종이벌집완충재', '종이', 'paper', paperNote),
   // 3차: 재활용으로 오인하기 쉬운 품목과 안전·별도 수거 품목.
-  row('감열택배송장|감열배송송장', '종이', 'excluded', '감열지 송장 기준이에요. 일반 종이류에 섞지 않아요.'),
+  row('감열택배송장|감열배송송장|택배송장|택배운송장|택배송장스티커|운송장스티커', '종이', 'excluded', '상자에서 뗀 택배 송장 기준이에요. 일반 종이류에 섞지 않아요.', undefined, undefined, PAPER_DISPOSAL_SOURCE),
+  row('물아이스팩|물타입아이스팩|물100%아이스팩|얼음아이스팩', '기타', '', '포장에 냉매가 물이라고 표시된 아이스팩 기준이에요.', undefined, 'water-ice-pack', WATER_ICE_PACK_SOURCE, '2026-11-13'),
+  row('젤아이스팩|겔아이스팩|젤타입아이스팩|고흡수성수지아이스팩|SAP아이스팩', '기타', '', '포장에 젤·겔 또는 고흡수성수지(SAP)라고 표시된 아이스팩 기준이에요.', undefined, 'gel-ice-pack', GEL_ICE_PACK_SOURCE, '2026-11-13'),
+  row('알루미늄커피캡슐|알루미늄캡슐커피', '기타', '', '알루미늄 재질의 일회용 커피 캡슐 기준이에요.', undefined, 'aluminum-coffee-capsule', ALUMINUM_CAPSULE_SOURCE, '2026-11-13'),
+  row('플라스틱커피캡슐|플라스틱캡슐커피|복합재질커피캡슐', '기타', '', '플라스틱이 주재질이거나 여러 재질이 섞인 일회용 커피 캡슐 기준이에요.', undefined, 'mixed-coffee-capsule', MIXED_CAPSULE_SOURCE, '2026-11-13'),
   row('인화사진|인화지', '종이', 'excluded', '사진 인화지 기준이에요. 일반 종이류에 섞지 않아요.'),
   row('베이킹종이호일|유산지', '종이', 'excluded', '코팅·가공된 종이호일·유산지 기준이에요. 일반 종이류에 섞지 않아요.'),
   row('사용한키친타월|사용한종이냅킨', '종이', 'excluded', '사용한 종이 위생용품 기준이에요. 일반 종이류에 섞지 않아요.'),
@@ -134,6 +139,8 @@ export const expandedItemEntries = [
   row('비닐코팅광고지|방수포스터', '종이', 'coated', '분리되지 않는 코팅·방수 가공이 된 종이 기준이에요.'),
   row('알루미늄박보냉종이상자|분리불가보냉종이상자', '종이', 'coated', '금속박·비닐이 종이와 분리되지 않는 보냉 상자 기준이에요. 골판지 상자와 구분해요.'),
   row('은행감열영수증|카드감열영수증|마트감열영수증', '종이', 'excluded', '열에 반응하는 감열 영수증 기준이에요. 일반 종이에 인쇄된 문서와 구분해요.'),
+  row('감열영수증|감열지', '종이', 'excluded', '감열지 영수증은 일반 종이 수거함과 구분해요.', undefined, undefined, PAPER_DISPOSAL_SOURCE, '2026-11-13'),
+  row('일반종이영수증|일반인쇄용지영수증', '종이', 'paper', '감열지나 코팅지가 아닌 일반 인쇄용지에 발급된 영수증에만 해당해요.', undefined, undefined, PAPER_DISPOSAL_SOURCE, '2026-11-13'),
   row('금속박종이포장지|분리불가은박종이', '종이', 'coated', '종이와 금속박이 분리되지 않는 복합 포장지 기준이에요.'),
   row('유리꿀병', '유리', 'bottle', '깨지지 않은 식품 유리병 기준이에요. 뚜껑·라벨은 직접 확인해 주세요.'),
   row('유리올리브병|유리피클병', '유리', 'bottle', '깨지지 않은 식품 유리병 본체 기준이에요. 뚜껑·라벨은 직접 확인해 주세요.'),

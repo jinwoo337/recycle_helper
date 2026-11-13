@@ -31,8 +31,6 @@ export function mainPage(member) {
       <div class="home-search-alternatives">${inputModesMarkup('name')}
       <div class="home-direct-choices"><button class="history-action" type="button" data-home-unnamed>이름 없이 종류 고르기</button><button class="history-action" type="button" data-home-mark>분리배출 표시로 찾기</button></div></div>
       <div class="example-items" aria-label="자주 찾는 물건"><span>자주 찾아요</span>${['나무젓가락', '투명생수병', '과자봉지'].map(name => `<button class="history-action" type="button" data-example="${name}">${name}</button>`).join('')}</div><details class="search-options"><summary>검색 설정</summary><div class="ai-mode-controls">${aiToggleMarkup('home-ai-enabled', { compact: true })}</div></details>${member ? '' : '<p class="input-hint">로그인 없이 찾을 수 있어요.</p>'}</form>
-    <section id="home-recent" class="home-recent" aria-labelledby="home-recent-title" hidden><h2 id="home-recent-title">최근 찾은 물건</h2><div class="home-recent-items" id="home-recent-items"></div></section>
-    <section id="home-favorites" class="home-recent" aria-labelledby="home-favorite-title" hidden><h2 id="home-favorite-title">즐겨찾기</h2><div class="home-recent-items" id="home-favorite-items"></div><details class="search-options"><summary>즐겨찾기 순서 바꾸기</summary><div id="home-favorite-order"></div><p class="input-hint" data-favorite-order-status role="status"></p></details></section>
     ${readDisposalBatch().items.length ? '<p><a class="history-action" href="#/batch">함께 버릴 물건 목록 보기 →</a></p>' : ''}
     ${collectionDaysMarkup(readJudgementRegion(member))}
     <nav class="home-shortcuts" aria-label="주요 기능 바로가기">
@@ -40,6 +38,8 @@ export function mainPage(member) {
       <a href="#/game" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('game')}</span><div><h2>분리배출 게임</h2><p>60초 도전으로 배우고 대결해요</p></div><span aria-hidden="true">↗</span></a>
       <a href="#/guide" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('guide')}</span><div><h2>분리배출 방법</h2><p>비우고, 분리하고, 제대로 버려요</p></div><span aria-hidden="true">↗</span></a>
     </nav>
+    <section id="home-recent" class="home-recent" aria-labelledby="home-recent-title" hidden><h2 id="home-recent-title">최근 찾은 물건</h2><div class="home-recent-items" id="home-recent-items"></div></section>
+    <section id="home-favorites" class="home-recent" aria-labelledby="home-favorite-title" hidden><h2 id="home-favorite-title">즐겨찾기</h2><div class="home-recent-items" id="home-favorite-items"></div><details class="search-options"><summary>즐겨찾기 순서 바꾸기</summary><div id="home-favorite-order"></div><p class="input-hint" data-favorite-order-status role="status"></p></details></section>
     <details class="home-guide"><summary>처음 이용하시나요?</summary><ol><li><strong>물건 이름 찾기</strong><span>추천에서 실제 물건과 맞는 이름을 선택해요.</span></li><li><strong>현재 상태 확인</strong><span>재질과 오염, 다른 재질이 붙어 있는지 확인해요.</span></li><li><strong>배출 방법 확인</strong><span>배출 전 처리 순서와 거주 지역의 기준을 확인해요.</span></li></ol></details>
     ${tipCard()}
   </section>`;

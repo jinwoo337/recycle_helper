@@ -13,12 +13,12 @@ import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNA
 import { photoMarkMaterial } from '../../domain/disposal/recycle-marks.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
-import { lookupItem, normalizeItemName, searchItemNames } from '../../domain/disposal/item-suggestions.js';
+import { explicitDescriptionItemName, itemTypeClarification, itemCandidateHint, lookupItem, normalizeItemName, relatedItemCandidates, searchItemNames } from '../../domain/disposal/item-suggestions.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { judgeDisposal, RULE_SOURCE, supportsState } from '../../domain/disposal/rules.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
 import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
-import { isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
+import { isBatteryPackaging, splitItemList } from '../../domain/disposal/category-keywords.js';
 import { categoryLabel } from '../../domain/disposal/item-categories.js';
 import { mergeItemObservations, observationLabel } from '../../domain/disposal/item-observations.js';
 import { resolveInputCategory } from '../../domain/disposal/input-category.js';
@@ -36,6 +36,14 @@ let assistanceDraft = {}, descriptionOwner;
 function resultInput(view) {
   const { answer, region, guide } = view;
   return { ...itemPresetInput(answer.itemName), region, ...(guide?.condition ? { handlingCondition: guide.condition } : {}) };
+}
+
+function descriptionName(input) {
+  const name = explicitDescriptionItemName(input);
+  if (name) return name;
+  if (input.length > 80) return '';
+  const parts = splitItemList(input);
+  return parts.length && parts.every(part => lookupItem(part) || itemTypeClarification(part)) ? input : '';
 }
 
 function registeredGuide(name, region, { infer = true, condition } = {}) {
@@ -110,7 +118,8 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
   const correction = `<form class="assist-correction" data-assist-correction><div class="field"><label for="assist-correct-name">다른 물건이면 이름을 고쳐 주세요</label>
     <div class="item-name-control"><input id="assist-correct-name" name="itemName" maxlength="80" required autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="assist-correct-options" aria-expanded="false" aria-describedby="assist-correct-status"><div class="item-name-options" id="assist-correct-options" role="listbox" aria-label="추천 물품" hidden></div></div>
     <p id="assist-correct-status" class="input-hint" role="status"></p></div><button type="submit" class="button secondary">이 이름으로 기준 확인</button></form>`;
-  const candidates = !guide && answer.candidates?.length ? `<div class="assist-result-actions" aria-label="인식 후보">${answer.candidates.map(name => `<button type="button" class="button secondary" data-assist-candidate="${escapeHtml(name)}">${escapeHtml(name)} 기준 확인</button>`).join('')}</div>` : '';
+  const alternatives = !guide ? [...new Set([...relatedItemCandidates(answer.itemName), ...(answer.candidates || [])])].slice(0, 4) : [];
+  const candidates = alternatives.length ? `<div class="assist-result-actions" aria-label="인식 후보">${alternatives.map(name => `<button type="button" class="button secondary" data-assist-candidate="${escapeHtml(name)}">${escapeHtml(name)} 기준 확인${itemCandidateHint(name) ? ` · ${escapeHtml(itemCandidateHint(name))}` : ''}</button>`).join('')}</div>` : '';
   const hint = guide?.hint || '제품에 적힌 재질 표시와 용도를 확인해 주세요. 알 수 없다면 사진이나 제품명을 준비해 거주지 폐기물 담당 부서에 수거 여부를 문의해 주세요.';
   const checklist = Boolean(guide && steps.length);
   const tools = guide?.ruleVersion && steps.length && !confirmIdentity ? `<div class="result-actions"><button type="button" class="history-action" data-assist-batch>함께 버릴 목록에 담기</button>${copyResultButton}<button type="button" class="history-action" data-assist-save>판별 결과 저장</button></div><p class="input-hint" data-result-tools-status role="status"></p>${copyResultFallback}` : '';
@@ -293,6 +302,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     descriptionError.textContent = ''; description.removeAttribute('aria-invalid'); updateCount(); clearResult();
   });
   function prepareNameSearch(itemName, confirm = false, options = {}) {
+    const { observations: typedObservations = [], ...lookupOptions } = options;
     assistanceDraft.sourceName = itemName;
     const sameItem = normalizeItemName(itemName) === normalizeItemName(answer?.itemName);
     const handlingCondition = sameItem && currentResult?.guide?.condition;
@@ -300,10 +310,10 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     const observations = confirm && sameItem && currentResult?.observations?.length ? [...result.querySelectorAll('[data-assist-observation]:checked')]
       .map(input => currentResult.observations[Number(input.dataset.assistObservation)]).filter(Boolean) : [];
     queueInput({
-      ...options, itemName, region: region.get(), fromAssistance: true,
+      ...lookupOptions, itemName, region: region.get(), fromAssistance: true,
       ...(handlingCondition ? { handlingCondition } : {}),
       ...(category && !lookupItem(itemName)?.material ? { category, categoryOrigin: 'manual', keywordCategory: false } : {}),
-      ...(observations.length ? { observations } : {}),
+      ...(observations.length || typedObservations.length ? { observations: observations.length ? observations : typedObservations } : {}),
     });
   }
   function openNameSearch(itemName, confirm = false, options) {
@@ -315,7 +325,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     const typed = description.value.trim();
     const source = assistanceDraft.sourceName;
     const sourceStillApplies = source && (!typed || normalizeItemName(typed).includes(normalizeItemName(source)));
-    const name = (lookupItem(typed)?.material ? typed : '')
+    const name = (mode === 'description' ? descriptionName(typed) : '')
       || (sourceStillApplies ? source : '') || (answer?.evidence === 'object' && answer.confidence !== 'low' ? answer.itemName : '');
     // Preserve only explicit information from the user's own description.
     openNameSearch(name, false, { manualLookup: true, observations: mergeItemObservations([], typed) });
@@ -384,14 +394,19 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       const input = { mode, description: description.value.trim(), region: selectedRegion };
       if (mode === 'photo') input.image = image;
       if (nextAnswers.length) input.answers = nextAnswers;
-      const typedGuide = mode === 'description' && !nextAnswers.length ? registeredGuide(input.description, selectedRegion, { infer: false }) : null;
+      const typedName = mode === 'description' && !nextAnswers.length ? descriptionName(input.description) : '';
+      if (typedName && (itemTypeClarification(typedName) || splitItemList(typedName).length)) {
+        openNameSearch(typedName, false, { quickLookup: true });
+        return;
+      }
+      const typedGuide = typedName ? registeredGuide(typedName, selectedRegion, { infer: false }) : null;
       // A typed catalog name is already confirmed; go straight to its condition questions.
-      if (typedGuide?.needsConditions && !typedGuide.prompt && lookupItem(input.description)?.material) {
-        openNameSearch(input.description, false, { quickLookup: true });
+      if (typedGuide?.needsConditions && !typedGuide.prompt && lookupItem(typedName)?.material) {
+        openNameSearch(typedName, false, { quickLookup: true, observations: mergeItemObservations([], input.description) });
         return;
       }
       const response = typedGuide
-        ? { itemName: input.description, identification: '', evidence: 'object', confidence: 'high', questions: [], markings: [], cautions: [] }
+        ? { itemName: typedName, identification: '', evidence: 'object', confidence: 'high', questions: [], markings: [], cautions: [] }
         : await request(input, { signal: controller.signal });
       if (!alive() || !operation.active()) return;
       answered = nextAnswers;

@@ -24,6 +24,15 @@ test('이름 속 낱말로 물건 종류를 알아본다', () => {
   for (const [name, category] of Object.entries(expected)) assert.equal(detectItemCategory(name)?.category, category, name);
 });
 
+test('여러 물건을 쉼표로 구분하면 전지 분류를 다른 물건에 적용하지 않는다', () => {
+  const itemName = '건전지, 우유팩';
+  assert.equal(detectItemCategory(itemName), null);
+  const result = judgeDisposal({ itemName, category: 'battery', handlingCondition: 'undamaged' });
+  assert.equal(result.handling, undefined);
+  assert.equal(result.status, 'check');
+  assert.deepEqual(result.itemCandidates, ['건전지', '우유팩']);
+});
+
 test('비슷하지만 다른 물건은 종류를 자동으로 고르지 않는다', () => {
   for (const name of notRecognized) assert.equal(detectItemCategory(name), null, name);
 });
@@ -34,6 +43,20 @@ test('손상 표현과 전지 이름 사이에 다른 말이 있어도 손상 �
     assert.equal(judgeDisposal({itemName:name}).handling,'damaged-battery',name);
   }
   for (const name of ['부푼배터리 포장 상자','파손된 건전지 케이스']) assert.equal(detectItemCategory(name),null,name);
+});
+
+test('전지를 뺀 포장만 재질로 판별하고 포장 속 전지나 손상 케이스로 확대하지 않는다', () => {
+  const state = { material: '종이', type: 'paper', contaminated: 'no', combined: 'no' };
+  for (const itemName of ['AA 건전지 빈 포장지', '빈 AAA 건전지 포장 상자', '코인 전지 포장지']) {
+    const result = judgeDisposal({ ...state, itemName });
+    assert.equal(detectItemCategory(itemName)?.category, 'packaging');
+    assert.equal(result.status, 'recycle', itemName);
+    assert.match(result.steps[0], /전지가 남아 있지/);
+  }
+  for (const itemName of ['건전지 포장 속 건전지', '건전지 넣는 케이스', '부푼 AA 건전지 포장 상자']) {
+    assert.notEqual(detectItemCategory(itemName)?.category, 'packaging', itemName);
+    assert.equal(judgeDisposal({ ...state, itemName }).status, 'check');
+  }
 });
 
 test('판별: 자동 인식한 종류의 전용 안내를 쓰고 AI보다 우선하며, 직접 고른 종류가 가장 우선이다', () => {

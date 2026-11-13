@@ -8,7 +8,7 @@ import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { resultMarkup } from '../src/pages/item-input/item-input.js';
 import { resultToText } from '../src/domain/disposal/result-text.js';
 import { batchGroups, batchToText } from '../src/domain/disposal/disposal-batch.js';
-import { addMealToBatch, readDisposalBatch, updateBatchItem } from '../src/services/disposal-batch.js';
+import { addDisposalBatchItems, addMealToBatch, readDisposalBatch, removeBatchItem, updateBatchItem } from '../src/services/disposal-batch.js';
 
 const seoul = { province: '서울특별시', district: '강남구' };
 const response = {
@@ -53,6 +53,18 @@ test('Gemini의 관찰 항목은 정해진 코드만 받으며 마크만 찍힌 
   assert.deepEqual(markings.steps, []);
   const { method, steps, cautions, ...identificationOnly } = raw;
   assert.deepEqual(validateAssistance(identificationOnly), parsed, '식별 전용 응답은 생성된 배출 단계 없이도 유효');
+});
+
+test('직접 적은 오염과 결합 상태는 유지하고 부정·불확실한 표현은 채우지 않는다', () => {
+  const input = itemPresetInput('우유팩');
+  const clean = '우유팩이에요. 씻었는데 깨끗해요. 다른 재질이 붙어 있지 않아요.';
+  const confirmed = applyItemObservations(input, observationsFromDescription(clean));
+  assert.equal(confirmed.contaminated, 'no');
+  assert.equal(confirmed.combined, 'no');
+  const uncertain = '라벨이 붙어 있지 않아요. 내용물이 남아 있지 않아요. 오염이 없어요라고 쓰기 어려워요.';
+  assert.deepEqual(observationsFromDescription(uncertain), []);
+  assert.deepEqual(observationsFromDescription('PET 표시가 없어요. PP 또는 PS인 것 같아요.'), []);
+  assert.deepEqual(observationsFromDescription('본체에 PET 표시가 있어요.'), [{ part: 'body', field: 'material', value: '페트병' }]);
 });
 
 test('전지 설명과 사진의 상태가 다르면 손상 여부를 직접 확인하도록 하고, 추정으로 수거함을 확정하지 않는다', () => {
@@ -133,4 +145,23 @@ test('함께 버릴 물건은 지역·재질과 결과를 독립적으로 보존
   const remaining = readDisposalBatch().items;
   assert.equal(remaining.length, 3, '부속품 카드에 들어간 미판별 항목은 중복해서 묻지 않음');
   assert.match(batchToText(remaining), /포장 필름 \(비닐\) · 추가 확인 필요/);
+});
+
+test('여러 이름을 목록에 함께 넣고 사용자가 확인한 후보만 같은 항목에 기록한다', () => {
+  for (const { id } of readDisposalBatch().items) removeBatchItem(id);
+  assert.equal(addDisposalBatchItems(['우유팩', '우유 팩', '영수증', '감열영수증'], seoul), true);
+  const initial = readDisposalBatch();
+  assert.equal(initial.items.length, 3);
+  const receipt = initial.items.find(({ input }) => input.itemName === '영수증');
+  const confirmed = { ...itemPresetInput('감열영수증'), region: seoul };
+  const result = judgeDisposal(confirmed);
+  assert.equal(updateBatchItem(receipt.id, confirmed, result), false, '다른 이름을 자동으로 적용하지 않음');
+  assert.equal(updateBatchItem(receipt.id, { ...confirmed, itemName: '신문지' }, result, { resolveName: true }), false);
+  assert.equal(updateBatchItem(receipt.id, confirmed, result, { resolveName: true }), true);
+  assert.equal(addDisposalBatchItems(['건전지'], null), false);
+  assert.equal(addDisposalBatchItems(Array.from({ length: 11 }, (_, index) => `물건 ${index}`), seoul), false);
+  const final = readDisposalBatch();
+  assert.deepEqual(final.items.map(({ id }) => id), initial.items.slice(0, 2).map(({ id }) => id));
+  assert.equal(final.items.find(({ id }) => id === receipt.id).result.status, 'general');
+  assert.deepEqual(final.items[0], initial.items[0]);
 });

@@ -1,5 +1,5 @@
 import { getCurrentMember } from './auth.js';
-import { normalizeItemName } from '../domain/disposal/item-suggestions.js';
+import { itemTypeClarification, normalizeItemName, relatedItemCandidates } from '../domain/disposal/item-suggestions.js';
 import { normalizeRegion } from '../domain/disposal/regions.js';
 import { validRecord } from './disposal-history.js';
 import { validFavoriteInput } from './member-tools.js';
@@ -62,6 +62,19 @@ export function addDisposalBatchItem(input, result = null) {
   return true;
 }
 
+export function addDisposalBatchItems(names, regionValue) {
+  if (!Array.isArray(names) || !names.length || names.some(itemName => !validFavoriteInput({ itemName }))) return false;
+  const target = current(), region = normalizeRegion(regionValue);
+  if (target.items.length && !batchRegionMatches(target.region, region)) return false;
+  const existing = new Set(target.items.map(entry => normalizeItemName(entry.input.itemName)));
+  const next = [...new Map(names.map(itemName => [normalizeItemName(itemName), itemName])).entries()].filter(([key]) => !existing.has(key));
+  if (target.items.length + next.length > MAX_ITEMS) return false;
+  target.region = region;
+  next.forEach(([, itemName]) => target.items.push({ id: ++nextId, input: { itemName, region }, result: null }));
+  saveBatch();
+  return true;
+}
+
 function mealComponents(input) {
   if (normalizeItemName(input.itemName) !== '배달용기' || input.separable !== 'yes') return new Set();
   const parts = new Set();
@@ -100,12 +113,27 @@ export function addMealToBatch(input, result) {
   return true;
 }
 
-export function updateBatchItem(id, input, result) {
+export function canResolveBatchName(original, candidate) {
+  const key = normalizeItemName(candidate);
+  if (!key || normalizeItemName(original) === key) return false;
+  return (itemTypeClarification(original)?.variants || relatedItemCandidates(original)).some(name => normalizeItemName(name) === key);
+}
+
+export function updateBatchItem(id, input, result, { resolveName = false } = {}) {
   const target = current();
   const entry = target.items.find(item => item.id === id);
   const region = normalizeRegion(input.region);
-  if (!entry || normalizeItemName(entry.input.itemName) !== normalizeItemName(input.itemName) || !batchRegionMatches(region, target.region)) return false;
-  Object.assign(entry, structuredClone({ input, result }));
+  if (!entry || !validFavoriteInput(input) || !batchRegionMatches(region, target.region)) return false;
+  const key = normalizeItemName(input.itemName);
+  if (normalizeItemName(entry.input.itemName) !== key) {
+    if (!resolveName || !canResolveBatchName(entry.input.itemName, input.itemName)) return false;
+    const duplicate = target.items.find(item => item.id !== id && !item.result && normalizeItemName(item.input.itemName) === key);
+    if (duplicate) {
+      // A checked entry can replace a pending name, but keeps other completed results.
+      target.items = target.items.filter(item => item.id !== duplicate.id);
+    }
+  }
+  Object.assign(entry, structuredClone({ input: { ...input, region }, result }));
   const keys = mealComponents(input);
   target.items = target.items.filter(item => item.result || !keys.has(normalizeItemName(item.input.itemName)));
   saveBatch();
