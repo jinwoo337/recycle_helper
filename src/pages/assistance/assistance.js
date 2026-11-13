@@ -91,6 +91,7 @@ function followUpMarkup(answer, answers, mode, pendingAnswers) {
       <p class="input-hint">${mode === 'photo' ? '사진·설명' : '설명'}과 답변을 Google Gemini에 보내 안내를 갱신해요.</p>
       <div class="assist-followup-actions"><button type="submit" class="button primary">답변 반영하기</button><button type="button" class="button secondary" data-assist-followup-cancel hidden>분석 취소</button></div>
       <p class="form-status" data-assist-followup-status role="status" aria-live="polite"></p>
+      <button type="button" class="history-action" data-assist-continue-manually>물건 종류 직접 선택</button>
     </form></section>`;
 }
 
@@ -156,7 +157,7 @@ export function assistancePage(mode = 'description') {
         <p class="assist-photo-message" id="assist-photo-message" data-assist-photo-message role="status" aria-live="polite"></p></section>` : ''}
       ${photo ? `<details class="assist-extra"><summary>사진에 보이지 않는 정보 추가 (선택)</summary>${descriptionField}</details>` : descriptionField}
       ${judgementRegionMarkup(readJudgementRegion(getCurrentMember()))}
-      <div class="assist-submit-row"><button type="submit" class="button primary">${photo ? '사진 인식하고 안내 받기' : '설명으로 안내 받기'}</button><button type="button" class="button secondary" data-assist-cancel hidden>분석 취소</button></div>
+      <div class="assist-submit-row"><button type="submit" class="button primary">${photo ? '사진 인식하고 안내 받기' : '설명으로 안내 받기'}</button><button type="button" class="button secondary" data-assist-cancel hidden>분석 취소</button><button type="button" class="history-action" data-assist-continue-manually>물건 종류 직접 선택</button></div>
       <p class="form-status" data-assist-status role="status" aria-live="polite"></p>
       <p class="input-hint">${photo ? '사진·설명' : '설명'}과 선택한 지역을 Google Gemini에 보내요.</p>
       <details class="assist-data-use"><summary>입력 정보 사용 안내</summary><p class="input-hint">개인정보가 담긴 내용은 제외해 주세요. ${photo ? '사진은 크기와 원본 촬영 정보를 줄여 전송해요. 새 물건을 찾거나 페이지를 새로고침하면 사진 초안이 지워져요. ' : ''}사진과 자유 설명은 판별 기록에 저장되지 않아요. ‘판별 결과 저장’을 선택하면 물건 이름, 확인한 조건과 배출 안내를 저장해요.</p></details>
@@ -170,6 +171,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
   const status = root.querySelector('[data-assist-status]'), result = root.querySelector('[data-assist-result]');
   const descriptionError = root.querySelector('#assist-description-error');
   const submit = form.querySelector('[type="submit"]'), cancel = root.querySelector('[data-assist-cancel]');
+  const submitLabel = submit.textContent;
   const gate = createOperationGate();
   const path = mode === 'photo' ? '/photo' : '/describe';
   const queued = takeQueuedInput(path);
@@ -199,6 +201,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     result.hidden = true;
     form.hidden = false;
     status.textContent = '';
+    submit.textContent = submitLabel;
   }
   function setStatus(message) {
     const followupStatus = !result.hidden && result.querySelector('[data-assist-followup-status]');
@@ -296,6 +299,17 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     prepareNameSearch(itemName, confirm, options);
     location.hash = '/item-input';
   }
+  function continueManually() {
+    if (busy || !region.validate()) return;
+    const typed = description.value.trim();
+    const source = assistanceDraft.sourceName;
+    const sourceStillApplies = source && (!typed || normalizeItemName(typed).includes(normalizeItemName(source)));
+    const name = (lookupItem(typed)?.material ? typed : '')
+      || (sourceStillApplies ? source : '') || (answer?.evidence === 'object' && answer.confidence !== 'low' ? answer.itemName : '');
+    // Preserve only explicit information from the user's own description.
+    openNameSearch(name, false, { manualLookup: true, observations: mergeItemObservations([], typed) });
+  }
+  form.querySelector('[data-assist-continue-manually]')?.addEventListener('click', continueManually);
   const disposeModes = bindInputModes(root, route => {
     if (route !== '/item-input') return;
     const name = assistanceDraft.sourceName || (answer?.evidence === 'object' && answer.confidence !== 'low' ? answer.itemName : '');
@@ -360,6 +374,11 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       if (mode === 'photo') input.image = image;
       if (nextAnswers.length) input.answers = nextAnswers;
       const typedGuide = mode === 'description' && !nextAnswers.length ? registeredGuide(input.description, selectedRegion, { infer: false }) : null;
+      // A typed catalog name is already confirmed; go straight to its condition questions.
+      if (typedGuide?.needsConditions && !typedGuide.prompt && lookupItem(input.description)?.material) {
+        openNameSearch(input.description, false, { quickLookup: true });
+        return;
+      }
       const response = typedGuide
         ? { itemName: input.description, identification: '', evidence: 'object', confidence: 'high', questions: [], markings: [], cautions: [] }
         : await request(input, { signal: controller.signal });
@@ -381,7 +400,12 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
         questionChoices: guide ? [] : remaining.map(entry => entry.choices),
       };
       renderResult({ answer: nextAnswer, region: selectedRegion, guide, observations, fromInput: Boolean(typedGuide) });
-    } catch (error) { if (alive() && operation.active()) setStatus(error.message); }
+    } catch (error) {
+      if (alive() && operation.active()) {
+        setStatus(error.message);
+        if (!followup) submit.textContent = '다시 시도';
+      }
+    }
     finally { if (alive() && operation.active()) setBusy(false); operation.finish(); }
   }
   function syncChoices(followupForm) {
@@ -400,7 +424,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     if (correction) {
       event.preventDefault();
       const name = correction.elements.namedItem('itemName').value.trim();
-      if (!busy && name) openNameSearch(name);
+      if (!busy && name) openNameSearch(name, false, { quickLookup: true });
       return;
     }
     const followupForm = event.target.closest('[data-assist-followup-form]');
@@ -485,9 +509,10 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     const related = event.target.closest('[data-related-item]')?.dataset.relatedItem;
     if (related) {
       startInputSearch();
-      queueInput({ itemName: related, region: region.get() });
+      queueInput({ itemName: related, region: region.get(), quickLookup: true });
       location.hash = '/item-input';
-    } else if (candidate) openNameSearch(candidate);
+    } else if (event.target.closest('[data-assist-continue-manually]')) continueManually();
+    else if (candidate) openNameSearch(candidate, false, { quickLookup: true });
     else if (event.target.closest('[data-assist-check]') && answer) openNameSearch(answer.itemName, true);
     else if (event.target.closest('[data-assist-manual]') && answer) openNameSearch(answer.itemName);
     else if (event.target.closest('[data-assist-resume-name]') && assistanceDraft.sourceName) openNameSearch(assistanceDraft.sourceName);

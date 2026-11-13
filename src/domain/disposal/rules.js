@@ -9,7 +9,7 @@ import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-13.v16';
+export const RULE_VERSION = '2026-11-13.v17';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -182,11 +182,21 @@ function judgeBaseDisposal(input = {}) {
     return { ...result, handling: manualGuide.handling || category, ...(fromKeyword ? { keywordCategory: { ...detected } } : {}) };
   }
   if (category === 'unknown' || category === 'material-only') {
-    const material = category === 'material-only' && MATERIALS.includes(input.material) && input.material !== '모르겠어요' ? input.material : '';
+    const material = category === 'material-only' && MATERIALS.includes(input.material) && !['기타', '모르겠어요'].includes(input.material) ? input.material : '';
+    const clues = {
+      '플라스틱': '용기인지 생활용품인지 확인하고, 바닥의 분리배출 표시를 찾아보세요. PP·PE 같은 재질명만으로 수거 여부를 알 수 없어요.',
+      '페트병': '무색 투명한 생수·음료병인지, 다른 용도로 쓰인 병인지 먼저 확인해 주세요.',
+      '종이': '일반 종이, 우유팩 같은 종이팩, 코팅된 종이는 따로 확인해야 해요. 안쪽이 코팅됐는지와 분리배출 표시를 살펴보세요.',
+      '유리': '음료·식품 유리병인지 확인해 주세요. 깨진 유리·거울·내열유리는 유리병 수거함에 넣지 마세요.',
+      '금속·캔': '음료·식품캔, 가스·스프레이 용기, 금속 생활용품 중 어디에 해당하는지 확인해 주세요.',
+      '비닐': '포장에 ‘비닐류’ 표시가 있는지 확인해 주세요. 고무나 다른 재질이 붙은 제품은 따로 확인이 필요해요.',
+      '스티로폼': '포장 완충재인지, 코팅되거나 건축에 쓰인 제품인지 확인해 주세요.',
+      '음식물류': '포장·뼈·딱딱한 껍데기 등 음식물 수거 제외 대상이 섞였는지 확인해 주세요.',
+    };
     const reason = material ? `${material} 재질을 확인했어요. 물건의 용도와 구조에 따라 수거 방식이 달라져요.` : '이름과 선택한 정보만으로 배출 경로를 확정할 수 없어요.';
     return finish(outcome('check', '물건 종류·수거처 확인 필요', reason, [
-      '제품의 용도와 분리배출 표시를 확인해 주세요.',
-      `제품 사진이나 설명서${material ? `와 재질(${material})` : ''}를 준비해 제조사나 거주지 폐기물 담당 부서에 수거 경로를 문의해 주세요.`,
+      clues[material] || '제품 바닥·뒷면이나 겉포장에서 분리배출 표시를 찾아보세요. 수거 대상을 확인하기 전에는 재활용 수거함에 넣지 마세요.',
+      `표시가 없거나 확실하지 않으면 제품명·용도와 사진${material ? `(재질: ${material})` : ''}을 준비해 거주지 폐기물 담당 부서에 배출 방법을 문의해 주세요.`,
     ]));
   }
   if (category === 'large') return { ...finish(outcome('check', '대형폐기물 품목·접수 조건 확인', fromKeyword ? categoryReason : '가구·큰 생활용품으로 직접 선택했어요.', [

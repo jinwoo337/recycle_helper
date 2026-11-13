@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanSingleMaterialInput } from '../src/domain/disposal/input-shortcuts.js';
+import { cleanLabelledBottleInput, cleanSingleMaterialInput } from '../src/domain/disposal/input-shortcuts.js';
+import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 
 test('깨끗한 단일 재질 바로가기: 명시한 상태만 설정하고 이전 오염·부속품 답변을 제거한다', () => {
@@ -28,4 +29,19 @@ test('깨끗한 상태로 바꾸면 이전 비닐 오염 종류도 함께 제거
   const input={itemName:'과자봉지',material:'비닐',type:'packaging',contaminated:'yes',washed:'yes',removable:'no',vinylResidue:'solids'};
   assert.equal(cleanSingleMaterialInput(input).vinylResidue,undefined);
   assert.equal(input.vinylResidue,'solids');
+});
+
+test('미등록 용기의 빠른 결과는 실제 포장재임을 확인한 경우에만 제공한다', () => {
+  const input = { itemName: '초승달 모양 소스통', material: '플라스틱', type: 'container', category: 'packaging' };
+  assert.equal(cleanSingleMaterialInput({ ...input, categoryOrigin: 'keyword' }), null);
+  assert.equal(judgeDisposal(cleanSingleMaterialInput({ ...input, categoryOrigin: 'manual' })).status, 'recycle');
+});
+
+test('투명 생수병의 라벨 바로가기는 확인한 라벨을 남기고 다른 구성은 건너뛰지 않는다', () => {
+  const input = itemPresetInput('투명생수병');
+  const result = judgeDisposal(cleanLabelledBottleInput(input));
+  assert.equal(result.status, 'recycle');
+  assert.equal(result.parts[1].label, '비닐 라벨');
+  assert.equal(cleanLabelledBottleInput({ ...input, components: [{ ...input.components[0], contaminated: 'yes' }] }), null);
+  assert.equal(cleanLabelledBottleInput({ ...input, components: [{ ...input.components[0], material: '종이', type: 'paper' }] }), null);
 });

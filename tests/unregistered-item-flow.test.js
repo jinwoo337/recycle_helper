@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { suggestedItemCategory, validateAiGuess } from '../src/domain/disposal/ai-classification.js';
+import { lookupItem, searchItemNames } from '../src/domain/disposal/item-suggestions.js';
 import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
-import { searchItemNames } from '../src/domain/disposal/item-suggestions.js';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { itemInputPage, resultMarkup } from '../src/pages/item-input/item-input.js';
 import { requestAiGuess } from '../src/services/ai-classify.js';
@@ -26,6 +26,13 @@ test('나무젓가락과 다른 표기는 질문 없이 종량제 안내와 함�
   assert.notEqual(judgeDisposal({ itemName: '일회용숟가락' }).status, 'general');
 });
 
+test('재질이 여러 가지인 소스통은 등록 품목을 제안하되 원래 이름의 재질을 추정하지 않는다', () => {
+  assert.equal(lookupItem('소스통'), null);
+  assert.ok(searchItemNames('소스통').includes('플라스틱용기'));
+  assert.ok(searchItemNames('소스통').includes('유리병'));
+  assert.equal(judgeDisposal({ itemName: '소스통', material: '플라스틱', type: 'container', contaminated: 'no', combined: 'no' }).status, 'check');
+});
+
 test('미등록 화면은 긴 분류 목록 대신 AI와 재질 확인을 제공한다', () => {
   const markup = itemInputPage();
   assert.doesNotMatch(markup, /<select[^>]+name="category"/);
@@ -36,7 +43,8 @@ test('미등록 화면은 긴 분류 목록 대신 AI와 재질 확인을 제공
   assert.match(markup, /data-category-choice="unknown"/);
   const materialOnly = judgeDisposal({ itemName: '처음 보는 복합 물건', category: 'material-only', material: '플라스틱' });
   assert.equal(materialOnly.status, 'check');
-  assert.match(materialOnly.steps.join(' '), /재질\(플라스틱\).*수거 경로/);
+  assert.match(materialOnly.steps[0], /용기인지 생활용품인지/);
+  assert.match(materialOnly.steps[1], /재질: 플라스틱.*폐기물 담당 부서/);
 });
 
 test('일회용 숟가락은 재질을 확인하고 플라스틱 숟가락은 오염에 따라 안내한다', () => {

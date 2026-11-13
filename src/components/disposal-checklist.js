@@ -1,7 +1,7 @@
 // Checklist state belongs only to the currently displayed result.
 // Checking a step never changes its disposal judgement or saved record.
-export function checklistMarkup() {
-  return '<div class="disposal-checklist"><button type="button" class="history-action" data-checklist-toggle aria-pressed="false">배출 순서 체크하기</button><span data-checklist-progress role="status" aria-live="polite"></span><button type="button" class="history-action" data-checklist-reset hidden>체크 지우기</button></div>';
+export function checklistMarkup({ target } = {}) {
+  return `<div class="disposal-checklist"><button type="button" class="history-action" data-checklist-toggle aria-pressed="false"${target ? ` aria-controls="${target}"` : ''}>배출 순서 체크하기</button><span data-checklist-progress role="status" aria-live="polite"></span><button type="button" class="history-action" data-checklist-reset hidden>체크 지우기</button></div>`;
 }
 
 export function bindDisposalChecklist(root) {
@@ -31,6 +31,7 @@ export function bindDisposalChecklist(root) {
     });
     toggle.setAttribute('aria-pressed', String(active));
     update();
+    if (active && toggle.hasAttribute?.('aria-controls')) boxes[0]?.focus();
   }
   toggle.addEventListener('click', activate);
   reset.addEventListener('click', clear);

@@ -30,7 +30,7 @@ export function bindItemAutocomplete({ input, options, status, search, onSelect 
     input.value = candidates[index]; dismissedQuery = input.value;
     close(); onSelect();
     status.textContent = `${input.value} 선택됨. 실제 물건과 현재 상태를 확인해 주세요.`;
-    if (input.isConnected !== false) input.focus();
+    if (input.isConnected !== false && !input.form?.hidden && (!input.ownerDocument || input.ownerDocument.activeElement === input.ownerDocument.body)) input.focus();
   }
   listen(options, 'pointerdown', event => event.preventDefault());
   listen(options, 'click', event => { const option = event.target.closest('[data-candidate]'); if (option) select(Number(option.dataset.candidate)); });
@@ -70,7 +70,7 @@ export function bindItemAutocomplete({ input, options, status, search, onSelect 
   });
   const control = input.closest?.('.item-name-control');
   const owner = input.ownerDocument || input.form;
-  const outside = target => control ? !control.contains(target) : !target.closest?.('.item-name-control');
+  const outside = target => !(control?.contains(target) || options.contains?.(target) || target.closest?.('.item-name-control'));
   // 클릭 전에 인라인 추천을 접으면 누르려던 버튼이 위로 이동합니다.
   listen(owner, 'pointerdown', event => { pointerOutside = outside(event.target); }, true);
   listen(owner, 'pointerup', () => { pointerOutside = false; }, true);

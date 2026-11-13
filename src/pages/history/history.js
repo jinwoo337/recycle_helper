@@ -5,7 +5,7 @@ import { getCurrentMember } from '../../services/auth.js';
 import { resultMarkup } from '../item-input/item-input.js';
 import { bindResultTools } from '../../components/result-tools.js';
 import { queueInput, startInputSearch } from '../../services/input-draft.js';
-import { inputForDisplay, resultForDisplay, resultPendingQuestion } from '../../domain/disposal/result-display.js';
+import { inputForDisplay, resultForDisplay, resultPendingQuestions } from '../../domain/disposal/result-display.js';
 import { resultRegionLabel } from '../../domain/disposal/regions.js';
 
 export function historyPage() {
@@ -96,10 +96,11 @@ export function bindHistory() {
         startInputSearch(); queueInput({ ...input, reviewSaved: true, ...extra });
         location.hash = '/item-input';
       };
-      detail.querySelector('#edit-item').addEventListener('click', () => {
-        const editPendingQuestion = resultPendingQuestion(input, resultForDisplay(input, record.result));
-        edit({ editPendingQuestion });
-      });
+      const questions = resultPendingQuestions(input, resultForDisplay(input, record.result));
+      detail.querySelector('#edit-item').addEventListener('click', () => edit({ editPendingQuestion: questions[0] }));
+      detail.querySelectorAll('[data-edit-pending]').forEach(button => button.addEventListener('click', () =>
+        edit({ editPendingQuestion: questions[Number(button.dataset.editPending)] })));
+      detail.querySelector('[data-check-mark]')?.addEventListener('click', () => edit({ showMarkPicker: true }));
       detail.querySelector('[data-edit-region]').addEventListener('click', () => edit({ editRegion: true }));
       detail.querySelector('#category-other')?.addEventListener('click', () => edit({ category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }));
       disposeTools = bindResultTools(detail, record.input, record.result, {

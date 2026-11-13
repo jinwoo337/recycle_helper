@@ -34,6 +34,16 @@ export function collectionAction(input, result) {
   };
   const isBattery = batteries.includes(handling);
   const brokenGlass = input.material === '유리' && input.type === 'broken';
+  if (region && result.status === 'check' && ['unknown', 'material-only'].includes(input.category)) {
+    const metro = METRO_GUIDES[region.province]?.districts[region.district];
+    const city = cityGuide(region);
+    const official = (region.province === '대전광역시' ? DAEJEON_GUIDES[region.district]?.recycle : null)
+      || metro?.recycle || city?.recycle;
+    const home = metro?.home || city?.home || DISTRICT_HOMEPAGES[region.province]?.[region.district];
+    if (official || home) return { url: official || home, scope,
+      label: official ? '지역 폐기물 공식 안내' : '관할 지자체 공식 누리집',
+      note: '제품의 실제 용도와 재질이 수거 대상에 해당하는지 확인해 주세요.' };
+  }
   if (handling !== 'medicine' && !isBattery && !brokenGlass) return null;
   if (handling === 'medicine') {
     const official = regional?.sources?.find(url => Object.values(MEDICINE_SOURCES).includes(url));

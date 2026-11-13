@@ -48,6 +48,7 @@ const pendingQuestionLabels = {
   state: '오염 상태 확인하기',
   removable: '오염 제거 여부 확인하기',
   'vinyl-residue': '비닐에 남은 오염 확인하기',
+  food: '음식물이 아닌 것 분리하기',
   combined: '붙어 있는 재질 확인하기',
   separable: '재질 분리 여부 확인하기',
   handling: '물건 상태 확인하기',
@@ -55,20 +56,30 @@ const pendingQuestionLabels = {
   components: '분리한 부속품 확인하기',
 };
 
-export function resultPendingQuestion(input, result) {
-  if (result.status !== 'check') return null;
-  const partIndex = result.pendingCondition ? 0 : result.parts.findIndex(part => part.pendingCondition);
+export function resultPendingQuestions(input, result) {
+  if (result.status !== 'check') return [];
+  const questions = new Map();
+  const parts = result.parts || [];
+  function add(condition, partIndex = 0) {
+    if (!Object.hasOwn(pendingQuestionLabels, condition)) return;
+    const part = partIndex > 0 ? parts[partIndex] : null;
+    const prefix = part ? `part${partIndex - 1}-` : '';
+    questions.set(`${prefix}${condition}`, {
+      condition, prefix,
+      label: part ? `${part.label} · ${pendingQuestionLabels[condition]}` : pendingQuestionLabels[condition],
+    });
+  }
+  add(result.pendingCondition);
+  parts.forEach((part, index) => add(part.pendingCondition, index));
+  if (questions.size) return [...questions.values()];
   const unconfirmedHandling = !input.handlingCondition || input.handlingCondition === 'unknown';
-  const condition = result.pendingCondition || result.parts[partIndex]?.pendingCondition
-    || (unconfirmedHandling && handlingConditionQuestion(result.handling) ? 'handling' : '')
-    || (['unknown', 'material-only'].includes(input.category) ? 'category' : '');
-  if (!Object.hasOwn(pendingQuestionLabels, condition)) return null;
-  const part = partIndex > 0 ? result.parts[partIndex] : null;
-  return {
-    condition,
-    prefix: part ? `part${partIndex - 1}-` : '',
-    label: part ? `${part.label} · ${pendingQuestionLabels[condition]}` : pendingQuestionLabels[condition],
-  };
+  if (unconfirmedHandling && handlingConditionQuestion(result.handling)) add('handling');
+  else if (['unknown', 'material-only'].includes(input.category)) add('category');
+  return [...questions.values()];
+}
+
+export function resultPendingQuestion(input, result) {
+  return resultPendingQuestions(input, result)[0] || null;
 }
 
 export function resultStepsForDisplay(result) {

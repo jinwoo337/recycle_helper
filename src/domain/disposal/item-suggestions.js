@@ -44,6 +44,12 @@ const aliases = {
   '배달음식용기': '배달용기', '배달음식통': '배달용기',
   '포장용기뚜껑': '배달용기뚜껑', '배달포장필름': '배달용기포장필름',
 };
+// Vague names help find the next question. They never select a recycling route.
+const variantNames = [
+  { names: ['소스통', '소스용기', '소스병', '양념통'], variants: ['플라스틱용기', '유리병'] },
+  { names: ['김치통', '식품보관통'], variants: ['플라스틱김치통', '유리병'] },
+  { names: ['요구르트병', '요거트통'], variants: ['요구르트용기', '유리병'] },
+];
 const foldItemName = name => typeof name === 'string' ? name.normalize('NFKC').replace(/\s+/g, '').toLowerCase() : '';
 export const normalizeItemName = name => {
   const value = foldItemName(name);
@@ -87,6 +93,12 @@ function searchIndex(source) {
   const extra = Object.keys(aliases).filter(alias => keys.has(aliases[alias]));
   return [...new Set([...names, ...extra])].map(name => ({ name, spelling: foldItemName(name), key: normalizeItemName(name) }));
 }
+
+export function nearbyItemNames(query) {
+  const key = foldItemName(query);
+  const group = variantNames.find(({ names }) => names.includes(key));
+  return group?.variants.filter(name => items.get(normalizeItemName(name))?.material) || [];
+}
 let items = catalogIndex(localEntries);
 let suggestions = searchIndex(localEntries);
 
@@ -122,11 +134,12 @@ export function searchItemNames(query, limit = 6) {
   const normalized = normalizeItemName(query);
   if (!normalized || !Number.isInteger(limit) || limit < 1) return [];
   const raw = foldItemName(query);
-  return suggestions.filter(entry => entry.key.includes(normalized) || entry.spelling.includes(raw))
+  const matches = suggestions.filter(entry => entry.key.includes(normalized) || entry.spelling.includes(raw))
     .sort((a, b) => Number(b.spelling === raw) - Number(a.spelling === raw)
       || Number(b.key === normalized) - Number(a.key === normalized)
       || Number(b.key.startsWith(normalized)) - Number(a.key.startsWith(normalized)) || a.name.length - b.name.length)
-    .slice(0, Math.min(limit, 10)).map(entry => entry.name);
+    .map(entry => entry.name);
+  return [...new Set([...matches, ...nearbyItemNames(query)])].slice(0, Math.min(limit, 10));
 }
 
 export function suggestItemInfo(name) {
