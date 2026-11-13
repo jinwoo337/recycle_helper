@@ -5,10 +5,14 @@ import { escapeHtml } from '../utils/html.js';
 import { SEOUL_SCOPE_NOTE } from '../domain/disposal/seoul-guides.js';
 
 const list = values => `<ol>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ol>`;
-function groupLabel(group) {
+function commonProvince(group) {
   const province = group.regions[0]?.province;
-  if (group.result.regional.scope === 'city' && group.regions.every(region => region.province === province)
-      && group.regions.length > 1) {
+  return group.result.regional.scope === 'city' && group.regions.length > 1
+    && group.regions.every(region => region.province === province) ? province : '';
+}
+function groupLabel(group) {
+  const province = commonProvince(group);
+  if (province) {
     return group.regions.length === districtsFor(province).length
       ? `${province} 공통 기준` : `${province} 공통 기준 적용 지역 ${group.regions.length}곳`;
   }
@@ -39,7 +43,7 @@ export function comparisonPanelMarkup(comparison) {
       const highlights = comparisonHighlights(group.result, current);
       const steps = group.result.steps.filter(step => step !== SEOUL_SCOPE_NOTE && step !== group.result.regional.scopeNote && !shared.has(step) && !highlights.includes(step));
       return `<article class="comparison-card"><h3>${escapeHtml(groupLabel(group))}</h3><p class="comparison-method">${escapeHtml(group.result.method)}</p>${highlights.length ? list(highlights) : ''}
-      ${group.regions.length > 1 ? `<details><summary>해당 지역 ${group.regions.length}곳 보기</summary><p class="input-hint">${group.regions.map(region => escapeHtml(regionLabel(region))).join(' · ')}</p></details>` : ''}
+      ${commonProvince(group) ? `<details><summary>해당 지역 ${group.regions.length}곳 보기</summary><p class="input-hint">${group.regions.map(region => escapeHtml(regionLabel(region))).join(' · ')}</p></details>` : ''}
       <details><summary>${steps.length ? '나머지 단계·공식 자료' : '공식 자료 보기'}</summary>${steps.length ? list(steps) : ''}
       <p class="input-hint comparison-sources">확인일 ${escapeHtml(group.result.regional.checkedAt)} · ${group.sources.filter(url => Object.values(REGIONAL_SOURCES).includes(url)).map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(regionalSourceLabel(url))} ↗</a>`).join(' · ')}</p></details></article>`; }).join('')}</div>
     ${shared.size ? `<section class="comparison-common"><h3>공통 준비</h3>${list([...shared])}</section>` : ''}

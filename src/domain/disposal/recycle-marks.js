@@ -30,7 +30,7 @@ export function photoMarkPart(marking) {
 }
 function photoMarkCode(marking) {
   return String(marking || '').normalize('NFKC').trim().toUpperCase()
-    .replace(photoPartPrefix, '');
+    .replace(photoPartPrefix, '').replace(/\s+표시$/, '');
 }
 export function photoMarkMaterial(marking) {
   const code = photoMarkCode(marking).replace(/^플라스틱\s+(?=[A-Z]+$)/, '');
@@ -46,7 +46,7 @@ export function confirmedPhotoMark(marking, part, shape) {
   }
   if (material === '플라스틱' && shape === 'container') return { material, type: 'container' };
   // A plain PET code doesn't tell us whether the packaging is a clear beverage bottle.
-  const mark = RECYCLE_MARKS.find(entry => entry.label === code);
+  const mark = RECYCLE_MARKS.find(entry => entry.label === code || (entry.id === 'carton' && code === '종이팩'));
   const bodyOnly = ['clear-pet', 'carton', 'aseptic-carton', 'glass', 'can'].includes(mark?.id);
   const type = mark && (!bodyOnly || part === 'body') && mark.id !== 'plastic' ? mark.type : '';
   return { material, type };

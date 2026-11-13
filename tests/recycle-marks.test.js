@@ -15,6 +15,8 @@ test('분리배출 표시 버튼은 실제 재질·세부 종류로 이어진다
 
 test('사진에서 PP 표시만 읽은 경우 부위를 확인하고 배출 방법은 확정하지 않는다', () => {
   assert.equal(photoMarkMaterial('라벨: pp'), '플라스틱');
+  assert.equal(photoMarkMaterial('PP 표시'), '플라스틱');
+  assert.equal(photoMarkMaterial('PP 표시 추정'), '');
   assert.equal(photoMarkPart('포장 필름： PP'), 'film');
   assert.equal(photoMarkPart('PP'), '');
   assert.equal(photoMarkMaterial('PP일 수도 있음'), '');
@@ -37,6 +39,7 @@ test('OTHER 표시는 일반 단일 플라스틱으로 확정하지 않는다', 
 test('사진에서 확인한 무색페트·팩 표시는 본체 종류에만 적용하고 PET 코드만으로는 종류를 정하지 않는다', () => {
   assert.deepEqual(confirmedPhotoMark('본체: 무색페트', 'body'), { material: '페트병', type: 'clear-drink' });
   assert.deepEqual(confirmedPhotoMark('멸균팩', 'body'), { material: '종이', type: 'carton' });
+  assert.deepEqual(confirmedPhotoMark('본체: 종이팩 표시', 'body'), { material: '종이', type: 'carton' });
   assert.deepEqual(confirmedPhotoMark('PET', 'body'), { material: '페트병', type: '' });
   assert.deepEqual(confirmedPhotoMark('무색페트', 'lid'), { material: '페트병', type: '' });
   assert.deepEqual(confirmedPhotoMark('PP', 'film'), { material: '비닐', type: 'packaging' });
