@@ -96,6 +96,8 @@ test('확인할 부속품과 전지 상태를 결과 상단에서 바로 찾을 
   assert.deepEqual(pending, { condition: 'state', prefix: 'part0-', label: '라벨 · 오염 상태 확인하기' });
   const html = resultMarkup(input, result);
   assert.match(html, /id="edit-item">라벨 · 오염 상태 확인하기/);
+  assert.match(html, /배출 방법이 확인된 부분부터 버릴 수 있어요/);
+  assert.doesNotMatch(resultMarkup({ ...input, separable: 'no' }, judgeDisposal({ ...input, separable: 'no' })), /확인된 부분부터/);
   assert.equal([...html.matchAll(/id="edit-item"/g)].length, 1);
   assert.ok(html.indexOf('id="edit-item"') < html.indexOf('data-new-item'));
   const battery = { itemName: '건전지', handlingCondition: 'unknown' };

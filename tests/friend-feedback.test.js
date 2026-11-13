@@ -76,7 +76,7 @@ test('신고한 이름은 브라우저 캐시를 피해 새로 묻는다', async
   assert.ok(new URL(urls[2].url, 'https://e.com').searchParams.get('r'));
 });
 
-import { collectionPointHelp, nearbyMapUrl } from '../src/domain/disposal/collection-points.js';
+import { collectionPointHelp } from '../src/domain/disposal/collection-points.js';
 import { collectionPointMarkup } from '../src/components/collection-help.js';
 import { normalizeCollectionDays, collectionSummary, buildCollectionIcs } from '../src/domain/disposal/collection-days.js';
 import { queueDescription, takeQueuedDescription } from '../src/services/input-draft.js';
@@ -84,13 +84,13 @@ import { queueDescription, takeQueuedDescription } from '../src/services/input-d
 test('전용 수거처 물건은 수거함이 놓인 실제 장소(행정복지센터·약국 등)를 지도에서 찾게 한다', () => {
   const help = collectionPointHelp(judge('건전지', gangnam));
   assert.equal(help.targets[0].query, '서울 강남구 행정복지센터');
-  assert.match(help.targets[0].mapUrl, /^https:\/\/www\.google\.com\/maps\/search\//);
+  assert.equal(new URL(help.targets[0].mapUrl).searchParams.get('query'), '행정복지센터');
+  assert.equal(new URL(help.targets[0].regionMapUrl).searchParams.get('query'), '서울 강남구 행정복지센터');
   assert.ok(help.targets.every(target => !/수거함/.test(target.query)), '지도에 없는 "수거함" 낱말로 검색하지 않음');
   assert.match(help.hours, /운영시간/);
   assert.deepEqual(collectionPointHelp(judge('감기약', gangnam)).targets.map(t => t.search), ['약국', '보건소', '행정복지센터']);
   assert.ok(collectionPointHelp(judge('드라이기', null)).pickup);
   assert.equal(collectionPointHelp(judge('페트병', gangnam)), null);
-  assert.equal(nearbyMapUrl('행정복지센터', 37.5, 127.03), 'https://www.google.com/maps/search/%ED%96%89%EC%A0%95%EB%B3%B5%EC%A7%80%EC%84%BC%ED%84%B0/@37.50000,127.03000,15z');
 });
 test('수거 요일: 오늘·내일 안내와 매주 반복 알림 캘린더 파일', () => {
   const settings = normalizeCollectionDays({ days: { recycle: [2, '4', 9], food: [3] }, hour: 20 });

@@ -18,6 +18,7 @@ const batterySources = {
   ] },
 };
 const seoulMedicineMap = 'https://map.seoul.go.kr/smgis2/short/6OiGm';
+export const YUSEONG_COLLECTION_GUIDE = 'https://www.yuseong.go.kr/kor/sub07_11_03_09.do';
 
 export function collectionAction(input, result) {
   const { handling, region, regional } = result;
@@ -34,6 +35,17 @@ export function collectionAction(input, result) {
   };
   const isBattery = batteries.includes(handling);
   const brokenGlass = input.material === '유리' && input.type === 'broken';
+  if (region?.province === '대전광역시' && region.district === '유성구' && ['medicine', 'fluorescent', 'battery'].includes(handling)) {
+    const labels = { medicine: '폐의약품', fluorescent: '폐형광등', battery: '폐건전지' };
+    return {
+      url: YUSEONG_COLLECTION_GUIDE, scope, label: `유성구 ${labels[handling]} 공식 수거 안내`, checkedAt: '2026-11-13',
+      note: handling === 'medicine'
+        ? '구청 민원실, 동 행정복지센터, 일부 도서관과 보건기관의 전용 수거함을 안내해요. 약국은 방문 전에 접수 여부를 확인해 주세요.'
+        : handling === 'battery' && input.handlingCondition !== 'undamaged'
+          ? '손상이 없는지 먼저 확인해 주세요. 상태를 모르거나 손상이 있으면 정상 전지 수거함에 넣기 전에 회수 방법을 문의해 주세요.'
+          : '동 행정복지센터와 공원 등에 설치된 전용 수거함을 이용해요. 방문할 곳의 설치 여부와 이용 가능 시간을 확인해 주세요.',
+    };
+  }
   if (region && result.status === 'check' && ['unknown', 'material-only'].includes(input.category)) {
     const metro = METRO_GUIDES[region.province]?.districts[region.district];
     const city = cityGuide(region);

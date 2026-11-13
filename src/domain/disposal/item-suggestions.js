@@ -43,12 +43,16 @@ const aliases = {
   '일회용나무젓갈': '나무젓가락', '일회용목재젓가락': '나무젓가락',
   '배달음식용기': '배달용기', '배달음식통': '배달용기',
   '포장용기뚜껑': '배달용기뚜껑', '배달포장필름': '배달용기포장필름',
+  '택배종이박스': '택배상자', '투명생수패트병': '투명생수병', '우유종이팩': '우유팩',
+  '콜라깡통': '콜라캔', '캔음료': '음료캔',
 };
 // Vague names help find the next question. They never select a recycling route.
 const variantNames = [
   { names: ['소스통', '소스용기', '소스병', '양념통'], variants: ['플라스틱용기', '유리병'] },
   { names: ['김치통', '식품보관통'], variants: ['플라스틱김치통', '유리병'] },
   { names: ['요구르트병', '요거트통'], variants: ['요구르트용기', '유리병'] },
+  { names: ['테이크아웃컵', '커피테이크아웃컵'], variants: ['플라스틱테이크아웃컵', '종이컵'] },
+  { names: ['콜라병', '탄산음료병'], variants: ['투명탄산음료페트병', '유리음료병'] },
 ];
 const foldItemName = name => typeof name === 'string' ? name.normalize('NFKC').replace(/\s+/g, '').toLowerCase() : '';
 export const normalizeItemName = name => {

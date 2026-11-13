@@ -15,7 +15,7 @@ import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel, resultRegionLabel }
 import { METRO_GUIDES } from '../../domain/disposal/metro-guides.js';
 import { cityGuide } from '../../domain/disposal/city-guides.js';
 import { DAEJEON_GUIDES } from '../../domain/disposal/daejeon-guides.js';
-import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput } from '../../services/input-draft.js';
+import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNAMED_ITEM as unnamedItem } from '../../services/input-draft.js';
 import { cleanLabelledBottleInput, cleanSingleMaterialInput } from '../../domain/disposal/input-shortcuts.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
@@ -54,7 +54,11 @@ const yesNo = [['yes', '네'], ['no', '아니요'], ['unknown', '모르겠어요
 const attachments = {
   none: ['no', ''], detachable: ['yes', 'yes'], fixed: ['yes', 'no'], unknown: ['unknown', ''],
 };
-const unnamedItem = '이름 모르는 물건';
+const packagingShapes = {
+  container: { label: '음식이 담겼던 용기', hint: '본체가 플라스틱·종이·유리 중 무엇인지 살펴보세요.', materials: ['플라스틱', '종이', '유리', '금속·캔'] },
+  film: { label: '봉지·포장 필름', hint: '얇은 포장이라도 종이, 비닐, 여러 재질을 붙인 포장은 달라요.', materials: ['비닐', '종이', '기타'] },
+  bottle: { label: '병·컵', hint: '병이나 컵의 재질을 골라 주세요. 투명하다고 모두 페트병은 아니에요.', materials: ['페트병', '유리', '플라스틱', '종이'] },
+};
 const typeCaption = {
   '음식물류': {
     soft: '남은 음식·부드러운 껍질',
@@ -101,6 +105,9 @@ function categoryFields() {
       <button class="history-action" id="forget-confirmed-category" type="button">다른 종류예요</button></div>
     </div>
     <div id="manual-category" class="manual-category">
+      <div class="manual-category-options shape-choices" role="group" aria-label="물건 모양과 용도">
+        ${Object.entries(packagingShapes).map(([id, shape]) => `<button class="history-action" type="button" data-packaging-shape="${id}">${shape.label}</button>`).join('')}
+      </div>
       <div class="manual-category-options" role="group" aria-label="물건 종류">
         <button class="history-action" type="button" data-category-choice="packaging">포장재·용기</button>
         <button class="history-action" type="button" data-category-choice="food">음식물</button>
@@ -146,7 +153,7 @@ function partFields(prefix, label) {
       <div class="current-state">${question(`${prefix}currentState`, prefix ? '이 부속품은 깨끗한가요?' : '내용물이나 오염이 남아 있나요?', [['clean', '깨끗해요'], ['dirty', '남아 있어요 · 아직 안 씻었어요'], ['washed-dirty', '씻어도 남아요'], ['unknown', '모르겠어요']])}</div>
       <div class="state-storage" hidden>${question(`${prefix}contaminated`, '현재 오염 여부')}${question(`${prefix}washed`, '세척 여부', [['yes', '세척했어요'], ['no', '아직 안 했어요']])}</div>
       <div data-condition="vinyl-residue" hidden>${question(`${prefix}vinylResidue`, '비닐 속 내용물을 비운 뒤 무엇이 남았나요?', [['liquid-only', '내용물·고형물 없이 기름·물 자국만 있어요'], ['solids', '음식물·소스·부스러기 등 고형물이 남아요'], ['unknown', '모르겠어요']])}</div>
-      <div data-condition="removable" hidden>${question(`${prefix}removable`, '남은 오염을 제거할 수 있나요?')}</div>
+      <div data-condition="removable" hidden>${question(`${prefix}removable`, '남은 오염을 제거할 수 있나요?', [['yes', '제거할 수 있어요'], ['no', '제거하기 어려워요'], ['unknown', '아직 안 해봐서 모르겠어요']])}<p class="input-hint removal-hint"></p></div>
     </details><div data-condition="food" hidden>${question(`${prefix}foodSeparated`, '비닐·이쑤시개·뼈처럼 음식물이 아닌 것이 남아 있나요?', [['yes', '없어요 · 모두 분리했어요'], ['no', '남아 있어요'], ['unknown', '모르겠어요']])}</div></div>`;
 }
 
@@ -281,9 +288,12 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
   const { parts, steps } = resultStepsForDisplay(result);
   const pendingQuestions = resultPendingQuestions(input, result);
   const pendingQuestion = pendingQuestions[0];
+  const canSplit = input.separable === 'yes' && parts.length > 1;
+  const partial = canSplit && parts.some(part => part.status === 'check') && parts.some(part => part.status !== 'check');
   const collection = collectionAction(input, result);
   const canCheckMark = ['unknown', 'material-only'].includes(input.category)
     || (input.category === 'packaging' && pendingQuestion?.condition === 'material');
+  const firstStep = steps[0] || (canSplit ? '쉽게 떼어낼 수 있는 부분을 분리해 주세요.' : '');
   const badge = input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
   const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const details = part => conditionDetails(part).map(([title, value]) =>
@@ -296,13 +306,21 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
       <div class="result-region"><p class="input-hint">${escapeHtml(resultRegionLabel(result))}</p>${editRegion ? '<button type="button" class="history-action" data-edit-region>지역 변경</button>' : ''}</div></div>
     ${result.aiAssisted ? '<p class="ai-badge">🤖 AI 추정 결과예요. 실제 제품의 분리배출 표시를 꼭 확인해 주세요.</p>' : ''}
     ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
-    ${parts.length ? `<ul class="result-route-list" aria-label="재질별 배출 장소">${parts.map(part => `<li><strong>${escapeHtml(part.label)}</strong><span>${escapeHtml(part.method)}</span></li>`).join('')}</ul>` : ''}
+    ${parts.length ? `<ul class="result-route-list" aria-label="재질별 배출 장소">${parts.map((part, index) => {
+      const prefix = index === 0 ? '' : `part${index - 1}-`;
+      const questionIndex = pendingQuestions.findIndex(question => question.prefix === prefix);
+      return `<li><strong>${escapeHtml(part.label)}</strong><div>${escapeHtml(part.method)}
+        ${canSplit && part.status === 'check' && questionIndex >= 0 ? `<button type="button" class="history-action" data-edit-pending="${questionIndex}">${escapeHtml(pendingQuestions[questionIndex].label)}</button>` : ''}</div></li>`;
+    }).join('')}</ul>` : ''}
+    ${partial ? '<p class="input-hint result-partial-note">쉽게 분리한 뒤, 배출 방법이 확인된 부분부터 버릴 수 있어요.</p>' : ''}
+    ${result.status !== 'check' && firstStep ? `<p class="result-first-step"><strong>먼저</strong> ${escapeHtml(firstStep)}</p>` : ''}
     ${steps.length || parts.length || pendingQuestion || collection ? '<h3 class="result-action-title">지금 할 일</h3>' : ''}
-    ${pendingQuestion ? `<div class="result-check-action"><button type="button" class="button primary" id="edit-item">${escapeHtml(pendingQuestion.label)}</button></div>` : ''}
-    ${pendingQuestions.length > 1 ? `<div class="result-more-questions" role="group" aria-label="다른 확인 항목">${pendingQuestions.slice(1).map(({ label }, index) =>
+    ${pendingQuestion ? `<div class="result-check-action"><button type="button" class="button ${canCheckMark ? 'secondary' : 'primary'}" id="edit-item">${escapeHtml(pendingQuestion.label)}</button></div>` : ''}
+    ${pendingQuestions.length > 1 && !canSplit ? `<div class="result-more-questions" role="group" aria-label="다른 확인 항목">${pendingQuestions.slice(1).map(({ label }, index) =>
       `<button type="button" class="history-action" data-edit-pending="${index + 1}">${escapeHtml(label)}</button>`).join('')}</div>` : ''}
-    ${canCheckMark ? '<button type="button" class="history-action result-mark-action" data-check-mark>분리배출 표시로 다시 찾기</button>' : ''}
+    ${canCheckMark ? '<button type="button" class="button primary result-mark-action" data-check-mark>바닥·겉포장에 적힌 표시 확인하기</button>' : ''}
     ${collectionActionMarkup(input, result, collection)}
+    ${editRegion && !result.region && collection ? '<p class="input-hint">지역별 접수 안내가 필요하면 <button type="button" class="history-action" data-edit-region>배출할 지역 선택</button>에서 골라 주세요.</p>' : ''}
     <div id="disposal-instructions">
     ${steps.length ? stepListMarkup(steps, 'action-steps', { checklist: true }) : ''}
     ${parts.length ? `<h3>본체와 부속품 배출 방법</h3><div class="result-parts">${parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${part.steps.length ? stepListMarkup(part.steps, 'part-steps', { checklist: true }) : ''}</article>`).join('')}</div>` : ''}
@@ -312,7 +330,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
     ${collectionPointMarkup({ ...result, itemName: input.itemName }, { official: false })}
     ${relatedDisposalMarkup(input.itemName)}
     ${regionalComparisonMarkup(input, result)}
-    <div class="result-next-actions"><button type="button" class="button ${pendingQuestion ? 'secondary' : 'primary'}" data-new-item>다른 물건 찾기</button>${pendingQuestion ? '' : '<button type="button" class="button secondary" id="edit-item">조건 수정</button>'}</div>
+    <div class="result-next-actions"><button type="button" class="button ${pendingQuestion ? 'secondary' : 'primary'}" data-new-item>다른 물건 찾기</button>${pendingQuestion ? '' : `<button type="button" class="button secondary" id="edit-item">${createdAt ? '오늘 상태 다시 판별' : '조건 수정'}</button>`}</div>
     <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${sourceLineMarkup(result, sources)}${list(result.reasons)}${result.regional?.notes.length ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">${sources.map(url => outLink(url, sourceLabel(url))).join(' · ')}</p>${localGuideMarkup(result, input.itemName)}</details>
     <details class="input-details"><summary>입력한 조건</summary><dl><div><dt>물건</dt><dd>${escapeHtml(input.itemName)}</dd></div>${input.category ? `<div><dt>${result.keywordCategory ? '이름으로 알아본 종류' : '직접 선택한 종류'}</dt><dd>${escapeHtml(categoryLabel(input.category))}</dd></div>` : ''}${handlingAnswer ? `<div><dt>물건 상태</dt><dd>${handlingAnswer}</dd></div>` : ''}${details(input)}</dl>${(input.components || []).map((part, index) => `<h4>${escapeHtml(part.label || `부속품 ${index + 1}`)}</h4><dl>${details(part)}</dl>`).join('')}</details>
     <p class="input-hint" data-record-save-status role="status"></p>
@@ -328,10 +346,10 @@ export function bindItemInput() {
   const queued = takeQueuedInput();
   if (queued) {
     lastVisibleResult = undefined;
-    const { fromAssistance, observations, batchItemId, ...next } = queued;
-    for (const key of ['reviewSaved', 'requestIdentification', 'showMarkPicker', 'showMissingItem', 'quickLookup', 'manualLookup']) delete next[key];
+    const { fromAssistance, observations, batchItemId, fromConfirmedMark, ...next } = queued;
+    for (const key of ['reviewSaved', 'requestIdentification', 'showMarkPicker', 'showMissingItem', 'quickLookup', 'manualLookup', 'savedLookup']) delete next[key];
     const same = fromAssistance && normalizeItemName(next.itemName) === normalizeItemName(draft.itemName);
-    const confirmedSame = same && draft.categoryOrigin === 'manual' && !['unknown', 'material-only'].includes(draft.category);
+    const confirmedSame = !fromConfirmedMark && same && draft.categoryOrigin === 'manual' && !['unknown', 'material-only'].includes(draft.category);
     if (confirmedSame) {
       delete next.category; delete next.categoryOrigin; delete next.keywordCategory;
     }
@@ -406,6 +424,7 @@ export function bindItemInput() {
   const categorySection = document.getElementById('item-category-section');
   const categorySummary = document.getElementById('item-category-summary');
   const category = form.elements.namedItem('category');
+  let packagingShape = '';
   const manualCategory = document.getElementById('manual-category');
   const spoonMaterialChoices = document.getElementById('spoon-material-choices');
   const nameVariants = document.getElementById('name-variants');
@@ -534,10 +553,18 @@ export function bindItemInput() {
     materialSelect.disabled = !active; materialSelect.required = active;
     const material = materialSelect.value;
     const quick = node.querySelector('.part-material-quick');
+    const shape = !prefix && category.value === 'packaging' ? packagingShapes[packagingShape] : null;
+    quick.querySelector('.item-choice-title').textContent = shape ? shape.hint : prefix ? '부속품 재질 선택' : '주요 재질 선택';
     const choosingMaterial = !material || ['기타', '모르겠어요'].includes(material);
     quick.hidden = !active || !(prefix || ['packaging', 'material-only'].includes(category.value));
     quick.classList.toggle('is-chosen', !choosingMaterial);
-    quick.querySelectorAll('[data-material-choice]').forEach(button => {
+    const materialButtons = [...quick.querySelectorAll('[data-material-choice]')];
+    const ranked = shape ? [...shape.materials, ...MATERIALS.filter(entry => !shape.materials.includes(entry))] : MATERIALS;
+    if (quick.dataset.shape !== (shape ? packagingShape : '')) {
+      for (const entry of ranked) quick.append(materialButtons.find(button => button.dataset.materialChoice === entry));
+      quick.dataset.shape = shape ? packagingShape : '';
+    }
+    materialButtons.forEach(button => {
       button.hidden = !prefix && !categoryAllowsMaterial(category.value, button.dataset.materialChoice);
       button.setAttribute('aria-pressed', String(button.dataset.materialChoice === material));
     });
@@ -591,8 +618,12 @@ export function bindItemInput() {
     const checkAttachmentFirst = useSeoulVinylQuestions && !value('combined');
     toggle(node.querySelector('[data-condition="removable"]'), dirty && !checkAttachmentFirst && (!seoulVinyl || value('vinylResidue') === 'solids'));
     node.querySelectorAll('.state-storage input').forEach(control => { control.required = false; });
-    node.querySelector('[data-condition="removable"] legend').textContent = material === '종이' && value(`${prefix}type`) === 'paper'
-      ? `${partName}의 오염된 부분을 떼어내고 깨끗한 종이만 남길 수 있나요?` : `${partName}에 남은 오염을 헹구거나 닦아 제거할 수 있나요?`;
+    const paper = material === '종이' && select.value === 'paper';
+    node.querySelector('[data-condition="removable"] legend').textContent = paper
+      ? `${partName}에서 깨끗한 종이만 따로 남길 수 있나요?` : `${partName}의 내용물을 비운 뒤 오염을 닦아낼 수 있나요?`;
+    node.querySelector('.removal-hint').textContent = paper
+      ? '물에 씻지 말고, 기름이나 음식물이 묻은 부분만 떼어낼 수 있는지 보세요.'
+      : '남은 내용물을 먼저 따로 비우고, 음식물이나 기름기가 헹구거나 닦아서 없어지는지 확인해 보세요.';
     const summary = { clean: '깨끗해요', dirty: '오염이 남아 있어요', 'washed-dirty': '씻어도 오염이 남아요', unknown: '상태를 모르겠어요' };
     node.querySelector('[data-state-summary]').textContent = current ? `상태: ${summary[current]} · 바꾸기`
       : prefix ? '부속품 상태 고르기' : '상태 직접 선택 · 오염 있음 / 모름';
@@ -756,12 +787,14 @@ export function bindItemInput() {
     }
     refreshAi();
   }
-  function chooseCategory(choice, guess) {
+  function chooseCategory(choice, guess, shape = '') {
     if (category.disabled || deleting) return;
+    packagingShape = shape;
     if (category.value !== choice) {
       category.value = choice;
       changed({ target: category });
     }
+    updateConditional();
     if (guess && ['packaging', 'food'].includes(choice)) {
       const confirmed = collect();
       if (!confirmed.material || (confirmed.material === guess.material && !confirmed.type)) {
@@ -791,6 +824,8 @@ export function bindItemInput() {
     focusCategory();
   });
   categorySection.addEventListener('click', event => {
+    const shape = event.target.closest('[data-packaging-shape]')?.dataset.packagingShape;
+    if (shape && Object.hasOwn(packagingShapes, shape)) { chooseCategory('packaging', null, shape); return; }
     const choice = event.target.closest('[data-category-choice]')?.dataset.categoryChoice;
     if (choice) chooseCategory(choice);
     const variant = event.target.closest('[data-item-variant]')?.dataset.itemVariant;
@@ -1209,11 +1244,11 @@ export function bindItemInput() {
       showInput(); restore(editingInput); saveStatus.textContent = '';
       openMarkPicker();
     });
-    summary.querySelector('[data-edit-region]').addEventListener('click', () => {
+    summary.querySelectorAll('[data-edit-region]').forEach(button => button.addEventListener('click', () => {
       showInput(); restore(editingInput); saveStatus.textContent = '';
       if (draftBatchId) saveStatus.textContent = '지역을 바꾸면 새 결과는 기존 목록에 반영되지 않아요.';
       judgementRegion.focus();
-    });
+    }));
     disposeResultTools = bindResultTools(summary, input, result, {
       onNewItem: resetInput,
       onRelatedItem(itemName) {
@@ -1370,6 +1405,7 @@ export function bindItemInput() {
     if (event.target === nameInput && !changedName) { draft.itemName = nameInput.value.trim(); return; }
     // 사전에 없는 이름이면 이름 속 낱말로 물건 종류를 자동으로 골라 둡니다. 사용자가 바꿀 수 있습니다.
     if (changedName) {
+      packagingShape = '';
       draftVersion = startInputSearch();
       appliedEvidence = ''; pendingObservations = []; observedStates.clear(); unopenedParts = []; pendingCombination = ''; pendingSeparation = '';
       draftBatchId = undefined;
@@ -1690,7 +1726,10 @@ export function bindItemInput() {
   window.addEventListener('focus', windowFocused);
   window.addEventListener('favorites-changed', renderFavorites);
   // 홈 검색·기록에서 이름을 가져온 경우에도 저장된 답(또는 AI 의견)을 바로 찾아봅니다.
-  if (queued?.quickLookup || (queued?.manualLookup && !queued.showMarkPicker)) advanceLookup();
+  if (queued?.savedLookup) {
+    const { input, result, createdAt, id } = queued.savedLookup;
+    showResult(input, result, createdAt, id);
+  } else if (queued?.quickLookup || (queued?.manualLookup && !queued.showMarkPicker)) advanceLookup();
   else if (!queued && lastVisibleResult) {
     const { input, result, createdAt, recordId } = lastVisibleResult;
     showResult(input, result, createdAt, recordId, lastVisibleResult);

@@ -7,7 +7,7 @@ import { inputForDisplay, resultForDisplay } from '../domain/disposal/result-dis
 import { bindDisposalChecklist } from './disposal-checklist.js';
 import { bindResultCopy, copyResultButton, copyResultFallback } from './result-copy.js';
 import { escapeHtml } from '../utils/html.js';
-import { addMealToBatch } from '../services/disposal-batch.js';
+import { addDisposalBatchItem, addMealToBatch } from '../services/disposal-batch.js';
 
 const feedbackIssues = {
   destination: '수거처·배출 장소',
@@ -25,7 +25,7 @@ export function missingItemMarkup() {
 
 export function resultToolsMarkup(input, result) {
   const context = [input.itemName, resultRegionLabel(result), result.method].map(escapeHtml).join(' · ');
-  return `<div class="result-actions"><button type="button" class="history-action" data-share-result hidden>공유하기</button>${copyResultButton}<button type="button" class="history-action" data-favorite aria-pressed="false">즐겨찾기</button></div>
+  return `<div class="result-actions"><button type="button" class="history-action" data-add-to-batch>함께 버릴 목록에 담기</button><button type="button" class="history-action" data-share-result hidden>공유하기</button>${copyResultButton}<button type="button" class="history-action" data-favorite aria-pressed="false">즐겨찾기</button></div>
     <p class="input-hint" data-result-tools-status role="status" aria-live="polite"></p>
     ${copyResultFallback}
     <details class="feedback-panel"><summary>결과 오류 또는 미등록 품목 제보</summary>
@@ -90,6 +90,12 @@ export function bindResultTools(root, input, result, { onNewItem, onRelatedItem,
     const display = resultForDisplay(input, result);
     if (addMealToBatch({ ...inputForDisplay(input, result), region: display.region }, display)) location.hash = '/batch';
     else root.querySelector('[data-meal-batch-status]').textContent = '목록이 가득 찼거나 다른 지역의 물건이 있어요. 목록을 먼저 확인해 주세요.';
+  });
+  root.querySelector('[data-add-to-batch]')?.addEventListener('click', () => {
+    if (!alive()) return;
+    const display = resultForDisplay(input, result);
+    if (addDisposalBatchItem({ ...inputForDisplay(input, result), region: display.region }, display)) location.hash = '/batch';
+    else status.textContent = '목록이 가득 찼거나 다른 지역의 물건이 있어요. 목록에서 먼저 정리해 주세요.';
   });
   const feedbackForm = root.querySelector('[data-feedback-form]');
   feedbackForm?.elements.message.addEventListener('input', () => feedbackForm.elements.message.setCustomValidity(''));

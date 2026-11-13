@@ -52,9 +52,8 @@ export function inferCollectionHandling(result) {
   const text = [result?.itemName, result?.method, ...(result?.steps || [])].filter(Boolean).join(' ');
   return TEXT_RULES.find(([pattern]) => pattern.test(text))?.[1] || null;
 }
-
-// 카카오맵·네이버 지도 웹 링크는 내 위치를 넘길 수 없어서 Google 지도만 씁니다.
-export const googleSearchUrl = query => `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
+// 지역명을 생략하면 Google 지도가 사용 가능한 현재 위치를 기준으로 시설을 찾습니다.
+export const googleSearchUrl = query => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 
 export function collectionPointHelp(result, regionValue = result?.region) {
   const point = POINTS[inferCollectionHandling(result)];
@@ -65,14 +64,8 @@ export function collectionPointHelp(result, regionValue = result?.region) {
     inquiryOnly: Boolean(point.inquiryOnly),
     targets: point.targets.map(target => {
       const query = [place, target.search].filter(Boolean).join(' ');
-      return { ...target, query, mapUrl: googleSearchUrl(query) };
+      return { ...target, query, mapUrl: googleSearchUrl(target.search), regionMapUrl: place ? googleSearchUrl(query) : '' };
     }),
     pickup: point.pickup ? PICKUP_SERVICE : null,
   };
-}
-
-// 내 위치 주변 검색 주소(위치는 지도 주소에만 쓰고 저장·전송하지 않음).
-export function nearbyMapUrl(keyword, latitude, longitude) {
-  const lat = Number(latitude).toFixed(5), lng = Number(longitude).toFixed(5);
-  return `https://www.google.com/maps/search/${encodeURIComponent(keyword)}/@${lat},${lng},15z`;
 }

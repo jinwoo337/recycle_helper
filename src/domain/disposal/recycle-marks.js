@@ -15,3 +15,15 @@ export const RECYCLE_MARKS = [
 ];
 
 export const markById = id => RECYCLE_MARKS.find(mark => mark.id === id) || null;
+
+// A resin code does not tell us whether this is a rigid container or a film.
+const photoMaterialCodes = {
+  PP: '플라스틱', PE: '플라스틱', HDPE: '플라스틱', LDPE: '플라스틱', PS: '플라스틱',
+  PET: '페트병', '무색페트': '페트병', '플라스틱': '플라스틱', '비닐류': '비닐',
+  '종이': '종이', '일반팩': '종이', '멸균팩': '종이', '종이팩': '종이', '유리': '유리', '캔류': '금속·캔',
+};
+export function photoMarkMaterial(marking) {
+  const code = String(marking || '').normalize('NFKC').trim().toUpperCase()
+    .replace(/^(?:본체|몸체|뚜껑|마개|라벨|필름)\s*[:：]\s*/, '').replace(/^플라스틱\s+(?=[A-Z]+$)/, '');
+  return Object.hasOwn(photoMaterialCodes, code) ? photoMaterialCodes[code] : '';
+}

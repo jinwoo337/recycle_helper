@@ -9,7 +9,8 @@ import { prepareAssistancePhoto, PHOTO_ACCEPT } from '../../services/assistance-
 import { stepListMarkup } from '../../components/step-list.js';
 import { collectionPointMarkup } from '../../components/collection-help.js';
 import { collectionActionMarkup } from '../../components/collection-action.js';
-import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput } from '../../services/input-draft.js';
+import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNAMED_ITEM } from '../../services/input-draft.js';
+import { photoMarkMaterial } from '../../domain/disposal/recycle-marks.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
 import { lookupItem, normalizeItemName, searchItemNames } from '../../domain/disposal/item-suggestions.js';
@@ -26,7 +27,7 @@ import { relatedDisposalMarkup } from '../../components/related-disposal.js';
 import { bindResultCopy, copyResultButton, copyResultFallback } from '../../components/result-copy.js';
 import { resultToText } from '../../domain/disposal/result-text.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
-import { addMealToBatch } from '../../services/disposal-batch.js';
+import { addDisposalBatchItem, addMealToBatch } from '../../services/disposal-batch.js';
 import { saveDisposalRecord } from '../../services/disposal-history.js';
 
 const titles = { description: '물건 설명하기', photo: '사진으로 인식하기' };
@@ -112,14 +113,23 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
   const candidates = !guide && answer.candidates?.length ? `<div class="assist-result-actions" aria-label="인식 후보">${answer.candidates.map(name => `<button type="button" class="button secondary" data-assist-candidate="${escapeHtml(name)}">${escapeHtml(name)} 기준 확인</button>`).join('')}</div>` : '';
   const hint = guide?.hint || '제품에 적힌 재질 표시와 용도를 확인해 주세요. 알 수 없다면 사진이나 제품명을 준비해 거주지 폐기물 담당 부서에 수거 여부를 문의해 주세요.';
   const checklist = Boolean(guide && steps.length);
-  const tools = guide?.ruleVersion && steps.length ? `<div class="result-actions">${copyResultButton}<button type="button" class="history-action" data-assist-save>판별 결과 저장</button></div><p class="input-hint" data-result-tools-status role="status"></p>${copyResultFallback}` : '';
+  const tools = guide?.ruleVersion && steps.length && !confirmIdentity ? `<div class="result-actions"><button type="button" class="history-action" data-assist-batch>함께 버릴 목록에 담기</button>${copyResultButton}<button type="button" class="history-action" data-assist-save>판별 결과 저장</button></div><p class="input-hint" data-result-tools-status role="status"></p>${copyResultFallback}` : '';
   const canContinue = !confirmIdentity && canConfirm && (!guide?.prompt || guide.condition);
   const nextAction = confirmIdentity ? '<button type="button" class="button primary" data-assist-confirm-identity>이 물건이 맞아요</button>'
     : canContinue ? `<button type="button" class="button ${guide?.ruleVersion ? 'secondary' : 'primary'}" data-assist-check>${guide?.needsConditions ? '물건 상태 확인하기' : category ? '이 종류로 확인하기' : '이 이름으로 기준 확인'}</button>`
-    : !guide && answer.evidence === 'object' ? '<button type="button" class="button secondary" data-assist-manual>종류·재질 직접 확인</button>' : '';
+    : !guide ? '<button type="button" class="button secondary" data-assist-continue-manually>종류·재질 직접 확인</button>' : '';
   const observationFields = canContinue && observations.length && !guide?.ruleVersion ? `<fieldset class="assist-observations"><legend>확인한 조건만 선택해 주세요</legend>${observations.map((entry, index) =>
     `<label><input type="checkbox" data-assist-observation="${index}" ${(selectedObservations ? selectedObservations.includes(index) : entry.source === 'description') ? 'checked' : ''}><span>${escapeHtml(observationLabel(entry))}<small>${entry.source === 'description' ? '입력한 설명 · 필요하면 선택 해제' : mode === 'photo' ? '사진·설명에서 AI가 추정 · 확인 필요' : '설명에서 AI가 추정 · 확인 필요'}</small></span></label>`).join('')}</fieldset>` : '';
   const guidance = `${checklist ? checklistMarkup() : ''}${steps.length ? stepListMarkup(steps, 'action-steps', { checklist }) : !guide?.prompt && !confirmIdentity ? `<p class="input-hint">${escapeHtml(hint)}</p>` : ''}`;
+  const readableMarks = mode === 'photo' && answer.evidence === 'markings'
+    ? answer.markings.map((mark, index) => photoMarkMaterial(mark) ? { mark, index } : null).filter(Boolean) : [];
+  const markForm = readableMarks.length ? `<form class="assist-questions assist-mark-confirm" data-assist-mark-confirm>
+    <h3>포장에 실제로 적힌 표시인가요?</h3><p class="input-hint">맞는 표시와 붙어 있는 곳을 골라 주세요.</p>
+    <div class="field"><label for="assist-confirm-mark">확인한 표시</label><select id="assist-confirm-mark" name="mark">${readableMarks.map(({ mark, index }) => `<option value="${index}">${escapeHtml(mark)}</option>`).join('')}</select></div>
+    <div class="field"><label for="assist-confirm-mark-part">표시가 있는 곳</label><select id="assist-confirm-mark-part" name="part" required><option value="">부위를 골라 주세요</option><option value="body">본체</option><option value="lid">뚜껑·마개</option><option value="label">라벨</option><option value="film">포장 필름</option></select></div>
+    <div class="field"><label for="assist-confirm-mark-form">표시가 있는 부분의 형태</label><select id="assist-confirm-mark-form" name="shape"><option value="">다음 화면에서 고르기</option><option value="film">비닐 봉지·얇은 포장 필름</option><option value="container">단단한 용기·트레이</option></select></div>
+    <button type="submit" class="button primary">이 표시로 이어서 확인</button>
+  </form>` : '';
   return `<p class="eyebrow">${guide?.inferred ? '이름으로 알아본 종류의 안내' : guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide?.regional ? resultRegionLabel(guide) : regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
     <div class="assist-method"><p class="eyebrow">어디에 버리나요?</p><h3>${escapeHtml(method)}</h3></div>
@@ -127,6 +137,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
     ${answer.evidence === 'markings' ? '<p class="input-hint">표시는 읽었지만 실제 물건은 확인하지 못했어요. 물건 전체 사진이나 용도 설명을 더해 주세요.</p>' : ''}
     ${answer.markings.length ? `<p class="assist-markings"><strong>AI가 읽은 표시</strong> ${answer.markings.map(escapeHtml).join(' · ')}</p>` : ''}
     <h3 class="result-action-title">지금 할 일</h3>
+    ${markForm}
     ${candidates}
     ${handlingPromptMarkup(guide, observations)}
     ${category ? `<p class="assist-identification"><strong>AI가 제안한 종류:</strong> ${escapeHtml(category)}</p>` : ''}
@@ -420,6 +431,22 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     syncChoices(followupForm); setStatus('');
   });
   result.addEventListener('submit', async event => {
+    const markForm = event.target.closest('[data-assist-mark-confirm]');
+    if (markForm) {
+      event.preventDefault();
+      const readMaterial = photoMarkMaterial(answer?.markings[Number(markForm.elements.namedItem('mark').value)]);
+      const part = markForm.elements.namedItem('part').value;
+      const shape = markForm.elements.namedItem('shape').value;
+      if (!busy && answer?.evidence === 'markings' && readMaterial && ['body', 'lid', 'label', 'film'].includes(part)) {
+        const film = readMaterial === '비닐' || (readMaterial === '플라스틱' && (part === 'film' || shape === 'film'));
+        const material = film ? '비닐' : readMaterial;
+        const type = film ? 'packaging' : readMaterial === '플라스틱' && shape === 'container' ? 'container' : '';
+        const name = assistanceDraft.sourceName || UNNAMED_ITEM;
+        openNameSearch(name, false, { category: 'packaging', categoryOrigin: 'manual', keywordCategory: false,
+          observations: [{ part, field: 'material', value: material, type }], fromConfirmedMark: true });
+      }
+      return;
+    }
     const correction = event.target.closest('[data-assist-correction]');
     if (correction) {
       event.preventDefault();
@@ -478,6 +505,11 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       else result.querySelector('[data-meal-batch-status]').textContent = '목록이 가득 찼거나 다른 지역의 물건이 있어요. 목록을 먼저 확인해 주세요.';
       return;
     }
+    if (event.target.closest('[data-assist-batch]') && currentResult?.guide?.ruleVersion) {
+      if (addDisposalBatchItem(resultInput(currentResult), currentResult.guide)) location.hash = '/batch';
+      else result.querySelector('[data-result-tools-status]').textContent = '목록이 가득 찼거나 다른 지역의 물건이 있어요.';
+      return;
+    }
     const condition = event.target.closest('[data-assist-handling]')?.dataset.assistHandling;
     if (condition && currentResult?.guide?.prompt?.options.some(([value]) => value === condition)) {
       const guide = registeredGuide(answer.itemName, currentResult.region, { condition });
@@ -514,7 +546,6 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     } else if (event.target.closest('[data-assist-continue-manually]')) continueManually();
     else if (candidate) openNameSearch(candidate, false, { quickLookup: true });
     else if (event.target.closest('[data-assist-check]') && answer) openNameSearch(answer.itemName, true);
-    else if (event.target.closest('[data-assist-manual]') && answer) openNameSearch(answer.itemName);
     else if (event.target.closest('[data-assist-resume-name]') && assistanceDraft.sourceName) openNameSearch(assistanceDraft.sourceName);
     else if (event.target.closest('[data-assist-request-registration]') && answer) openNameSearch(answer.itemName, false, { showMissingItem: true });
   });

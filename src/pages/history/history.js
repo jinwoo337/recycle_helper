@@ -101,7 +101,7 @@ export function bindHistory() {
       detail.querySelectorAll('[data-edit-pending]').forEach(button => button.addEventListener('click', () =>
         edit({ editPendingQuestion: questions[Number(button.dataset.editPending)] })));
       detail.querySelector('[data-check-mark]')?.addEventListener('click', () => edit({ showMarkPicker: true }));
-      detail.querySelector('[data-edit-region]').addEventListener('click', () => edit({ editRegion: true }));
+      detail.querySelectorAll('[data-edit-region]').forEach(button => button.addEventListener('click', () => edit({ editRegion: true })));
       detail.querySelector('#category-other')?.addEventListener('click', () => edit({ category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }));
       disposeTools = bindResultTools(detail, record.input, record.result, {
         onNewItem: () => { startInputSearch(); queueInput({}); location.hash = '/item-input'; },

@@ -170,11 +170,26 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 #item-form .composition-controls .choice-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
 #item-form .composition-controls .choice { margin:0; min-width:0; justify-content:flex-start; }
 .search-options { margin-top:6px; }
-.home-page .home-search > .input-modes { grid-template-columns:repeat(2,minmax(0,1fr)); margin-block:10px 6px; }
+.home-page .home-search { padding:16px 20px; }
+.home-search-alternatives, .home-search-alternatives .input-modes, .home-direct-choices { display:flex; flex-wrap:wrap; gap:4px; }
+.home-search-alternatives { margin-top:6px; }
+.home-search-alternatives .input-modes { margin:0; }
 .home-search .input-modes > [aria-current] { display:none; }
-.home-direct-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
-.home-direct-choices .history-action { min-height:44px; white-space:normal; word-break:keep-all; }
+.home-search-alternatives .input-modes > a, .home-search-alternatives .history-action { min-height:36px; padding:6px 9px; font-size:12px; font-weight:600; white-space:normal; word-break:keep-all; }
+.home-page .home-search .example-items { margin-top:6px; }
+.home-page .home-search .search-options { margin-top:2px; }
+.home-page .home-search .search-options > summary { min-height:34px; }
+.home-page .home-search > .input-hint { margin-top:4px; }
+.home-page .home-recent-items { gap:6px; }
+.home-page .home-recent-items .history-action { min-height:36px; padding:6px 11px; color:var(--green); font-weight:600; }
+#home-favorite-order ol { list-style:none; padding:0; margin:0; max-width:480px; }
+#home-favorite-order li { display:flex; align-items:center; gap:6px; margin:4px 0; }
+#home-favorite-order li span { flex:1; min-width:0; overflow-wrap:anywhere; }
 @media(max-width:520px) {
+  .home-page .home-search { padding:12px 14px; }
+  .home-search-alternatives { display:grid; grid-template-columns:1fr; }
+  .home-search-alternatives .input-modes > a, .home-search-alternatives .history-action { flex:1; min-height:44px; }
+  .home-page .home-recent-items .history-action { min-height:44px; }
   .home-page .home-search .quick-search-row { flex-direction:row; align-items:stretch; }
   .home-page .home-search .quick-search-row > .button { width:auto; align-self:stretch; padding-inline:11px; }
   .home-page .home-search .quick-search-row > .button span { display:none; }
@@ -183,6 +198,10 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .result-route-list li { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2.25fr); align-items:baseline; gap:8px; padding:8px 10px; overflow-wrap:anywhere; }
 .item-summary .result-route-list li + li, .history-detail .result-route-list li + li { margin-top:0; border-top:1px solid var(--line); }
 .result-route-list strong { color:var(--green); }
+.result-route-list .history-action { display:block; min-height:36px; margin-top:4px; text-align:left; white-space:normal; }
+.result-partial-note { margin:0 0 8px; }
+.result-first-step { margin:8px 0 12px; padding:9px 12px; border-radius:8px; background:#f3f7ef; font-size:14px; }
+.result-first-step strong { color:var(--green); margin-right:4px; }
 .result-more-questions { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
 .result-more-questions .history-action { min-height:44px; white-space:normal; text-align:left; }
 .result-mark-action { min-height:44px; margin-bottom:10px; }
@@ -212,6 +231,13 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .collection-help h3 { margin:0 0 6px; font-size:16px; }
 .collection-links { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 6px; }
 .collection-links .button { font-size:13px; min-height:40px; }
+.collection-region-search > summary { min-height:36px; align-content:center; cursor:pointer; color:var(--green); font-size:13px; }
+.shape-choices { margin-bottom:8px; }
+#item-form .removal-hint { margin:0 0 10px; }
+.batch-add { max-width:460px; margin:0 0 16px; }
+.batch-add label { display:block; margin-bottom:6px; font-size:14px; font-weight:600; }
+.batch-add > div { display:flex; gap:6px; }
+.batch-add input { flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; }
 .local-guide-line { margin:-14px 0 20px; font-size:13px; color:var(--muted); }
 .local-guide-line a { color:var(--green); text-decoration:underline; }
 .describe-instead { margin:10px 0 4px; font-size:13px; color:var(--muted); display:flex; flex-wrap:wrap; align-items:center; gap:6px; }

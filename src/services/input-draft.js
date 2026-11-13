@@ -1,4 +1,5 @@
 import { getCurrentMember } from './auth.js';
+export const UNNAMED_ITEM = '이름 모르는 물건';
 let pending;
 let searchVersion = 0;
 export const inputSearchVersion = () => searchVersion;

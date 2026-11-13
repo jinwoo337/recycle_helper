@@ -2,6 +2,7 @@ import { escapeHtml as esc } from '../../utils/html.js';
 import { RULE_SOURCE } from '../../domain/disposal/rules.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { gameRanking } from '../../services/game-ranking.js';
+import { queueInput, startInputSearch } from '../../services/input-draft.js';
 import { GAME_BINS, GAME_QUESTIONS, createGame, gameOptions, answerGame, gameExplanation, remainingSeconds, validateRankedGameState, gamePrompt, gameStreak } from '../../domain/disposal/game.js';
 
 const byId = new Map(GAME_QUESTIONS.map(q=>[q.id,q]));
@@ -11,7 +12,7 @@ export const practiceFinishMessage = member => member
 const binIcon='<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/></svg>';
 export function gamePage() {
   return `<section class="container game-page"><header class="game-heading"><p class="eyebrow">60초 분리배출 대결</p><h1>누가 더 많이 분리할까요?</h1><p>물건 정보를 읽고 4개 배출함 중 하나를 고르세요.</p></header>
-    <div id="disposal-game" class="game-card"><div class="game-intro"><span class="game-intro-icon" aria-hidden="true">⏱️</span><h2>60초 동안 정확하고 빠르게!</h2><p>정답을 맞힐 때마다 분리 성공 1개.<br>선택하면 바로 다음 물건이 나타나요.</p><ul><li>한 게임에서는 같은 물건이 반복되지 않아요.</li><li>랭킹은 정답 수 → 오답이 적은 순 → 먼저 등록한 순이에요.</li><li>회원별 최고 기록 하나로 대결해요.</li><li>게임 점수는 실제 분리배출 기록에 저장되지 않아요.</li></ul><div class="game-actions"><button type="button" class="button primary" id="start-ranked">랭킹 도전${getCurrentMember()?'':' · 로그인 필요'}</button><button type="button" class="button secondary" id="start-practice">혼자 연습</button></div><p id="game-start-status" role="status" class="input-hint"></p></div></div>
+    <div id="disposal-game" class="game-card"><div class="game-intro"><span class="game-intro-icon" aria-hidden="true">⏱️</span><h2>60초 동안 정확하고 빠르게!</h2><p>정답을 맞힐 때마다 분리 성공 1개.<br>선택하면 바로 다음 물건이 나타나요.</p><ul><li>한 게임에서는 같은 물건이 반복되지 않아요.</li><li>랭킹은 정답 수 → 오답이 적은 순 → 먼저 등록한 순이에요.</li><li>회원별 최고 기록 하나로 대결해요.</li><li>게임 점수는 실제 분리배출 기록에 저장되지 않아요.</li></ul><div class="game-actions"><button type="button" class="button primary" id="start-ranked">랭킹 도전${getCurrentMember()?'':' · 로그인 필요'}</button><button type="button" class="button secondary" id="start-practice">혼자 연습</button><button type="button" class="button secondary" id="start-learn">시간 제한 없이 연습</button></div><p id="game-start-status" role="status" class="input-hint"></p></div></div>
     <section class="game-card game-ranking" aria-labelledby="ranking-title"><div class="game-progress"><h2 id="ranking-title">🏆 전체 랭킹</h2><button type="button" class="history-action" id="refresh-ranking">새로고침</button></div><p class="input-hint">60초 · 회원별 최고 기록 · 상위 20명 · 공개 이름은 중복될 수 있어요.</p><div id="game-ranking-content" aria-live="polite">랭킹을 불러오고 있어요…</div></section>
     <p class="game-note">일반적인 기준을 배우는 게임이에요. 실제 배출 시 제품 표시와 거주 지역·건물의 수거 기준을 확인해 주세요. <a href="${RULE_SOURCE}" target="_blank" rel="noopener noreferrer">기준 확인 ↗</a></p></section>`;
 }
@@ -38,7 +39,7 @@ export function bindGame() {
   function count(){return records().filter(a=>a.correct).length;}
   function current(){return mode==='ranked'?byId.get(game.question?.id):game.questions[game.index];}
   function choices(q){return mode==='ranked'?game.question.options:(game.options=gameOptions(q));}
-  function canContinue(){return game && !finished && remainingSeconds(game.deadline)>0 && current();}
+  function canContinue(){return game && !finished && (mode==='learn' || remainingSeconds(game.deadline)>0) && current();}
   async function loadRanking(){
     const version=++rankVersion;
     refresh.disabled=true; rankingHost.textContent='랭킹을 불러오고 있어요…';
@@ -60,7 +61,7 @@ export function bindGame() {
     const q=current();
     if(!q){finish();return;}
     const prompt=gamePrompt(q),streak=gameStreak(records());
-    host.innerHTML=`<div class="game-progress"><span>${mode==='ranked'?'랭킹 도전':'혼자 연습'} · ${records().length+1}번째 물건</span><strong class="${last?.correct?'game-score-pop':''}">성공 ${count()}개</strong></div><div class="game-timer"><span>남은 시간 <strong id="game-seconds" role="timer" aria-label="남은 초">${remainingSeconds(game.deadline)}</strong>초</span><span>오답 ${records().length-count()}개${streak>1?` · <b class="game-streak">${streak}연속</b>`:''}</span></div><progress id="game-time" value="${remainingSeconds(game.deadline)}" max="60" aria-label="남은 시간"></progress>
+    host.innerHTML=`<div class="game-progress"><span>${mode==='ranked'?'랭킹 도전':mode==='learn'?'시간 제한 없는 연습':'혼자 연습'} · ${records().length+1}번째 물건</span><strong class="${last?.correct?'game-score-pop':''}">성공 ${count()}개</strong></div>${mode==='learn' ? '' : `<div class="game-timer"><span>남은 시간 <strong id="game-seconds" role="timer" aria-label="남은 초">${remainingSeconds(game.deadline)}</strong>초</span><span>오답 ${records().length-count()}개${streak>1?` · <b class="game-streak">${streak}연속</b>`:''}</span></div><progress id="game-time" value="${remainingSeconds(game.deadline)}" max="60" aria-label="남은 시간"></progress>`}
       <div class="game-last-answer ${last&&!last.correct?'is-wrong':''}" role="status">${last?`${last.correct?'✓ 정답 +1!':'✕ 오답'} ${esc(gamePrompt(byId.get(last.questionId)).name)} → ${esc(GAME_BINS[last.correctBin || byId.get(last.questionId)?.bin]?.label || '')}`:'이름만 보지 말고 재질·용도·오염 상태까지 확인하세요.'}</div>
       <div class="game-item"><span class="game-item-icon game-mystery-icon" aria-hidden="true">?</span><h2 id="game-question" tabindex="-1">${esc(prompt.name)}</h2><p>${esc(prompt.condition)}</p></div><fieldset class="game-choices"><legend>어느 배출함에 넣을까요?</legend><div class="game-bins">${choices(q).map(id=>`<button type="button" data-game-bin="${id}" class="game-bin"><span class="game-bin-icon" aria-hidden="true">${binIcon}</span><strong>${esc(GAME_BINS[id].label)}</strong></button>`).join('')}</div></fieldset><p id="game-answer-status" role="status" class="input-hint"></p>`;
     focus('#game-question');
@@ -74,9 +75,16 @@ export function bindGame() {
     const right=count(),total=records().length;
     host.innerHTML=`<div class="game-finish"><span class="game-intro-icon" aria-hidden="true">${right>=10?'🏆':'🌱'}</span><h2 id="game-finished" tabindex="-1">${current()?'시간 종료!':'모든 물건을 분리했어요!'}</h2><p class="game-score">${right}<small>개 분리 성공</small></p><p>도전 ${total}개 · 정답 ${right}개 · 오답 ${total-right}개${total?` · 정답률 ${Math.round(right/total*100)}%`:''}</p></div>${publishMarkup()}<details class="game-review"><summary>푼 문제와 정답 다시 보기</summary><ol>${records().map(answer=>{const q=byId.get(answer.questionId);return `<li><strong>${answer.correct?'✓ 정답':'✕ 오답'} · ${esc(q.name)}</strong><p>${esc(q.condition)}</p><p>내 선택: ${esc(GAME_BINS[answer.bin].label)} · 정답: ${esc(GAME_BINS[q.bin].label)}</p><p>${esc(gameExplanation(q).reasons.join(' '))}</p></li>`;}).join('')}</ol></details><div class="game-actions"><button type="button" class="button primary" id="restart-game">다시 도전</button><button type="button" class="button secondary" id="share-game" data-right="${right}" data-total="${total}">📤 점수 자랑하기</button><a href="#/item-input" class="button secondary">내 물건 판별하기</a></div>`;
     focus('#game-finished');
+    if (mode === 'learn') {
+      host.querySelector('#game-finished').textContent = '연습을 마쳤어요';
+      host.querySelector('#share-game').hidden = true;
+    }
+    if (records().some(answer => !answer.correct)) {
+      host.querySelector('.game-actions').insertAdjacentHTML('afterbegin', '<button type="button" class="button secondary" id="review-wrong">틀린 물건 다시 풀기</button>');
+    }
   }
   function tick(){
-    if(!alive() || !game || finished)return;
+    if(!alive() || !game || finished || mode==='learn')return;
     const remaining=remainingSeconds(game.deadline);
     const seconds=host.querySelector('#game-seconds');if(seconds)seconds.textContent=remaining;
     const progress=host.querySelector('#game-time');if(progress)progress.value=remaining;
@@ -109,8 +117,13 @@ export function bindGame() {
       }
     }finally{busy=false;}
   }
+  function startLearning(questions = createGame().questions.slice(0, 10)) {
+    stopTimer(); clearEffect(); finished=false; pendingAnswer=null; mode='learn';
+    game={questions, index:0, answers:[], deadline:Infinity};
+    drawQuestion();
+  }
   async function choose(bin,retry=false){
-    if(busy || finished || !game)return;
+    if(busy || finished || !game || (mode==='learn' && game.answers.length > game.index))return;
     if(!retry && !canContinue()){tick();return;}
     busy=true;
     const previousAnswers=records().length;
@@ -126,6 +139,13 @@ export function bindGame() {
       }else{
         const answer=answerGame(game,bin);
         if(!answer){finish();return;}
+        if (mode === 'learn') {
+          const question = current();
+          host.querySelector('#game-answer-status').textContent = `${answer.correct ? '정답이에요.' : '다시 알아봐요.'} ${GAME_BINS[question.bin].label} · ${gameExplanation(question).reasons.join(' ')}`;
+          host.insertAdjacentHTML('beforeend', '<div class="game-actions"><button type="button" class="button primary" id="learn-next">다음 물건</button><button type="button" class="history-action" id="learn-guide">이 물건의 실제 배출 안내</button><button type="button" class="history-action" id="learn-finish">연습 마치기</button></div>');
+          focus('#learn-next');
+          return;
+        }
         game.index++;
       }
       drawQuestion(records().at(-1));
@@ -141,6 +161,15 @@ export function bindGame() {
     if(busy)return;
     if(event.target.closest('#start-ranked'))start(true);
     else if(event.target.closest('#start-practice'))start(false);
+    else if(event.target.closest('#start-learn'))startLearning();
+    else if(event.target.closest('#review-wrong'))startLearning(records().filter(answer=>!answer.correct).map(answer=>byId.get(answer.questionId)).filter(Boolean));
+    else if(event.target.closest('#learn-next')){game.index++;drawQuestion();}
+    else if(event.target.closest('#learn-finish'))finish();
+    else if(event.target.closest('#learn-guide') && current()){
+      startInputSearch();
+      queueInput({ itemName: gamePrompt(current()).name, quickLookup: true });
+      location.hash='/item-input';
+    }
     else if(event.target.closest('#retry-game-answer'))choose(pendingAnswer?.bin,true);
     else if(event.target.closest('#share-game')){shareScore(event.target.closest('#share-game'));}
     else if(event.target.closest('#restart-game')){clearEffect();const template=document.createElement('template');template.innerHTML=gamePage();host.innerHTML=template.content.querySelector('#disposal-game').innerHTML;game=null;finished=false;focus('#start-ranked');}
