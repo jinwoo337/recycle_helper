@@ -5,6 +5,7 @@ import { escapeHtml } from '../utils/html.js';
 import { SEOUL_SCOPE_NOTE } from '../domain/disposal/seoul-guides.js';
 
 const list = values => `<ol>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ol>`;
+const comparisonSteps = result => [...new Set([...result.steps, ...(result.parts?.length > 1 ? result.parts.flatMap(part => part.steps) : [])])];
 function commonProvince(group) {
   const province = group.regions[0]?.province;
   return group.result.regional.scope === 'city' && group.regions.length > 1
@@ -24,8 +25,8 @@ export function regionalComparisonMarkup(input, result) {
   return `<details class="regional-comparison"><summary>다른 지역은 어떨까?</summary>${comparisonPanelMarkup(comparison)}</details>`;
 }
 export function comparisonHighlights(result, current) {
-  const shared = new Set(current.steps);
-  return [...new Set([...result.regional.notes, ...result.steps])]
+  const shared = new Set(comparisonSteps(current));
+  return [...new Set([...result.regional.notes, ...comparisonSteps(result)])]
     .filter(step => step !== SEOUL_SCOPE_NOTE && step !== result.regional.scopeNote && !shared.has(step)).slice(0, 2);
 }
 export function comparisonPanelMarkup(comparison) {
@@ -35,13 +36,14 @@ export function comparisonPanelMarkup(comparison) {
     const message = sameCount > 1 ? '확인된 모든 지역의 배출 방법이 같아요.' : '이 품목의 지역별 차이는 아직 확인되지 않았어요.';
     return `<p class="comparison-explanation">${message}</p>${note}`;
   }
-  const shared = new Set(current.steps.filter(step =>
-    step !== SEOUL_SCOPE_NOTE && step !== current.regional.scopeNote && groups.every(group => group.result.steps.includes(step))
+  const groupSteps = groups.map(group => new Set(comparisonSteps(group.result)));
+  const shared = new Set(comparisonSteps(current).filter(step =>
+    step !== SEOUL_SCOPE_NOTE && step !== current.regional.scopeNote && groupSteps.every(steps => steps.has(step))
   ));
   return `<p class="comparison-explanation">${current.regional.coverage === 'verified' ? '아래 지역은 현재 선택한 지역과 배출 방법이 달라요.' : '현재 화면의 기본 안내와 다른 지역별 배출 방법이에요.'}</p>
-    <div class="comparison-groups">${groups.map(group => {
+    <div class="comparison-groups">${groups.map((group, index) => {
       const highlights = comparisonHighlights(group.result, current);
-      const steps = group.result.steps.filter(step => step !== SEOUL_SCOPE_NOTE && step !== group.result.regional.scopeNote && !shared.has(step) && !highlights.includes(step));
+      const steps = [...groupSteps[index]].filter(step => step !== SEOUL_SCOPE_NOTE && step !== group.result.regional.scopeNote && !shared.has(step) && !highlights.includes(step));
       return `<article class="comparison-card"><h3>${escapeHtml(groupLabel(group))}</h3><p class="comparison-method">${escapeHtml(group.result.method)}</p>${highlights.length ? list(highlights) : ''}
       ${commonProvince(group) ? `<details><summary>해당 지역 ${group.regions.length}곳 보기</summary><p class="input-hint">${group.regions.map(region => escapeHtml(regionLabel(region))).join(' · ')}</p></details>` : ''}
       <details><summary>${steps.length ? '나머지 단계·공식 자료' : '공식 자료 보기'}</summary>${steps.length ? list(steps) : ''}

@@ -56,16 +56,16 @@ export function guideForHandling(handling, condition) {
   let [method, reason, steps, status = 'check'] = guide;
   if (handling === 'clothing' && condition === 'reusable') {
     method = '재사용 가능한 의류·잡화 · 전용 수거함 확인';
-    reason = '깨끗하고 다시 쓸 수 있는 상태로 입력했어요.';
+    reason = '의류 수거함은 다시 쓸 수 있는 물건을 모으기 때문에 깨끗하고 온전한 상태인지 확인해요.';
     steps = ['주머니를 비우고 물기에 젖지 않게 모아 주세요.', '지역 의류 수거함에서 이 품목을 받는지 표시를 확인한 뒤 배출해 주세요.'];
   }
   if (handling === 'clothing' && condition === 'unusable') {
     method = '훼손·오염된 의류·잡화 · 지역 배출 방법 확인';
-    reason = '재사용하기 어려운 상태로 입력했어요.';
+    reason = '심한 오염이나 훼손이 있으면 재사용하기 어려워 의류 수거함에서 제외돼요.';
     steps = ['재사용 의류 수거함에 넣지 말고 따로 모아 주세요.', '제품의 종류와 크기에 맞는 종량제봉투 또는 대형폐기물 배출 기준을 지역 안내에서 확인해 주세요.'];
   }
   if (handling === 'battery' && condition === 'undamaged') {
-    reason = '손상이 없는 전지로 입력했어요.';
+    reason = '전지가 생활폐기물과 섞이면 수거·처리 과정에서 화재가 날 수 있어 전용 수거함으로 모아요.';
     steps = [batterySteps[0], batterySteps[2], '가까운 전지 전용 수거함이나 지정 회수처에 배출해 주세요.'];
   }
   const reasons = status === 'check' ? [reason, '수거 장소·제품 상태·지역별 접수 조건은 최종 확인이 필요해요.'] : [reason];
