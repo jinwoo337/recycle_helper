@@ -167,7 +167,7 @@ export function itemInputPage() {
       <section id="combination-section" aria-labelledby="item-state" hidden><h3 id="item-state">다른 재질 확인</h3>
         <details id="composition-editor" class="material-editor" open><summary><span id="composition-detected">결합 상태 선택</span><span class="material-edit-label">수정</span></summary><div class="composition-controls">
          ${question('attachment', '라벨·뚜껑·테이프 등 다른 재질이 붙어 있나요?', [['none', '없어요'], ['detachable', '있고 떼어낼 수 있어요'], ['fixed', '있지만 떼기 어려워요'], ['unknown', '잘 모르겠어요']])}
-        <p class="input-hint" id="combination-hint">종이팩 코팅층은 그대로, 빨대·뚜껑만 확인해 주세요.</p>
+        <p class="input-hint" id="combination-hint" hidden></p>
          <div id="composition-storage" hidden>${question('combined', '다른 재질')}${question('separable', '분리 여부')}</div>
         </div></details>
         <div id="components-section" hidden><details id="components-details" class="material-editor components-details" open><summary><span id="components-detected">부속품</span></summary><button class="history-action" type="button" id="copy-component-state" hidden>같은 상태의 부속품에 본체 상태 적용</button><p class="input-hint component-copy-status" id="component-copy-status" role="status"></p><details class="component-help"><summary>부속품 입력 도움말</summary><p class="input-hint">같은 재질과 상태는 묶어 최대 5개까지 입력할 수 있어요. 복합재질 부속품은 ‘기타’를 선택하고, 페트병 뚜껑은 본체 처리 안내를 따라 주세요.</p></details><div id="component-fields"></div><button class="button secondary" type="button" id="add-component">부속품 추가</button></details></div>
@@ -594,7 +594,8 @@ export function bindItemInput() {
     node.querySelector('[data-condition="removable"] legend').textContent = material === '종이' && value(`${prefix}type`) === 'paper'
       ? `${partName}의 오염된 부분을 떼어내고 깨끗한 종이만 남길 수 있나요?` : `${partName}에 남은 오염을 헹구거나 닦아 제거할 수 있나요?`;
     const summary = { clean: '깨끗해요', dirty: '오염이 남아 있어요', 'washed-dirty': '씻어도 오염이 남아요', unknown: '상태를 모르겠어요' };
-    node.querySelector('[data-state-summary]').textContent = current ? `상태: ${summary[current]} · 바꾸기` : '상태 직접 선택';
+    node.querySelector('[data-state-summary]').textContent = current ? `상태: ${summary[current]} · 바꾸기`
+      : prefix ? '부속품 상태 고르기' : '상태 직접 선택 · 오염 있음 / 모름';
     if (!active) materialSelect.value = '';
   }
   function updateConditional() {
@@ -685,15 +686,16 @@ export function bindItemInput() {
     document.getElementById('material-detected').textContent = [value('material'), typeLabel].filter(Boolean).join(' · ') || '재질·종류를 선택해 주세요';
     const input = collect();
     const labelled = hasName && cleanLabelledBottleInput(input);
+    const clearDrinkBottle = input.material === '페트병' && input.type === 'clear-drink';
     const shortcut = labelled || (hasName && !input.observedState && !input.pendingObservations
       && !value('currentState') && !['yes', 'unknown'].includes(value('combined')) && cleanSingleMaterialInput(input));
     const hadShortcut = !quickCondition.hidden;
     quickCondition.hidden = !shortcut;
     cleanWithoutLabel.hidden = !labelled;
     cleanShortcut.textContent = labelled ? '깨끗해요 · 뗄 수 있는 비닐 라벨 있음 →' : '깨끗하고 다른 재질이 없어요 →';
-    cleanShortcutHint.textContent = labelled
-      ? '내용물·오염이 없으면 라벨 유무를 골라 주세요.'
-      : '내용물·오염이 없고 라벨·뚜껑 등 다른 재질도 없을 때';
+    cleanShortcutHint.textContent = labelled ? '병과 라벨이 깨끗하고, 뚜껑·비닐 라벨 외에 붙은 것이 없을 때 골라 주세요.'
+      : clearDrinkBottle ? '내용물과 오염이 없고, 병뚜껑 말고 붙어 있는 것이 없을 때 골라 주세요.'
+        : '내용물·오염이 없고 라벨·뚜껑 등 다른 재질도 없을 때';
     if (!hadShortcut && shortcut) mainStateEditor.open = false;
     else if (hadShortcut && !shortcut && !value('currentState')) mainStateEditor.open = true;
     const statePending = supported && (!value('currentState') || (!value('attachment')
@@ -711,7 +713,10 @@ export function bindItemInput() {
     confirmName.hidden = !hasName || committedName === normalizeItemName(nameInput.value);
     // On the main form, a complete fast option and the manual options are alternatives.
     if (mainStateEditor.open && shortcut) showDisposal.hidden = false;
-    document.getElementById('combination-hint').hidden = !(value('material') === '종이' && value('type') === 'carton');
+    const combinationHint = document.getElementById('combination-hint');
+    combinationHint.textContent = value('material') === '종이' && value('type') === 'carton' ? '팩 안쪽 코팅층은 떼지 않아요. 붙어 있는 빨대·뚜껑을 확인해 주세요.'
+      : value('material') === '페트병' && value('type') === 'clear-drink' ? '페트병 뚜껑은 본체 안내를 따라 주세요. 라벨이나 다른 재질이 붙어 있는지 확인해 주세요.' : '';
+    combinationHint.hidden = !combinationHint.textContent;
     document.getElementById('reset-item').hidden = !hasName;
   }
   function keywordCategory() { return !keywordCategoryEnabled || lookupItem(nameInput.value)?.material ? null : detectItemCategory(nameInput.value); }
