@@ -1,6 +1,6 @@
 import { expandedItemEntries } from './expanded-catalog.js';
 import { ITEM_VARIANTS } from './item-variants.js';
-import { BATTERY_PACKAGING_NAMES } from './category-keywords.js';
+import { BATTERY_PACKAGING_NAMES, detectItemCategory, splitItemList } from './category-keywords.js';
 import { ALUMINUM_CAPSULE_SOURCE, GEL_ICE_PACK_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, WATER_ICE_PACK_SOURCE } from './catalog-sources.js';
 // 정확한 품목명만 일치시킵니다. 대표 구성은 별도 메타데이터로 관리합니다.
 export const bundledItemEntries = [
@@ -202,9 +202,43 @@ export function lookupItem(name) {
   return item ? structuredClone(item) : null;
 }
 
+export function disposalQueryName(query) {
+  if (typeof query !== 'string') return '';
+  const name = query.normalize('NFKC').trim();
+  if (name.length > 80) return name;
+  return name.replace(/[?!.,。？！]+$/u, '')
+    .replace(/\s*(?:은|는|을|를)?\s*(?:(?:어디\s*에?|어떻게)\s*(?:버리나요|버릴까요|버려(?:요|야\s*해(?:요)?)?|버리면\s*돼(?:요)?)|분리\s*배출\s*방법|분리\s*수거\s*방법|버리는\s*법|버리려면|배출\s*방법)$/u, '').trim();
+}
+
 function searchableName(query) {
-  const raw = foldItemName(query).replace(/[?!.,。？！]+$/u, '');
-  return raw.replace(/(?:은|는|을|를)?(?:(?:어디에?|어떻게)(?:버리나요|버릴까요|버려(?:요|야해(?:요)?)?|버리면돼(?:요)?)|분리배출방법|분리수거방법|버리는법|버리려면|배출방법)$/u, '');
+  return foldItemName(disposalQueryName(query));
+}
+
+// Exact catalog names win, including registered combinations of a body and its attachments.
+export function disposalItemList(query) {
+  const name = disposalQueryName(query);
+  if (!name || name.length > 80 || items.get(normalizeItemName(query))?.material || items.get(normalizeItemName(name))?.material) return [];
+  const explicit = splitItemList(name);
+  if (explicit.length) return explicit;
+  const recognized = part => part.length > 0 && part.length <= 32 &&
+    (items.has(normalizeItemName(part)) || itemTypeClarification(part));
+  const connectors = [...name.matchAll(/하고|이랑|랑|와|과/gu)];
+  function readParts(start, remaining) {
+    const rest = name.slice(start).trim();
+    if (start && recognized(rest)) return [rest];
+    if (remaining <= 1) return [];
+    for (const { index, 0: connector } of connectors) {
+      if (index <= start) continue;
+      const first = name.slice(start, index).trim();
+      if (!recognized(first)) continue;
+      const following = readParts(index + connector.length, remaining - 1);
+      if (following.length) return [first, ...following];
+    }
+    return [];
+  }
+  const parts = readParts(0, 6);
+  const unique = [...new Map(parts.map(part => [normalizeItemName(part), part])).values()];
+  return unique.length > 1 ? unique : [];
 }
 
 // A single insertion, deletion, substitution, or adjacent swap. Never an exact match for rules.
@@ -233,6 +267,7 @@ function appendUnique(names, limit, exact = '') {
 }
 
 function candidatesFor(query, limit, { confirmedOnly = false } = {}) {
+  if (disposalItemList(query).length) return [];
   const raw = foldItemName(query), search = searchableName(query);
   const normalized = normalizeItemName(search);
   if (!normalized || !Number.isInteger(limit) || limit < 1) return [];
@@ -251,7 +286,8 @@ function candidatesFor(query, limit, { confirmedOnly = false } = {}) {
   const names = [...matches.filter(entry => entry.spelling === raw).map(entry => entry.name), ...variants, ...matches.map(entry => entry.name)];
   if (!names.length && /^[가-힣]{3,14}$/.test(search)) {
     const fuzzy = suggestions.filter(entry => eligible(entry) && items.get(entry.key)?.material
-      && entry.spelling[0] === search[0] && oneEdit(search, entry.spelling))
+      && (entry.spelling[0] === search[0] || (search.length >= 4 && entry.spelling.slice(1) === search.slice(1)))
+      && oneEdit(search, entry.spelling))
       .sort((a, b) => Number(b.spelling.slice(0, 2) === search.slice(0, 2)) - Number(a.spelling.slice(0, 2) === search.slice(0, 2))
         || Math.abs(a.name.length - search.length) - Math.abs(b.name.length - search.length) || a.name.length - b.name.length);
     names.push(...fuzzy.map(entry => entry.name));
@@ -286,11 +322,20 @@ export function explicitDescriptionItemName(description) {
   if (text.length <= 80 && (items.get(normalizeItemName(text))?.material || itemTypeClarification(text))) return text;
   const shortName = text.replace(/[.!?。？！]+$/u, '');
   if (shortName.length <= 80 && items.get(normalizeItemName(shortName))?.material) return shortName;
-  const first = text.split(/[.!?。？！;\n]/u, 1)[0];
+  const questionName = disposalQueryName(text);
+  if (questionName.length <= 80 && items.get(normalizeItemName(questionName))?.material) return questionName;
+  const clauses = text.split(/[.!?。？！;\n]/u);
+  const first = clauses[0];
   if (/[\s,](?:아니|다른 물건|모르|같아)|(?:아니고|모르겠|같기도)/u.test(text)) return '';
-  const stated = /^(.{1,75}?)(?:이에요|예요|입니다|이라고 해요)(?=$|[,\s])/u.exec(first)?.[1].trim();
-  if (stated && (items.get(normalizeItemName(stated))?.material || itemTypeClarification(stated))) return stated;
-  return '';
+  const statedName = clause => /^(.{1,75}?)(?:이에요|예요|입니다|이라고 해요)(?=$|[,\s])/u.exec(clause.trim())?.[1].trim();
+  const knownName = name => Boolean(items.get(normalizeItemName(name))?.material || itemTypeClarification(name) || detectItemCategory(name));
+  const stated = statedName(first);
+  if (!stated || !(items.get(normalizeItemName(stated))?.material || itemTypeClarification(stated))) return '';
+  const otherItem = clauses.slice(1).some(clause => {
+    const other = statedName(clause);
+    return other && normalizeItemName(other) !== normalizeItemName(stated) && knownName(other);
+  });
+  return otherItem ? '' : stated;
 }
 
 export function suggestItemInfo(name) {

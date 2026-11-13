@@ -1,5 +1,5 @@
 // DOM·저장소에 의존하지 않는 규칙. 입력값을 확인한 뒤에만 재활용을 안내합니다.
-import { itemTypeClarification, lookupItem, normalizeItemName, relatedItemCandidates } from './item-suggestions.js';
+import { disposalItemList, itemTypeClarification, lookupItem, normalizeItemName, relatedItemCandidates } from './item-suggestions.js';
 import { judgeFood, FOOD_SOURCE } from './food.js';
 import { applyRegionalRules } from './regions.js';
 import { specialItemGuide, guideForHandling } from './special-guides.js';
@@ -7,9 +7,9 @@ import { categoryLabel, categoryAllowsMaterial } from './item-categories.js';
 import { resolveInputCategory } from './input-category.js';
 import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
-import { isBatteryPackaging, splitItemList } from './category-keywords.js';
+import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-13.v18';
+export const RULE_VERSION = '2026-11-14.v19';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -139,6 +139,27 @@ function judgePart(raw, itemName = '') {
   return result;
 }
 
+function judgeComponent(component, index) {
+  const part = normalizePart(component);
+  const label = part.label || `부속품 ${index + 1}`;
+  const registered = lookupItem(part.label);
+  const name = normalizeItemName(part.label);
+  const { category } = resolveInputCategory({ itemName: part.label });
+  const handling = registered?.handling || category;
+  const special = guideForHandling(handling, component?.handlingCondition);
+  if (special?.status === 'check') return { label, material: part.material || '미확인', ...special };
+  const variant = registered?.variants?.[part.material]?.includes(part.type);
+  if (registered?.material && !variant &&
+      (registered.material !== part.material || (registered.type && registered.type !== part.type))) {
+    return { label, material: part.material || '미확인', ...outcome('check', '부속품의 이름과 재질 확인',
+      '부속품 이름과 입력한 재질이나 종류가 서로 달라요.', ['부속품 이름과 재질 표시를 다시 확인해 주세요.']),
+      pendingCondition: registered.material === part.material ? 'type' : 'material' };
+  }
+  const result = (registered?.handling && registered.material === '기타' ? special : specialItemGuide(registered, part))
+    || judgePart(part, name);
+  return { label, material: part.material || '미확인', ...result };
+}
+
 function baseDisposalWithSources(input) {
   const base = judgeBaseDisposal(input);
   const item = lookupItem(input.itemName), source = item?.source;
@@ -170,8 +191,8 @@ function judgeBaseDisposal(input = {}) {
   // 별도 수거 품목은 재질 미입력으로 막지 않고 검토된 품목 경로를 우선합니다.
   const special = known?.handling && known.material === '기타' ? guideForHandling(known.handling, input.handlingCondition) : specialItemGuide(known, input);
   if (special) return { ...finish(special, [{label:'물품 전체',material:known.material,...structuredClone(special)}]), handling: special.handling || known.handling };
-  const itemList = !known?.material && splitItemList(input.itemName);
-  if (itemList?.length) return finish({ ...outcome('check', '물건별로 배출 방법 확인', '여러 물건의 재질·상태와 수거처는 각각 다를 수 있어요.', [
+  const itemList = disposalItemList(input.itemName);
+  if (itemList.length) return finish({ ...outcome('check', '물건별로 배출 방법 확인', '여러 물건의 재질·상태와 수거처는 각각 다를 수 있어요.', [
     '목록에서 물건을 하나씩 골라 확인해 주세요.',
   ]), pendingCondition: 'category', itemCandidates: itemList });
   const batteryPackaging = isBatteryPackaging(name);
@@ -261,7 +282,7 @@ function judgeBaseDisposal(input = {}) {
     } else if (input.combined === 'yes') {
       if (result.status !== 'check') result.steps.unshift('다른 재질의 부속품을 본체에서 분리해 주세요.');
       const components = Array.isArray(input.components) ? input.components : [];
-      components.forEach((component, index) => parts.push({ label: normalizePart(component).label || `부속품 ${index + 1}`, material: component?.material || '미확인', ...judgePart(component) }));
+      components.forEach((component, index) => parts.push(judgeComponent(component, index)));
       if (!components.length || parts.some(part => part.status === 'check')) {
         result.status = 'check'; result.method = '일부 재질 추가 확인 필요';
         result.reasons.push('본체 또는 부속품의 정보를 더 확인해야 해요. 재질별 안내를 확인해 주세요.');

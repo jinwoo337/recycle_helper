@@ -10,15 +10,15 @@ import { stepListMarkup } from '../../components/step-list.js';
 import { collectionPointMarkup } from '../../components/collection-help.js';
 import { collectionActionMarkup } from '../../components/collection-action.js';
 import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNAMED_ITEM } from '../../services/input-draft.js';
-import { photoMarkMaterial } from '../../domain/disposal/recycle-marks.js';
+import { confirmedPhotoMark, photoMarkMaterial } from '../../domain/disposal/recycle-marks.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
-import { explicitDescriptionItemName, itemTypeClarification, itemCandidateHint, lookupItem, normalizeItemName, relatedItemCandidates, searchItemNames } from '../../domain/disposal/item-suggestions.js';
+import { disposalItemList, explicitDescriptionItemName, itemTypeClarification, itemCandidateHint, lookupItem, normalizeItemName, relatedItemCandidates, searchItemNames } from '../../domain/disposal/item-suggestions.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { judgeDisposal, RULE_SOURCE, supportsState } from '../../domain/disposal/rules.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
 import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
-import { isBatteryPackaging, splitItemList } from '../../domain/disposal/category-keywords.js';
+import { isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { categoryLabel } from '../../domain/disposal/item-categories.js';
 import { mergeItemObservations, observationLabel } from '../../domain/disposal/item-observations.js';
 import { resolveInputCategory } from '../../domain/disposal/input-category.js';
@@ -42,7 +42,7 @@ function descriptionName(input) {
   const name = explicitDescriptionItemName(input);
   if (name) return name;
   if (input.length > 80) return '';
-  const parts = splitItemList(input);
+  const parts = disposalItemList(input);
   return parts.length && parts.every(part => lookupItem(part) || itemTypeClarification(part)) ? input : '';
 }
 
@@ -395,7 +395,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       if (mode === 'photo') input.image = image;
       if (nextAnswers.length) input.answers = nextAnswers;
       const typedName = mode === 'description' && !nextAnswers.length ? descriptionName(input.description) : '';
-      if (typedName && (itemTypeClarification(typedName) || splitItemList(typedName).length)) {
+      if (typedName && (itemTypeClarification(typedName) || disposalItemList(typedName).length)) {
         openNameSearch(typedName, false, { quickLookup: true });
         return;
       }
@@ -449,16 +449,14 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     const markForm = event.target.closest('[data-assist-mark-confirm]');
     if (markForm) {
       event.preventDefault();
-      const readMaterial = photoMarkMaterial(answer?.markings[Number(markForm.elements.namedItem('mark').value)]);
+      const marking = answer?.markings[Number(markForm.elements.namedItem('mark').value)];
       const part = markForm.elements.namedItem('part').value;
       const shape = markForm.elements.namedItem('shape').value;
-      if (!busy && answer?.evidence === 'markings' && readMaterial && ['body', 'lid', 'label', 'film'].includes(part)) {
-        const film = readMaterial === '비닐' || (readMaterial === '플라스틱' && (part === 'film' || shape === 'film'));
-        const material = film ? '비닐' : readMaterial;
-        const type = film ? 'packaging' : readMaterial === '플라스틱' && shape === 'container' ? 'container' : '';
+      const mark = confirmedPhotoMark(marking, part, shape);
+      if (!busy && answer?.evidence === 'markings' && mark && ['body', 'lid', 'label', 'film'].includes(part)) {
         const name = assistanceDraft.sourceName || UNNAMED_ITEM;
         openNameSearch(name, false, { category: 'packaging', categoryOrigin: 'manual', keywordCategory: false,
-          observations: [{ part, field: 'material', value: material, type }], fromConfirmedMark: true });
+          observations: [{ part, field: 'material', value: mark.material, type: mark.type }], fromConfirmedMark: true });
       }
       return;
     }

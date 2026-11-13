@@ -49,6 +49,14 @@ test('사전 품목과 미등록 이름의 재질만 보고 포장재 종류를 
   assert.equal(judgeDisposal({...unknown,category:'packaging',categoryOrigin:'manual'}).status, 'recycle');
 });
 
+test('전지와 다른 물건을 함께 물으면 이전 전지 분류를 전체에 적용하지 않는다', () => {
+  const input = { itemName: '건전지랑 우유팩', category: 'battery', categoryOrigin: 'keyword' };
+  assert.equal(prepareCategoryInput(input).category, undefined);
+  const result = judgeDisposal(input);
+  assert.equal(result.handling, undefined);
+  assert.deepEqual(result.itemCandidates, ['건전지', '우유팩']);
+});
+
 test('포장재의 재질을 모를 때는 임의 선택 없이 확인 안내로 진행할 수 있다', () => {
   for (const material of ['기타','모르겠어요']) {
     const result = judgeDisposal({itemName:'상표새포장재',category:'packaging',material});

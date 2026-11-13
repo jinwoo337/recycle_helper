@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RECYCLE_MARKS, markById, photoMarkMaterial } from '../src/domain/disposal/recycle-marks.js';
+import { RECYCLE_MARKS, confirmedPhotoMark, markById, photoMarkMaterial } from '../src/domain/disposal/recycle-marks.js';
 import { assistanceResultMarkup } from '../src/pages/assistance/assistance.js';
 import { MATERIALS, TYPES, judgeDisposal } from '../src/domain/disposal/rules.js';
 
@@ -30,6 +30,14 @@ test('OTHER 표시는 일반 단일 플라스틱으로 확정하지 않는다', 
   const result = judgeDisposal({ itemName: '미등록 코팅 용기', category: 'packaging', material, type });
   assert.equal(result.status, 'check');
   assert.equal(result.pendingCondition, 'material');
+});
+
+test('사진에서 확인한 무색페트·팩 표시는 본체 종류에만 적용하고 PET 코드만으로는 종류를 정하지 않는다', () => {
+  assert.deepEqual(confirmedPhotoMark('본체: 무색페트', 'body'), { material: '페트병', type: 'clear-drink' });
+  assert.deepEqual(confirmedPhotoMark('멸균팩', 'body'), { material: '종이', type: 'carton' });
+  assert.deepEqual(confirmedPhotoMark('PET', 'body'), { material: '페트병', type: '' });
+  assert.deepEqual(confirmedPhotoMark('무색페트', 'lid'), { material: '페트병', type: '' });
+  assert.deepEqual(confirmedPhotoMark('PP', 'film'), { material: '비닐', type: 'packaging' });
 });
 
 test('표시로 고른 미등록 물건도 상태를 답하면 재질 기준으로 안내한다', () => {

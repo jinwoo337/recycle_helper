@@ -1,4 +1,5 @@
-import { addDisposalBatchItem, duplicateBatchPartIds, readDisposalBatch, removeBatchItem } from '../../services/disposal-batch.js';
+import { addDisposalBatchItems, duplicateBatchPartIds, readDisposalBatch, removeBatchItem } from '../../services/disposal-batch.js';
+import { disposalItemList, disposalQueryName, lookupItem } from '../../domain/disposal/item-suggestions.js';
 import { queueInput, startInputSearch } from '../../services/input-draft.js';
 import { batchGroups, batchToText } from '../../domain/disposal/disposal-batch.js';
 import { regionLabel, resultRegionLabel } from '../../domain/disposal/regions.js';
@@ -14,7 +15,7 @@ export function batchPage() {
   const count = items.filter(item => item.result).length;
   const duplicates = duplicateBatchPartIds(items);
   return `<section class="container batch-page" id="disposal-batch"><header class="item-heading"><h1 tabindex="-1">함께 버릴 물건</h1><p class="input-hint">${escapeHtml(regionLabel(region))}${items.length ? ` · ${count}/${items.length}개 판별함` : ''}</p></header>
-    <form class="batch-add" data-batch-add><label for="batch-name">목록에 물건 추가</label><div><input id="batch-name" name="itemName" maxlength="80" required placeholder="예: 우유팩"><button class="button secondary" type="submit">추가</button></div><p class="input-hint" data-batch-add-status role="status"></p></form>
+    <form class="batch-add" data-batch-add><label for="batch-name">목록에 물건 추가</label><div><input id="batch-name" name="itemName" maxlength="80" required placeholder="예: 우유팩, 과자 봉지"><button class="button secondary" type="submit">추가</button></div><p class="input-hint" data-batch-add-status role="status"></p></form>
     ${items.length ? `<p>각 물건의 재질과 오염을 따로 확인해 주세요. 확인이 끝난 물건부터 배출할 수 있어요.</p>${batchGroups(items).map(group => group.entries.length ? `<section class="item-card batch-group"><h2>${group.label} <small>${group.entries.length}개</small></h2><ul>${group.entries.map(({ id, input, result, displayed }) => `<li>
       <div><strong>${escapeHtml(input.itemName)}</strong><p>${escapeHtml(displayed?.method || '확인 필요 · 아직 판별하지 않았어요')}</p>${displayed ? `<small>${escapeHtml(resultRegionLabel(displayed))}</small>` : ''}
       ${duplicates.has(id) ? '<p class="input-hint">배달 용기의 부속품에도 있어요. 같은 물건이면 이 항목을 빼 주세요.</p>' : ''}</div>
@@ -42,12 +43,14 @@ export function bindBatch() {
       event.preventDefault();
       const form = event.currentTarget, input = form.elements.namedItem('itemName'), itemName = input.value.trim();
       const { items, region } = readDisposalBatch();
-      if (!itemName || !addDisposalBatchItem({ itemName, region: items.length ? region : readJudgementRegion(getCurrentMember()) })) {
+      const parts = disposalItemList(itemName);
+      const names = parts.length ? parts : [lookupItem(itemName)?.material ? itemName : disposalQueryName(itemName) || itemName];
+      if (!itemName || !names[0] || !addDisposalBatchItems(names, items.length ? region : readJudgementRegion(getCurrentMember()))) {
         form.querySelector('[data-batch-add-status]').textContent = !itemName ? '물건 이름을 입력해 주세요.' : '목록이 가득 찼어요.';
         return;
       }
       refresh('#batch-name');
-      root.querySelector('[data-batch-add-status]').textContent = `‘${itemName}’을 목록에서 확인할 수 있어요.`;
+      root.querySelector('[data-batch-add-status]').textContent = `${names.map(name => `‘${name}’`).join(', ')} · 목록에서 확인할 수 있어요.`;
     });
     root.addEventListener('click', event => {
       const itemButton = event.target.closest('[data-batch-item]');
@@ -57,7 +60,7 @@ export function bindBatch() {
           startInputSearch();
           const input = entry.result ? inputForDisplay(entry.input, entry.result) : entry.input;
           const displayed = entry.result ? resultForDisplay(entry.input, entry.result) : null;
-          queueInput({ ...input, batchItemId: entry.id, reviewSaved: Boolean(entry.result),
+          queueInput({ ...input, batchItemId: entry.id, reviewSaved: Boolean(entry.result), quickLookup: !entry.result,
             ...(displayed ? { editPendingQuestion: resultPendingQuestion(input, displayed) } : {}) });
           location.hash = '/item-input';
         }

@@ -79,6 +79,18 @@ test('분리 가능한 복합 물품은 부속품의 오염도 따로 판단한�
   assert.equal(judgeDisposal({ ...input, components: [{ material: '모르겠어요' }] }).status, 'check');
   assert.equal(judgeDisposal({ ...input, components: [] }).status, 'check');
 });
+
+test('부속품 이름에 전지나 특수 유리가 있으면 입력한 재질만으로 일반 수거를 확정하지 않는다', () => {
+  const input = { ...clean, combined: 'yes', separable: 'yes', components: [
+    { label: '리튬 전지', material: '금속·캔', type: 'food-can', contaminated: 'no' },
+    { label: '깨진 유리', material: '유리', type: 'bottle', contaminated: 'no' },
+  ] };
+  const result = judgeDisposal(input);
+  assert.equal(result.status, 'check');
+  assert.equal(result.parts[0].status, 'recycle');
+  assert.match(result.parts[1].method, /전지 전용 수거/);
+  assert.equal(result.parts[2].pendingCondition, 'type');
+});
 test('불명확한 정보·특수 품목은 확정하지 않는다', () => {
   for (const input of [{}, { ...clean, combined: 'unknown' }, { ...clean, combined: 'yes', separable: 'no' },
     { ...clean, material: '유리', type: 'broken' }, { ...clean, material: '금속·캔', type: 'hazard' },

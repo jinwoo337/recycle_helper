@@ -1,8 +1,8 @@
 // Vercel 서버리스 함수: 미등록 물품 이름을 Gemini로 분류합니다.
 // API 키는 Vercel 환경변수 GEMINI_API_KEY에만 두고 브라우저에 보내지 않습니다.
 import { cleanAiName, cleanAiAliases, validateAiGuess, aiResponseSchema, aiInstruction, suggestedItemCategory } from '../src/domain/disposal/ai-classification.js';
-import { itemTypeClarification, lookupItem, normalizeItemName } from '../src/domain/disposal/item-suggestions.js';
-import { detectItemCategory, splitItemList } from '../src/domain/disposal/category-keywords.js';
+import { disposalItemList, itemTypeClarification, lookupItem, normalizeItemName } from '../src/domain/disposal/item-suggestions.js';
+import { detectItemCategory } from '../src/domain/disposal/category-keywords.js';
 import { describeAiState } from '../src/domain/disposal/ai-state.js';
 import { verifiedNameGuide } from '../src/domain/disposal/verified-name-guide.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '../src/services/supabase.js';
@@ -261,7 +261,7 @@ export default async function handler(req, res) {
   const rawName = Array.isArray(req.query?.name) ? req.query.name[0] : req.query?.name;
   const name = cleanAiName(rawName);
   if (!name) { send(res, 400, { error: 'invalid_name' }); return; }
-  if (itemTypeClarification(name) || splitItemList(rawName).length) {
+  if (itemTypeClarification(name) || disposalItemList(rawName).length) {
     send(res, 200, { guess: null, reason: 'clarify_name' }); return;
   }
   // 등록된 품목은 기존 규칙을 쓰므로 AI를 부르지 않습니다. 단, mode=opinion이면 화면에 참고 의견으로만 보여 줄 AI 답을 받습니다.

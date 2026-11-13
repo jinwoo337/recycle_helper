@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { describedReceiptName, explicitDescriptionItemName, itemMatchLabel, relatedItemCandidates, suggestItemInfo, searchItemNames, lookupItem } from '../src/domain/disposal/item-suggestions.js';
+import { describedReceiptName, disposalItemList, disposalQueryName, explicitDescriptionItemName, itemMatchLabel, relatedItemCandidates, suggestItemInfo, searchItemNames, lookupItem } from '../src/domain/disposal/item-suggestions.js';
 
 test('명확한 품목은 재질과 종류를 채우되 상태를 추정하지 않는다', () => {
   const carton = suggestItemInfo(' 우유 팩 ');
@@ -29,6 +29,19 @@ test('짧은 질문과 한 글자 오타는 후보를 내되 정확한 품목 �
   assert.equal(lookupItem('우유팩은 어디에 버려요?'), null);
   assert.equal(relatedItemCandidates('배송 라벨')[0], '택배송장');
   assert.equal(lookupItem('택배 송장')?.type, 'excluded');
+  assert.equal(disposalQueryName(' 우유 팩은 어디에 버려요? '), '우유 팩');
+  assert.equal(disposalQueryName('우유팩 모양 장난감은 어디에 버려요?'), '우유팩 모양 장난감');
+  assert.equal(relatedItemCandidates('부조배터리')[0], '보조배터리');
+  assert.equal(lookupItem('부조배터리'), null);
+});
+
+test('생활어로 연결한 물건은 분리하고 사전에 등록된 본체와 부속품 이름은 유지한다', () => {
+  assert.deepEqual(disposalItemList('건전지랑 우유팩은 어떻게 버려요?'), ['건전지', '우유팩']);
+  assert.deepEqual(disposalItemList('생수병과 우유팩'), ['생수병', '우유팩']);
+  assert.deepEqual(disposalItemList('생수병과우유팩'), ['생수병', '우유팩']);
+  assert.deepEqual(disposalItemList('과자봉지랑 우유팩'), ['과자봉지', '우유팩']);
+  assert.deepEqual(disposalItemList('종이컵과 플라스틱 뚜껑'), []);
+  assert.deepEqual(disposalItemList('본체는 PP, 라벨은 비닐'), ['본체는 PP', '라벨은 비닐']);
 });
 
 test('재질을 모르는 흔한 이름에서 물건 자체를 장식이 붙은 다른 물건보다 먼저 제안한다', () => {
@@ -42,6 +55,7 @@ test('설명 첫 문장에 물건을 명시하면 확인한 이름만 조건 선
   assert.equal(explicitDescriptionItemName('우유팩이에요. 안에 내용물이 남았어요.'), '우유팩');
   assert.equal(explicitDescriptionItemName('젤 아이스팩.'), '젤 아이스팩');
   assert.equal(explicitDescriptionItemName('영수증이에요. 글씨가 잘 안 보여요.'), '영수증');
+  assert.equal(explicitDescriptionItemName('건전지예요. 우유팩이에요.'), '');
   for (const text of ['우유팩인지 모르겠어요.', '깨끗한 우유팩 모양의 용기예요.', '유리병이에요, 아니고 플라스틱 같아요.']) {
     assert.equal(explicitDescriptionItemName(text), '');
   }

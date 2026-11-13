@@ -1,6 +1,6 @@
 import { escapeHtml } from '../../utils/html.js';
 import { queueInput, startInputSearch } from '../../services/input-draft.js';
-import { normalizeItemName, searchItemNames, lookupItem } from '../../domain/disposal/item-suggestions.js';
+import { disposalQueryName, normalizeItemName, searchItemNames, lookupItem } from '../../domain/disposal/item-suggestions.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { aiToggleMarkup, bindAiToggle } from '../../components/ai-toggle.js';
 import { tipOfTheDay } from '../../domain/disposal/daily-tips.js';
@@ -80,7 +80,8 @@ export function bindMain() {
     autocomplete.close();
     const itemName = input.value.trim();
     if (!itemName) { nameError.textContent = '물건 이름을 입력해 주세요.'; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
-    clearNameError(); openInput({ itemName, quickLookup: true });
+    const name = lookupItem(itemName)?.material ? itemName : disposalQueryName(itemName) || itemName;
+    clearNameError(); openInput({ itemName: name, quickLookup: true });
   });
   document.querySelectorAll('.home-page [data-example]').forEach(button => button.addEventListener('click', () => {
     input.value = button.dataset.example; form.requestSubmit();
