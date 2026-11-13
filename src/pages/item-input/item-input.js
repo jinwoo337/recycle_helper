@@ -689,15 +689,12 @@ export function bindItemInput() {
     const clearDrinkBottle = input.material === '페트병' && input.type === 'clear-drink';
     const shortcut = labelled || (hasName && !input.observedState && !input.pendingObservations
       && !value('currentState') && !['yes', 'unknown'].includes(value('combined')) && cleanSingleMaterialInput(input));
-    const hadShortcut = !quickCondition.hidden;
     quickCondition.hidden = !shortcut;
     cleanWithoutLabel.hidden = !labelled;
     cleanShortcut.textContent = labelled ? '깨끗해요 · 뗄 수 있는 비닐 라벨 있음 →' : '깨끗하고 다른 재질이 없어요 →';
     cleanShortcutHint.textContent = labelled ? '병과 라벨이 깨끗하고, 뚜껑·비닐 라벨 외에 붙은 것이 없을 때 골라 주세요.'
       : clearDrinkBottle ? '내용물과 오염이 없고, 병뚜껑 말고 붙어 있는 것이 없을 때 골라 주세요.'
         : '내용물·오염이 없고 라벨·뚜껑 등 다른 재질도 없을 때';
-    if (!hadShortcut && shortcut) mainStateEditor.open = false;
-    else if (hadShortcut && !shortcut && !value('currentState')) mainStateEditor.open = true;
     const statePending = supported && (!value('currentState') || (!value('attachment')
       && [...mainStateEditor.querySelectorAll('input')].some(control => control.willValidate && !control.validity.valid)));
     combinationSection.hidden = !supported || statePending;
@@ -1177,7 +1174,7 @@ export function bindItemInput() {
     draft = collect();
     currentNameKey = normalizeItemName(nameInput.value);
     compositionEditor.open = !value('attachment') || (compositionIsPreset && value('combined') === 'yes');
-    mainStateEditor.open = quickCondition.hidden && [...mainStateEditor.querySelectorAll('input')].some(control => control.willValidate && !control.validity.valid);
+    mainStateEditor.open = true;
     updateConditional();
   }
   function showResult(input, result, createdAt, recordId = null, existingSnapshot) {
@@ -1355,7 +1352,7 @@ export function bindItemInput() {
     document.getElementById('preset-note').textContent = suggestion?.note || '';
     materialEditor.open = !suggestion?.type && !suggestion?.handling;
     compositionEditor.open = preset.combined !== 'no';
-    mainStateEditor.open = quickCondition.hidden;
+    mainStateEditor.open = true;
     autoFillStatus.textContent = suggestion
       ? '이름에 맞는 정보를 채웠어요. 실제 제품과 다르면 수정해 주세요.'
       : nameInput.value.trim() ? '등록된 재질 정보가 없어요.' : '물건 이름을 입력하면 알려진 품목의 재질 정보를 채워요.';
