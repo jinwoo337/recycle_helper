@@ -87,6 +87,23 @@ test('등록된 전용 품목명은 AI 없이 안내하고, AI가 확인한 품�
   } finally { ui.dispose(); }
 });
 
+test('설명에서 추정한 깨진 유리의 이름을 확인한 뒤 지역 기준을 보여 준다', async () => {
+  queueInput({ region: { province: '경기도', district: '김포시' }, newSearch: true }, '/describe');
+  const ui = setup('description', { resume: true, request: async () => ({
+    ...answer, itemName: '깨진 유리병', method: '일반 종량제봉투에 버려요', steps: ['일반 종량제봉투에 버려요'],
+  }) });
+  try {
+    ui.description.value = '유리로 된 병이 바닥에 떨어졌어요.';
+    ui.send(); await flush();
+    assert.match(ui.result.innerHTML, /data-assist-confirm-identity/);
+    assert.doesNotMatch(ui.result.innerHTML, /백색마대|data-copy-result/);
+    ui.result.closest = selector => selector === '[data-assist-confirm-identity]' ? {} : null;
+    ui.result.dispatchEvent(new Event('click'));
+    assert.match(ui.result.innerHTML, /김포시 백색마대봉투/);
+    assert.doesNotMatch(ui.result.innerHTML, /일반 종량제봉투에 버려요/);
+  } finally { ui.dispose(); }
+});
+
 test('질문마다 짧게 답하고 처음 설명·이전 답변을 유지하며 다음 질문으로 이어간다',async()=>{
   const calls=[];let fail=false;
   const questions=['책상의 주된 재질은 무엇인가요?','책상의 크기는 어느 정도인가요?'];

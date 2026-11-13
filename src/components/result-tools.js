@@ -7,6 +7,7 @@ import { inputForDisplay, resultForDisplay } from '../domain/disposal/result-dis
 import { bindDisposalChecklist } from './disposal-checklist.js';
 import { bindResultCopy, copyResultButton, copyResultFallback } from './result-copy.js';
 import { escapeHtml } from '../utils/html.js';
+import { addMealToBatch } from '../services/disposal-batch.js';
 
 const feedbackIssues = {
   destination: '수거처·배출 장소',
@@ -14,6 +15,13 @@ const feedbackIssues = {
   preparation: '준비 단계·주의사항',
   local: '지역 기준·공식 링크',
 };
+
+export function missingItemMarkup() {
+  return `<details class="feedback-panel" data-missing-item><summary>이 이름으로 품목 등록 요청</summary>
+    <p class="feedback-context"><strong data-missing-item-context></strong><span>입력한 이름, 선택 지역, 당시 안내를 함께 보내요.</span></p>
+    ${getCurrentMember() ? '<label for="missing-item-note">설명 추가 (선택)</label><textarea id="missing-item-note" rows="2" maxlength="500" placeholder="예: 제품 표시나 용도를 알려 주세요."></textarea><button class="button secondary" type="button" data-send-missing-item>등록 요청 보내기</button><p class="input-hint" data-missing-item-status role="status"></p><a class="history-action" href="#/profile">마이페이지에서 상태 보기</a>'
+      : '<p class="input-hint"><a href="#/login">로그인</a>한 뒤 돌아오면 이 이름으로 요청할 수 있어요.</p>'}</details>`;
+}
 
 export function resultToolsMarkup(input, result) {
   const context = [input.itemName, resultRegionLabel(result), result.method].map(escapeHtml).join(' · ');
@@ -27,7 +35,7 @@ export function resultToolsMarkup(input, result) {
       <div class="field"><label>문제가 있는 부분<select name="issue"><option value="">선택 안 함</option>${Object.entries(feedbackIssues).map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></label></div>
       <div class="field"><label>제보 내용<textarea name="message" rows="3" maxlength="2000" required placeholder="예: 공식 신청 링크가 열리지 않아요."></textarea></label></div>
       <p class="input-hint">관리자에게 검토를 요청해요. 개인정보는 적지 말아 주세요.</p>
-      <button class="button secondary" type="submit">검토 요청 보내기</button><p data-feedback-status class="input-hint" role="status" aria-live="polite"></p>
+      <button class="button secondary" type="submit">검토 요청 보내기</button><p data-feedback-status class="input-hint" role="status" aria-live="polite"></p><a class="history-action" href="#/profile">마이페이지에서 상태 보기</a>
     </form>`
       : '<p class="input-hint"><a href="#/login">로그인</a>한 뒤 제보를 보낼 수 있어요.</p>'}</details>`;
 }
@@ -76,6 +84,12 @@ export function bindResultTools(root, input, result, { onNewItem, onRelatedItem,
   root.querySelector('.related-disposal')?.addEventListener('click', event => {
     const related = event.target.closest('[data-related-item]');
     if (related && alive()) onRelatedItem?.(related.dataset.relatedItem);
+  });
+  root.querySelector('[data-add-meal-batch]')?.addEventListener('click', () => {
+    if (!alive()) return;
+    const display = resultForDisplay(input, result);
+    if (addMealToBatch({ ...inputForDisplay(input, result), region: display.region }, display)) location.hash = '/batch';
+    else root.querySelector('[data-meal-batch-status]').textContent = '목록이 가득 찼거나 다른 지역의 물건이 있어요. 목록을 먼저 확인해 주세요.';
   });
   const feedbackForm = root.querySelector('[data-feedback-form]');
   feedbackForm?.elements.message.addEventListener('input', () => feedbackForm.elements.message.setCustomValidity(''));

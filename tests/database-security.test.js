@@ -114,6 +114,9 @@ test('PostgreSQL: 스키마·품목·사용자 격리·통계·기록 이전·�
       await assert.rejects(asUser(null, () => query('select * from public.disposal_favorites'), 'anon'), { code: '42501' });
       const ownFeedback = await asUser(owner, () => query('select status from public.disposal_feedback'));
       assert.equal(ownFeedback.rows[0].status, 'pending');
+      await asUser(null, () => query("update public.disposal_feedback set status='applied' where user_id=$1", [owner]), 'service_role');
+      assert.equal((await asUser(owner, () => query('select status from public.disposal_feedback'))).rows[0].status, 'applied');
+      assert.equal((await asUser(other, () => query('select status from public.disposal_feedback'))).rows.length, 0);
     });
     await t.test('음식물 통계를 기존 기록·category 변경 없이 확장한다', async () => {
       const foodInput = { itemName: '사과껍질', material: '음식물류', type: 'soft', foodSeparated: 'yes' };
@@ -127,6 +130,29 @@ test('PostgreSQL: 스키마·품목·사용자 격리·통계·기록 이전·�
       const after = await query('select count(*) as count from public.disposal_records');
       assert.equal(after.rows[0].count, before.rows[0].count);
       assert.equal((await asUser(owner, () => query('select * from public.disposal_feedback'))).rows.length, 1);
+    });
+    await t.test('검토한 별칭은 관리자만 적용하며 충돌 때 품목과 제보를 모두 유지한다', async () => {
+      const target = (await query("select id from public.disposal_items where '우유팩' = any(aliases)")).rows[0].id;
+      async function report(itemName) {
+        const payload = { itemName, region: { province: '서울특별시', district: '강남구' }, category: 'unknown' };
+        const rows = await asUser(owner, () => query(
+          "insert into public.disposal_feedback(user_id,kind,item_name,input,result,message) values($1,'missing_item',$2,$3::jsonb,$4::jsonb,$5) returning id",
+          [owner, itemName, JSON.stringify(payload), JSON.stringify(judgeDisposal(payload)), '미등록 품목 등록을 요청해요.']));
+        return rows.rows[0].id;
+      }
+      const fresh = await report('우유 상자형 팩');
+      const call = id => query('select public.apply_reviewed_disposal_alias($1,$2)', [id, target]);
+      await assert.rejects(asUser(owner, () => call(fresh)), { code: '42501' });
+      await assert.rejects(asUser(null, () => call(fresh), 'service_role'), { code: '22023' });
+      const reviewed = id => asUser(null, () => query("update public.disposal_feedback set status='reviewed' where id=$1", [id]), 'service_role');
+      await reviewed(fresh);
+      await asUser(null, () => call(fresh), 'service_role');
+      assert.equal((await asUser(owner, () => query('select status from public.disposal_feedback where id=$1', [fresh]))).rows[0].status, 'applied');
+      assert.ok((await query('select aliases from public.disposal_items where id=$1', [target])).rows[0].aliases.includes('우유 상자형 팩'));
+      const conflict = await report('종이 상자');
+      await reviewed(conflict);
+      await assert.rejects(asUser(null, () => call(conflict), 'service_role'), { code: '23505' });
+      assert.equal((await query('select status from public.disposal_feedback where id=$1', [conflict])).rows[0].status, 'reviewed');
     });
   } finally { await db.close(); }
 });

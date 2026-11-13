@@ -9,7 +9,7 @@ import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-12.v15';
+export const RULE_VERSION = '2026-11-13.v16';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -196,7 +196,7 @@ function judgeBaseDisposal(input = {}) {
     return finish(outcome('check', '물건 종류와 재질을 다시 확인해 주세요', '선택한 물건 종류에 맞지 않는 재질이에요.', ['포장재·용기는 포장 재질을, 음식물은 음식물류를 선택해 주세요.']));
   }
   if (category === 'packaging' && ['기타', '모르겠어요'].includes(input.material)) {
-    return finish(outcome('check', '포장재의 재질·분리배출 표시 확인 필요', '포장재 종류는 확인했지만 재질별 수거 대상을 정할 정보가 부족해요.', ['포장에 적힌 재질·분리배출 표시와 실제 용도를 확인해 주세요.', '표시가 없거나 여러 재질을 구분하기 어려우면 제조사 또는 거주지 폐기물 담당 부서에 수거 방법을 확인해 주세요.']));
+    return finish({ ...outcome('check', '포장재의 재질·분리배출 표시 확인 필요', '포장재 종류는 확인했지만 재질별 수거 대상을 정할 정보가 부족해요.', ['포장에 적힌 재질·분리배출 표시와 실제 용도를 확인해 주세요.', '표시가 없거나 여러 재질을 구분하기 어려우면 제조사 또는 거주지 폐기물 담당 부서에 수거 방법을 확인해 주세요.']), pendingCondition: 'material' });
   }
   const manualMaterial = ['packaging', 'food'].includes(category) && categoryAllowsMaterial(category, input.material);
   const ai = known || category ? null : validateAiGuess(input.aiGuess, input.itemName);
@@ -238,7 +238,10 @@ function judgeBaseDisposal(input = {}) {
       if (!components.length || parts.some(part => part.status === 'check')) {
         result.status = 'check'; result.method = '일부 재질 추가 확인 필요';
         result.reasons.push('본체 또는 부속품의 정보를 더 확인해야 해요. 재질별 안내를 확인해 주세요.');
-        if (!components.length) result.steps.push('분리한 부속품의 재질과 상태를 입력해 주세요.');
+        if (!components.length) {
+          result.steps.push('분리한 부속품의 재질과 상태를 입력해 주세요.');
+          result.pendingCondition ||= 'components';
+        }
       } else {
         result.status = parts.every(part => part.status === 'general') ? 'general' : parts.some(part => part.status === 'general') ? 'mixed' : 'recycle';
         result.method = result.status === 'general' ? '본체와 부속품 모두 종량제봉투로 배출' : '본체와 부속품을 각각 분리배출';

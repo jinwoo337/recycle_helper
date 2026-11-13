@@ -4,8 +4,9 @@ import { filterDisposalHistory, categories } from '../../domain/disposal/statist
 import { getCurrentMember } from '../../services/auth.js';
 import { resultMarkup } from '../item-input/item-input.js';
 import { bindResultTools } from '../../components/result-tools.js';
-import { queueInput } from '../../services/input-draft.js';
+import { queueInput, startInputSearch } from '../../services/input-draft.js';
 import { inputForDisplay, resultForDisplay, resultPendingQuestion } from '../../domain/disposal/result-display.js';
+import { resultRegionLabel } from '../../domain/disposal/regions.js';
 
 export function historyPage() {
   return `<section class="container history-page">
@@ -77,7 +78,11 @@ export function bindHistory() {
       closeDetail();
     }
     document.getElementById('history-count').textContent = `${filtered.length}개${search.value.trim() ? ' 검색됨' : ' 기록'}`;
-    document.getElementById('history-records').innerHTML = filtered.length ? `<ol class="history-record-list">${filtered.slice((page - 1) * pageSize, page * pageSize).map(record => `<li><button type="button" class="history-record-open" data-open-record="${escapeHtml(record.id)}"><strong>${escapeHtml(record.itemName)}</strong><span>${record.legacy ? '이전 이름 기록 · 판별 조건과 결과 없음' : escapeHtml(resultForDisplay(record.input, record.result).method)}</span><small>${record.legacy ? '조건을 새로 입력해 판별해 주세요.' : escapeHtml(new Date(record.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))}</small></button><button type="button" class="history-action" data-remove-record="${escapeHtml(record.id)}" aria-label="${escapeHtml(record.itemName)} 기록 삭제">삭제</button></li>`).join('')}</ol>` : `<div class="history-empty"><strong>${records.length ? '검색한 물품이 없어요.' : '아직 저장한 기록이 없어요.'}</strong><p>${records.length ? '다른 이름으로 검색해 보세요.' : '물품을 판별하면 기록과 통계가 함께 쌓여요.'}</p><a href="#/item-input" class="back-link">분리배출 알아보기 →</a></div>`;
+    document.getElementById('history-records').innerHTML = filtered.length ? `<ol class="history-record-list">${filtered.slice((page - 1) * pageSize, page * pageSize).map(record => {
+      const display = record.legacy ? null : resultForDisplay(record.input, record.result);
+      const context = display ? `${resultRegionLabel(display)} · ${new Date(record.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : '조건을 새로 입력해 판별해 주세요.';
+      return `<li><button type="button" class="history-record-open" data-open-record="${escapeHtml(record.id)}"><strong>${escapeHtml(record.itemName)}</strong><span>${escapeHtml(display?.method || '이전 이름 기록 · 판별 조건과 결과 없음')}</span><small>${escapeHtml(context)}</small></button><button type="button" class="history-action" data-remove-record="${escapeHtml(record.id)}" aria-label="${escapeHtml(record.itemName)} 기록 삭제">삭제</button></li>`;
+    }).join('')}</ol>` : `<div class="history-empty"><strong>${records.length ? '검색한 물품이 없어요.' : '아직 저장한 기록이 없어요.'}</strong><p>${records.length ? '다른 이름으로 검색해 보세요.' : '물품을 판별하면 기록과 통계가 함께 쌓여요.'}</p><a href="#/item-input" class="back-link">분리배출 알아보기 →</a></div>`;
     document.getElementById('history-pagination').innerHTML = pageCount > 1 ? `<button type="button" class="history-action" data-page="previous" ${page === 1 ? 'disabled' : ''}>이전</button><span>${page} / ${pageCount} 페이지</span><button type="button" class="history-action" data-page="next" ${page === pageCount ? 'disabled' : ''}>다음</button>` : '';
   }
   function showDetail(record, focus = true) {
@@ -88,7 +93,7 @@ export function bindHistory() {
     if (!record.legacy) {
       const input = inputForDisplay(record.input, record.result);
       const edit = extra => {
-        queueInput({ ...input, ...extra });
+        startInputSearch(); queueInput({ ...input, reviewSaved: true, ...extra });
         location.hash = '/item-input';
       };
       detail.querySelector('#edit-item').addEventListener('click', () => {
@@ -98,8 +103,8 @@ export function bindHistory() {
       detail.querySelector('[data-edit-region]').addEventListener('click', () => edit({ editRegion: true }));
       detail.querySelector('#category-other')?.addEventListener('click', () => edit({ category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }));
       disposeTools = bindResultTools(detail, record.input, record.result, {
-        onNewItem: () => { queueInput({}); location.hash = '/item-input'; },
-        onRelatedItem(itemName) { queueInput({ itemName, region: record.input.region }); location.hash = '/item-input'; },
+        onNewItem: () => { startInputSearch(); queueInput({}); location.hash = '/item-input'; },
+        onRelatedItem(itemName) { startInputSearch(); queueInput({ itemName, region: record.input.region }); location.hash = '/item-input'; },
       });
     }
     detail.hidden = false;

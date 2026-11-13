@@ -1,7 +1,7 @@
 export const copyResultButton = '<button type="button" class="history-action" data-copy-result>결과 복사</button>';
 export const copyResultFallback = '<textarea class="copy-fallback" data-copy-fallback aria-label="복사할 판별 결과" readonly hidden></textarea>';
 
-export function bindResultCopy(root, getText) {
+export function bindResultCopy(root, getText, { message = '판별 결과를 복사했어요.' } = {}) {
   const button = root.querySelector('[data-copy-result]');
   if (!button) return () => {};
   const status = root.querySelector('[data-result-tools-status]');
@@ -15,7 +15,7 @@ export function bindResultCopy(root, getText) {
       await navigator.clipboard.writeText(text);
       if (!isCurrent()) return;
       if (field) field.hidden = true;
-      status.textContent = '판별 결과를 복사했어요.';
+      status.textContent = message;
     } catch {
       if (!isCurrent() || !field) return;
       field.hidden = false;

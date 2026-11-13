@@ -269,6 +269,25 @@ test('서버 함수: 공용 저장소에 있으면 Gemini를 부르지 않고 �
   }
 });
 
+test('공용 종류 제안은 응답 검증을 거쳐 같은 이름에서만 재사용된다', async () => {
+  const itemName = '삼각형 포장 용기';
+  let rows;
+  const fetcher = async (_url, request) => {
+    if (request.method === 'POST') {
+      rows = JSON.parse(request.body);
+      return { ok: true, status: 201 };
+    }
+    return { ok: true, json: async () => rows };
+  };
+  const answer = {
+    itemName, material: '플라스틱', type: 'container', route: 'recyclable', confidence: 'high',
+    category: 'packaging', aliases: ['비슷한 이름'],
+  };
+  assert.equal(await saveSharedGuess(itemName, answer, { fetcher, serviceKey: 'test-key' }), true);
+  assert.deepEqual(rows.map(({ display_name, category }) => [display_name, category]), [[itemName, 'packaging']]);
+  assert.equal((await readSharedGuess(itemName, { fetcher })).category, 'packaging');
+});
+
 test('종류 확인 요청은 분류할 수 없는 공용 답을 넘기고 구체적인 AI 제안을 돌려준다', async () => {
   const previousKey = process.env.GEMINI_API_KEY;
   const previousServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

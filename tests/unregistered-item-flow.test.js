@@ -30,7 +30,8 @@ test('미등록 화면은 긴 분류 목록 대신 AI와 재질 확인을 제공
   const markup = itemInputPage();
   assert.doesNotMatch(markup, /<select[^>]+name="category"/);
   assert.match(markup, /AI로 종류 찾기/);
-  assert.match(markup, /이 종류가 맞아요/);
+  assert.match(markup, /제안 내용이 맞아요/);
+  assert.match(markup, /종류만 맞아요 · 재질 직접 선택/);
   assert.match(markup, /data-category-choice="material-only"/);
   assert.match(markup, /data-category-choice="unknown"/);
   const materialOnly = judgeDisposal({ itemName: '처음 보는 복합 물건', category: 'material-only', material: '플라스틱' });

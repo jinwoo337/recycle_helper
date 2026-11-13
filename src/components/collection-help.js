@@ -3,7 +3,7 @@ import { collectionPointHelp, nearbyMapUrl } from '../domain/disposal/collection
 import { MEDICINE_SOURCES } from '../domain/disposal/medicine-guide.js';
 
 // 결과 화면(이름 찾기·설명·사진 모두)에 붙는 "가까운 수거처 찾기" 영역입니다.
-export function collectionPointMarkup(result) {
+export function collectionPointMarkup(result, { official = true } = {}) {
   const help = collectionPointHelp(result);
   if (!help) return '';
   ensureNearbyHandler();
@@ -13,7 +13,7 @@ export function collectionPointMarkup(result) {
   const heading = help.inquiryOnly ? '배출 방법 문의할 곳' : `${escapeHtml(help.name)} 수거처 확인`;
   return `<section class="collection-help" aria-labelledby="collection-title"><h3 id="collection-title">${heading}</h3>
     <p class="input-hint">${escapeHtml(help.note)}</p>
-    ${officialMedicine ? `<div class="collection-links">${link(officialMedicine, '공식 폐의약품 수거처·접수 안내 ↗')}</div>` : ''}
+    ${official && officialMedicine ? `<div class="collection-links">${link(officialMedicine, '공식 폐의약품 수거처·접수 안내 ↗')}</div>` : ''}
     ${help.pickup ? `<div class="collection-links">${link(help.pickup.url, `${escapeHtml(help.pickup.label)} ↗`)}</div>` : ''}
     <div class="collection-links">${help.targets.map(target => link(target.mapUrl, `${escapeHtml(target.label)} 지도 검색 ↗`, ` data-collection-target="${escapeHtml(target.search)}"`)).join('')}</div>
     <p class="input-hint"><span data-collection-scope>${help.place ? `판별 지역 ‘${escapeHtml(help.place)}’의 시설을 Google 지도로 검색해요.` : 'Google 지도로 시설을 검색해요.'}</span> ${escapeHtml(help.hours)}</p>

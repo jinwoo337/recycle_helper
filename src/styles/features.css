@@ -2,7 +2,7 @@
 .home-recent{margin:18px 0 0}
 .home-recent h2{font-size:15px;margin:0 0 8px}
 .home-recent-items{display:flex;flex-wrap:wrap;gap:8px}
-.home-recent-items .history-action{min-height:40px}
+.home-recent-items .history-action{min-height:44px}
 /* 홈: 오늘의 분리배출 팁 */
 .daily-tip{margin:24px 0 8px;padding:12px 14px;border-radius:10px;background:#fffaeb;border:1px solid #f0dfa8}
 .daily-tip .eyebrow{margin:0 0 4px;color:#8a6a00}
@@ -146,6 +146,43 @@
 .result-next-actions { padding-top: 18px; border-top: 1px solid var(--line); }
 .result-check-action { margin: 12px 0; }
 .result-check-action .button { white-space: normal; text-align: left; }
+.result-verdict .eyebrow, .assist-method .eyebrow { margin: 0 0 6px; }
+.result-action-title { margin: 18px 0 8px; }
+.result-collection-action { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 10px; align-items: center; }
+.result-collection-action .button { white-space: normal; text-align: left; }
+.result-collection-action .button, .assist-result-actions .button, .part-material-quick button { min-height: 44px; }
+.result-collection-action > p, .collection-housing { flex: 1 0 100%; margin: 0; }
+.collection-housing { display: grid; gap: 4px; }
+.collection-housing p { margin: 4px 0; }
+.collection-housing summary, .my-feedback > summary { cursor: pointer; font-weight: 650; min-height: 44px; align-content: center; }
+.assist-observations { display: grid; gap: 6px; margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.assist-observations label { display: flex; gap: 10px; align-items: center; min-height: 44px; cursor: pointer; }
+.assist-observations input { accent-color: var(--green); width: 20px; height: 20px; flex: none; }
+.assist-observations small, .home-recent-items small { display: block; color: var(--muted); }
+.home-recent-items button { text-align: start; white-space: normal; }
+.home-unregistered { margin: 10px 0; }
+.home-unregistered .choice-row { display: flex; flex-wrap: wrap; }
+.special-category details { margin-left: 8px; }
+.special-category summary { min-height: 44px; align-content: center; cursor: pointer; }
+.part-material-quick:not([hidden]) { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.part-material-quick [aria-pressed="true"] { border-color: var(--green); color: var(--green); background: #edf5f0; }
+.batch-page { padding-block: 24px 36px; }
+.batch-group { margin-block: 12px; }
+.batch-group h2 { font-size: 18px; margin-top: 0; }
+.batch-group h2 small { font-weight: 400; color: var(--muted); }
+.batch-group ul { list-style: none; padding: 0; margin: 0; }
+.batch-group li { padding: 10px 0; border-top: 1px solid var(--line); }
+.batch-group li p { margin: 3px 0; }
+.batch-group summary { min-height: 44px; align-content: center; cursor: pointer; }
+.batch-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.batch-entry-detail { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+.my-feedback { margin: 16px 0; }
+.my-feedback li { margin-block: 10px; overflow-wrap: anywhere; }
+.my-feedback li p { margin-block: 4px; }
+#ai-guess-cancel { margin-left: 6px; }
+#item-category-section { margin-top: 0; }
+.has-unregistered-name .input-examples { display: none; }
+.assist-photo-message[data-error="true"] { color: #a23429; font-weight: 600; }
 .item-summary :is(.result-evidence, .input-details, .regional-comparison) > summary { min-height: 44px; align-content: center; }
 .result-actions .history-action { min-height: 44px; }
 .feedback-context { display: grid; gap: 4px; padding: 12px; border-radius: 8px; background: #f7faf8; color: var(--muted); font-size: 13px; }
@@ -180,6 +217,7 @@
   .item-summary .result-verdict { padding: 14px; }
   .collection-help, .large-waste-help { padding: 14px; }
   html { scroll-padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  :is(.home-page, .item-page, .assist-page) :is(input:not([type]), input:is([type="text"], [type="search"]), textarea, select) { font-size: 16px; }
   body:has(input:is([type="text"], [type="search"], [type="email"], [type="password"], [type="tel"], [type="url"], [type="number"], :not([type])):focus, textarea:focus) .bottom-nav { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {

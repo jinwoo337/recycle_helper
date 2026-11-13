@@ -157,12 +157,16 @@ export async function readSharedGuess(name, { fetcher = fetch } = {}) {
   const key = normalizeItemName(name);
   if (!key) return null;
   try {
-    const response = await fetcher(`${SHARED_TABLE}?name_key=eq.${encodeURIComponent(key)}&select=material,item_type,route,confidence,reason&limit=1`, {
+    const url = `${SHARED_TABLE}?name_key=eq.${encodeURIComponent(key)}&select=material,item_type,route,confidence,reason`;
+    const options = {
       headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Accept: 'application/json' }, signal: AbortSignal.timeout(1_500),
-    });
+    };
+    let response = await fetcher(`${url},category&limit=1`, options);
+    // Keep existing deployments usable while the optional cache migration is pending.
+    if (response.status === 400) response = await fetcher(`${url}&limit=1`, options);
     if (!response.ok) return null;
     const [row] = await response.json();
-    return row ? validateAiGuess({ itemName: name, material: row.material, type: row.item_type, route: row.route, confidence: row.confidence, reason: row.reason }, name) : null;
+    return row ? validateAiGuess({ itemName: name, material: row.material, type: row.item_type, route: row.route, confidence: row.confidence, reason: row.reason, category: row.category }, name) : null;
   } catch { return null; }
 }
 
@@ -173,21 +177,29 @@ export async function saveSharedGuess(name, guess, { fetcher = fetch, serviceKey
   if (!guess || !['high', 'medium'].includes(guess.confidence)) return false;
   const canonical = normalizeItemName(name);
   const category = detectItemCategory(name)?.category ?? null;
-  const names = [name, ...(guess.aliases || []).filter(alias => !lookupItem(alias) && (detectItemCategory(alias)?.category ?? null) === category)];
+  const suggestion = suggestedItemCategory(guess);
+  // Generated aliases aren't allowed to inherit a new typed suggestion. Reviewed aliases belong in the catalog.
+  const names = suggestion ? [name] : [name, ...(guess.aliases || []).filter(alias => !lookupItem(alias) && (detectItemCategory(alias)?.category ?? null) === category)];
   const rows = [...new Map(names.map(display => [normalizeItemName(display), {
     name_key: normalizeItemName(display), canonical_key: canonical, display_name: display,
     material: guess.material, item_type: guess.type || '', route: guess.route, confidence: guess.confidence,
     reason: String(guess.reason || '').slice(0, 160), model: String(guess.model || '').slice(0, 60),
+    ...(suggestion ? { category: suggestion } : {}),
   }])).values()].filter(row => row.name_key && row.name_key.length <= 40);
   try {
-    const response = await fetcher(`${SHARED_TABLE}?on_conflict=name_key`, {
+    const url = `${SHARED_TABLE}?on_conflict=name_key`;
+    const options = {
       method: 'POST',
       headers: {
         apikey: serviceKey, ...(serviceKey.startsWith('eyJ') ? { Authorization: `Bearer ${serviceKey}` } : {}),
         'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal',
       },
       body: JSON.stringify(rows), signal: AbortSignal.timeout(1_500),
-    });
+    };
+    let response = await fetcher(url, options);
+    if (response.status === 400 && suggestion) {
+      response = await fetcher(url, { ...options, body: JSON.stringify(rows.map(({ category, ...row }) => row)) });
+    }
     if (!response.ok) { console.error('shared guesses save failed', response.status); return false; }
     return true;
   } catch (error) { console.error('shared guesses save failed', error?.name); return false; }

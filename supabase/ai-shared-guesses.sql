@@ -18,6 +18,8 @@ create table if not exists public.ai_item_guesses (
 );
 
 alter table public.ai_item_guesses enable row level security;
+alter table public.ai_item_guesses add column if not exists category text
+  check (category is null or category in ('packaging','food','medicine','battery','rechargeable','damaged-battery','pressure-can','chemical-can','electronic','large-electronic','fluorescent','broken-lamp','led','bulb','clothing','bedding','ceramic','large','unknown'));
 revoke all on table public.ai_item_guesses from anon, authenticated;
 grant select on table public.ai_item_guesses to anon, authenticated;
 grant select, insert, update, delete on table public.ai_item_guesses to service_role;

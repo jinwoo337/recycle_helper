@@ -51,6 +51,8 @@ const pendingQuestionLabels = {
   combined: '붙어 있는 재질 확인하기',
   separable: '재질 분리 여부 확인하기',
   handling: '물건 상태 확인하기',
+  category: '물건 종류 확인하기',
+  components: '분리한 부속품 확인하기',
 };
 
 export function resultPendingQuestion(input, result) {
@@ -58,7 +60,8 @@ export function resultPendingQuestion(input, result) {
   const partIndex = result.pendingCondition ? 0 : result.parts.findIndex(part => part.pendingCondition);
   const unconfirmedHandling = !input.handlingCondition || input.handlingCondition === 'unknown';
   const condition = result.pendingCondition || result.parts[partIndex]?.pendingCondition
-    || (unconfirmedHandling && handlingConditionQuestion(result.handling) ? 'handling' : '');
+    || (unconfirmedHandling && handlingConditionQuestion(result.handling) ? 'handling' : '')
+    || (['unknown', 'material-only'].includes(input.category) ? 'category' : '');
   if (!Object.hasOwn(pendingQuestionLabels, condition)) return null;
   const part = partIndex > 0 ? result.parts[partIndex] : null;
   return {

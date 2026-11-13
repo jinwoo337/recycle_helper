@@ -1,0 +1,136 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { validateAssistance } from '../src/domain/disposal/ai-assistance.js';
+import { applyItemObservations, mergeItemObservations, observationsFromDescription } from '../src/domain/disposal/item-observations.js';
+import { assistanceResultMarkup } from '../src/pages/assistance/assistance.js';
+import { judgeDisposal } from '../src/domain/disposal/rules.js';
+import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
+import { resultMarkup } from '../src/pages/item-input/item-input.js';
+import { resultToText } from '../src/domain/disposal/result-text.js';
+import { batchGroups, batchToText } from '../src/domain/disposal/disposal-batch.js';
+import { addMealToBatch, readDisposalBatch, updateBatchItem } from '../src/services/disposal-batch.js';
+
+const seoul = { province: '서울특별시', district: '강남구' };
+const response = {
+  itemName: '삼각 소스통', identification: '소스 포장 용기', evidence: 'object', confidence: 'high',
+  markings: [], method: '종량제에 바로 버리세요', steps: ['종량제에 바로 버리세요'], questions: [], cautions: [], category: 'packaging',
+};
+
+test('설명의 명시적 조건은 사진 추정보다 우선하고, 선택하지 않은 상태나 분리 가능 여부는 입력하지 않는다', () => {
+  const observations = mergeItemObservations([
+    { part: 'body', field: 'material', value: '유리', type: 'bottle' },
+    { part: 'label', field: 'state', value: 'clean' },
+    { part: 'body', field: 'separable', value: 'yes' },
+  ], '본체는 PP, 라벨은 비닐, 안에 음식물이 남았어요.');
+  const markup = assistanceResultMarkup(response, seoul, { mode: 'photo', observations });
+  assert.match(markup, /AI가 제안한 종류:<\/strong> 포장재·용기/);
+  assert.match(markup, /사진·설명에서 AI가 추정 · 확인 필요/);
+  assert.doesNotMatch(markup, /종량제에 바로 버리세요/);
+  const input = applyItemObservations({ itemName: response.itemName, category: 'packaging', region: seoul }, observations.filter(entry => entry.source === 'description'));
+  assert.equal(input.material, '플라스틱');
+  assert.equal(input.observedState, 'dirty', '세부 종류가 결정되면 적용할 상태를 보존');
+  assert.equal(input.combined, 'yes');
+  assert.equal(input.separable, undefined);
+  assert.deepEqual(input.components, [{ label: '라벨', material: '비닐', type: '' }]);
+  assert.equal(judgeDisposal(input).status, 'check');
+  assert.deepEqual(observationsFromDescription('오염이 없지는 않아요. 음식물이 없어요.'), []);
+});
+
+test('Gemini의 관찰 항목은 정해진 코드만 받으며 마크만 찍힌 사진에는 종류나 상태를 넘기지 않는다', () => {
+  const raw = { ...response, observations: [
+    { part: 'body', field: 'material', value: '플라스틱', type: 'bottle' },
+    { part: 'label', field: 'separable', value: 'yes' },
+    { part: 'lid', field: 'state', value: 'clean' },
+    { part: 'lid', field: 'state', value: 'dirty' },
+    { part: 'unknown', field: 'state', value: 'clean' },
+  ] };
+  const parsed = validateAssistance(raw);
+  assert.deepEqual(parsed.observations, [{ part: 'body', field: 'material', value: '플라스틱' }]);
+  assert.deepEqual(validateAssistance(parsed), parsed);
+  const markings = validateAssistance({ ...raw, evidence: 'markings' });
+  assert.equal(markings.category, undefined);
+  assert.deepEqual(markings.observations, []);
+  assert.deepEqual(markings.steps, []);
+  const { method, steps, cautions, ...identificationOnly } = raw;
+  assert.deepEqual(validateAssistance(identificationOnly), parsed, '식별 전용 응답은 생성된 배출 단계 없이도 유효');
+});
+
+test('전지 설명과 사진의 상태가 다르면 손상 여부를 직접 확인하도록 하고, 추정으로 수거함을 확정하지 않는다', () => {
+  const battery = { ...response, itemName: 'AA 건전지' };
+  const observations = mergeItemObservations([{ part: 'body', field: 'handlingCondition', value: 'damaged' }], 'AA 건전지에 손상이 없어요.');
+  assert.equal(observations[0].conflicts, true);
+  const markup = assistanceResultMarkup(battery, seoul, { mode: 'photo', observations });
+  assert.match(markup, /입력한 설명과 AI 제안이 달라요/);
+  assert.match(markup, /data-assist-handling="damaged" aria-pressed="false"/);
+  assert.doesNotMatch(markup, /data-assist-save|아산시 폐전지 배출 안내/);
+});
+
+test('같은 지역과 확인 조건이면 미등록 포장재의 이름·설명·사진 경로가 같은 판정을 낸다', () => {
+  const base = { itemName: '삼각 소스통', category: 'packaging', categoryOrigin: 'manual', keywordCategory: false, region: seoul };
+  const confirmed = { ...base, material: '플라스틱', type: 'container', combined: 'no', contaminated: 'yes', washed: 'no', removable: 'yes' };
+  const signals = [
+    { part: 'body', field: 'material', value: '플라스틱', type: 'container' },
+    { part: 'body', field: 'state', value: 'dirty' },
+    { part: 'body', field: 'combined', value: 'no' },
+  ];
+  for (const description of ['', '본체는 PP, 안에 음식물이 남았어요.']) {
+    const handoff = applyItemObservations({ ...base, type: 'container', material: '플라스틱' }, mergeItemObservations(signals, description));
+    assert.deepEqual(judgeDisposal({ ...handoff, removable: 'yes' }), judgeDisposal(confirmed));
+  }
+});
+
+test('검증 지역 링크는 다음 행동과 복사에 남고, 손상 전지에는 주택 유형별 수거함 안내를 표시하지 않는다', () => {
+  const input = { itemName: '건전지', handlingCondition: 'undamaged', region: { province: '충청남도', district: '아산시' } };
+  const good = judgeDisposal(input);
+  const html = resultMarkup(input, good);
+  assert.ok(html.indexOf('어디에 버리나요?') < html.indexOf('지금 할 일'));
+  assert.ok(html.indexOf('아산시 폐전지 배출 안내') < html.indexOf('판단 근거·지역 기준'));
+  assert.match(html, /어떤 주택에 거주하나요/);
+  assert.match(resultToText(input, good), /www\.asan\.go\.kr\/main\/cms\/\?no=588/);
+  const damaged = { ...input, handlingCondition: 'damaged' };
+  const damagedHtml = resultMarkup(damaged, judgeDisposal(damaged));
+  assert.match(damagedHtml, /손상 전지 · 수거처에 먼저 문의/);
+  assert.doesNotMatch(damagedHtml, /어떤 주택에 거주하나요/);
+  assert.doesNotMatch(resultMarkup({ ...input, region: seoul }, judgeDisposal({ ...input, region: seoul })), /asan\.go\.kr/);
+});
+
+test('아산·김포 대형폐기물은 각각 공식 신청·안내로 가고 다른 지역에 섞이지 않는다', () => {
+  for (const [region, link] of [
+    [{ province: '충청남도', district: '아산시' }, 'https://smartclean.asan.go.kr/online/bulky/request'],
+    [{ province: '경기도', district: '김포시' }, 'https://m.gimpo.go.kr/portal/contents.do?key=1437'],
+  ]) {
+    const input = { itemName: '책상', region };
+    const result = judgeDisposal(input);
+    assert.ok(resultMarkup(input, result).includes(link));
+    assert.ok(resultToText(input, result).includes(link));
+    const elsewhere = { ...input, region: seoul };
+    assert.ok(!resultMarkup(elsewhere, judgeDisposal(elsewhere)).includes(link));
+  }
+});
+
+test('함께 버릴 물건은 지역·재질과 결과를 독립적으로 보존하고 미판별 물건도 복사한다', () => {
+  const chopsticks = { ...itemPresetInput('나무젓가락'), region: seoul };
+  assert.equal(addMealToBatch(chopsticks, judgeDisposal(chopsticks)), true);
+  const batch = readDisposalBatch();
+  assert.equal(batch.items.length, 4);
+  const lid = batch.items.find(entry => entry.input.itemName === '배달 용기 뚜껑');
+  const input = { ...lid.input, material: '플라스틱', type: 'container', contaminated: 'no', combined: 'no' };
+  const result = judgeDisposal(input);
+  assert.equal(updateBatchItem(lid.id, { ...input, region: null }, result), false);
+  assert.equal(updateBatchItem(lid.id, input, result), true);
+  const { items } = readDisposalBatch();
+  assert.deepEqual(batchGroups(items).map(group => group.entries.length), [1, 1, 0, 2]);
+  const text = batchToText(items);
+  assert.match(text, /배달 용기 뚜껑[\s\S]*주요 재질 · 플라스틱/);
+  assert.match(text, /배달 용기 포장 필름 · 확인 필요/);
+  assert.match(text, /서울특별시 강남구/);
+  const container = items.find(entry => entry.input.itemName === '배달 용기');
+  const grouped = {
+    ...itemPresetInput('배달 용기'), region: seoul, combined: 'yes', separable: 'yes', contaminated: 'no',
+    components: [{ label: '포장 필름', material: '비닐', type: 'packaging', contaminated: 'unknown' }],
+  };
+  assert.equal(updateBatchItem(container.id, grouped, judgeDisposal(grouped)), true);
+  const remaining = readDisposalBatch().items;
+  assert.equal(remaining.length, 3, '부속품 카드에 들어간 미판별 항목은 중복해서 묻지 않음');
+  assert.match(batchToText(remaining), /포장 필름 \(비닐\) · 추가 확인 필요/);
+});

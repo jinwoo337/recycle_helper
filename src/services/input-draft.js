@@ -1,5 +1,8 @@
 import { getCurrentMember } from './auth.js';
 let pending;
+let searchVersion = 0;
+export const inputSearchVersion = () => searchVersion;
+export function startInputSearch() { pending = undefined; return ++searchVersion; }
 export function queueInput(input, route = '/item-input') {
   pending = { owner: getCurrentMember()?.id || 'guest', route, input: structuredClone(input) };
 }

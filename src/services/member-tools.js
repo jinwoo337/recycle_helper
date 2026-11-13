@@ -82,6 +82,16 @@ export function createMemberTools({ getClient = getSupabase, getMember = getCurr
         kind, item_name: input.itemName, input: structuredClone(input), result: structuredClone(result),
         message: message.trim(), status: 'pending' }).select('id,status').single());
     },
+    async listFeedback() {
+      const id = owner();
+      if (!id) return [];
+      const client = await getClient(); check(id);
+      const rows = await readAllPages(() => client.from('disposal_feedback')
+        .select('id,kind,item_name,input,result,status,created_at')
+        .eq('user_id', id).order('created_at', { ascending: false }).order('id'));
+      check(id);
+      return rows;
+    },
   };
 }
 

@@ -1,4 +1,4 @@
-import { queueInput } from '../../services/input-draft.js';
+import { queueInput, startInputSearch } from '../../services/input-draft.js';
 import { escapeHtml } from '../../utils/html.js';
 import { RULE_SOURCE } from '../../domain/disposal/rules.js';
 import { SEOUL_SOURCES } from '../../domain/disposal/seoul-guides.js';
@@ -41,7 +41,7 @@ export function guidePage() {
 }
 export function bindGuide() {
   document.querySelectorAll('[data-guide-item]').forEach(button => button.addEventListener('click', () => {
-    queueInput({ itemName: button.dataset.guideItem }); location.hash = '/item-input';
+    startInputSearch(); queueInput({ itemName: button.dataset.guideItem }); location.hash = '/item-input';
   }));
   document.querySelectorAll('[data-guide-anchor]').forEach(link => link.addEventListener('click', () => {
     if (link.hash === location.hash) focusGuideSection(link.dataset.guideAnchor.replace('guide-', ''));

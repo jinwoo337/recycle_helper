@@ -122,7 +122,9 @@ test('세 가지 찾기 모드를 구분하고 사진의 명시적 전송·촬�
   assert.match(photo,/capture="environment"/);assert.match(photo,/name="gallery"/);assert.match(photo,/원본 촬영 정보/);assert.match(photo,/Google Gemini/);
   assert.doesNotMatch(photo,/name="description"[^>]*required/);
   const html=assistanceResultMarkup(answer({itemName:'<img src=x onerror=alert(1)>',steps:['<script>bad()</script>'],questions:[]}),input.region);
-  assert.ok(!html.includes('<script>'));assert.ok(!html.includes('<img src=x'));assert.match(html,/&lt;script&gt;/);assert.match(html,/거주지 수거 기준/);
+  assert.ok(!html.includes('<script>'));assert.ok(!html.includes('<img src=x'));assert.match(html,/&lt;img/);
+  assert.doesNotMatch(html, /bad\(\)/, '미등록 물건의 생성된 배출 단계는 표시하지 않음');
+  assert.match(html,/거주지 폐기물 담당 부서/);
   assert.match(layout('', 'photo', null),/href="#\/item-input" aria-current="page"/);
 });
 

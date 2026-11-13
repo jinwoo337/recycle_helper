@@ -30,7 +30,7 @@ export function suggestedItemCategory(guess) {
   if (route === 'hazardous' && guess.confidence === 'high' && validItemCategory(category) &&
       !['unknown', 'material-only', 'packaging', 'food', 'large'].includes(category)) return category;
   // 이전에 저장된 답에는 종류가 없습니다. 용기·포장인지 구분 가능한 세부 종류만 제안합니다.
-  if (!category && route === 'recyclable' && supportsState(guess) && type !== 'utensil' &&
+  if (!category && route === 'recyclable' && categoryAllowsMaterial('packaging', material) && supportsState(guess) && type !== 'utensil' &&
       !(material === '종이' && type === 'paper')) return 'packaging';
   return '';
 }

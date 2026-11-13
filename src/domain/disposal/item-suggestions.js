@@ -36,8 +36,14 @@ const localEntries = [
   ...bundledItemEntries,
   [BATTERY_PACKAGING_NAMES, '', ''],
   [['일회용숟가락', '일회용수저', '일회용스푼'], '', '', '숟가락의 재질을 확인해 주세요.'],
+  [['배달용기뚜껑', '포장용기뚜껑', '배달용기포장필름', '배달포장필름'], '', '', '용기와 분리한 부속품의 실제 재질과 상태를 확인해 주세요.'],
 ];
-const aliases = { '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔' };
+const aliases = {
+  '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔',
+  '일회용나무젓갈': '나무젓가락', '일회용목재젓가락': '나무젓가락',
+  '배달음식용기': '배달용기', '배달음식통': '배달용기',
+  '포장용기뚜껑': '배달용기뚜껑', '배달포장필름': '배달용기포장필름',
+};
 const foldItemName = name => typeof name === 'string' ? name.normalize('NFKC').replace(/\s+/g, '').toLowerCase() : '';
 export const normalizeItemName = name => {
   const value = foldItemName(name);
