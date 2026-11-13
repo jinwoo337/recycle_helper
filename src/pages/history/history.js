@@ -106,7 +106,10 @@ export function bindHistory() {
         location.hash = '/item-input';
       }));
       detail.querySelector('[data-check-mark]')?.addEventListener('click', () => edit({ showMarkPicker: true }));
-      detail.querySelectorAll('[data-edit-region]').forEach(button => button.addEventListener('click', () => edit({ editRegion: true })));
+      detail.querySelectorAll('[data-edit-region]').forEach(button => button.addEventListener('click', () => {
+        startInputSearch(); queueInput({ ...input, savedLookup: record, editRegion: true });
+        location.hash = '/item-input';
+      }));
       detail.querySelector('#category-other')?.addEventListener('click', () => edit({ category: '', categoryOrigin: '', keywordCategory: false, editCategory: true }));
       disposeTools = bindResultTools(detail, record.input, record.result, {
         onNewItem: () => { startInputSearch(); queueInput({}); location.hash = '/item-input'; },

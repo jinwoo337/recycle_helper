@@ -46,17 +46,26 @@ test('생활어로 연결한 물건은 분리하고 사전에 등록된 본체�
 
 test('재질을 모르는 흔한 이름에서 물건 자체를 장식이 붙은 다른 물건보다 먼저 제안한다', () => {
   assert.equal(relatedItemCandidates('뚜껑')[0], '플라스틱용기뚜껑');
+  assert.equal(relatedItemCandidates('생수병 뚜껑')[0], '플라스틱용기뚜껑');
+  assert.equal(lookupItem('생수병 뚜껑'), null);
   assert.deepEqual(relatedItemCandidates('컵'), ['종이컵', '플라스틱컵', '유리컵', '도자기컵']);
   assert.deepEqual(relatedItemCandidates('택배 아이스팩'), ['물아이스팩', '젤아이스팩']);
   assert.equal(lookupItem('아이스팩'), null);
+  assert.deepEqual(relatedItemCandidates('물티슈'), ['사용한물티슈', '비닐물티슈겉포장', '플라스틱물티슈캡']);
+  assert.equal(lookupItem('물티슈 뚜껑')?.material, '플라스틱');
+  assert.equal(lookupItem('사용한 물티슈')?.handling, 'wet-wipe');
+  assert.equal(relatedItemCandidates('햇반 그릇')[0], '플라스틱즉석밥용기');
+  assert.equal(relatedItemCandidates('샴푸 펌프')[0], '스프링이든복합재질펌프');
 });
 
 test('설명 첫 문장에 물건을 명시하면 확인한 이름만 조건 선택으로 넘긴다', () => {
   assert.equal(explicitDescriptionItemName('우유팩이에요. 안에 내용물이 남았어요.'), '우유팩');
+  assert.equal(explicitDescriptionItemName('우유팩 안에 내용물이 남았어요.'), '우유팩');
+  assert.equal(explicitDescriptionItemName('우유팩은 안에 내용물이 남았어요.'), '우유팩');
   assert.equal(explicitDescriptionItemName('젤 아이스팩.'), '젤 아이스팩');
   assert.equal(explicitDescriptionItemName('영수증이에요. 글씨가 잘 안 보여요.'), '영수증');
   assert.equal(explicitDescriptionItemName('건전지예요. 우유팩이에요.'), '');
-  for (const text of ['우유팩인지 모르겠어요.', '깨끗한 우유팩 모양의 용기예요.', '유리병이에요, 아니고 플라스틱 같아요.']) {
+  for (const text of ['우유팩인지 모르겠어요.', '깨끗한 우유팩 모양의 용기예요.', '유리병이에요, 아니고 플라스틱 같아요.', '우유팩 모양의 용기 안에 내용물이 남았어요.']) {
     assert.equal(explicitDescriptionItemName(text), '');
   }
 });

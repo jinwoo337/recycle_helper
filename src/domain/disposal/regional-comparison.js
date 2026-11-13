@@ -1,24 +1,26 @@
 import { judgeDisposal, judgeDisposalByRegion } from './rules.js';
 import { COMPARISON_REGIONS, normalizeRegion } from './regions.js';
 
+const sameRegion = (left, right) => left?.province === right?.province && left?.district === right?.district;
+
 // 같은 입력에서 지역만 변경합니다. 문구나 출처의 차이는 배출 방식의 차이로 세지 않습니다.
 export function compareRegionalDisposal(input, current = judgeDisposal(input)) {
   const selected = normalizeRegion(input?.region);
-  const regions = COMPARISON_REGIONS.filter(region => selected?.province !== region.province || selected.district !== region.district);
+  const regions = COMPARISON_REGIONS.filter(region => !sameRegion(selected, region));
   const results = judgeDisposalByRegion(input, regions);
   const groups = new Map();
   let unverifiedCount = 0;
+  let sameCount = Number(current.regional.coverage === 'verified');
+  const currentKey = current.regional.comparisonKey;
   for (const [index, region] of regions.entries()) {
     const result = results[index];
     if (result.regional.coverage !== 'verified') { unverifiedCount++; continue; }
     const key = result.regional.comparisonKey;
+    if (key === currentKey) { sameCount++; continue; }
     if (!groups.has(key)) groups.set(key, { key, regions: [], result, sources: [] });
     const group = groups.get(key);
     group.regions.push(region);
     group.sources = [...new Set([...group.sources, ...result.regional.sources])];
   }
-  const verified = current.regional.coverage === 'verified';
-  const alternatives = [...groups.values()].filter(group => !verified || group.key !== current.regional.comparisonKey);
-  // 현재 지역이 미확인이면, 확인된 지역끼리 둘 이상의 방식이 있을 때만 비교를 제안합니다.
-  return { current, groups: verified || groups.size > 1 ? alternatives : [], unverifiedCount };
+  return { current, groups: [...groups.values()], sameCount, unverifiedCount };
 }

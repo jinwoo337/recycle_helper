@@ -22,9 +22,15 @@ const photoMaterialCodes = {
   PET: '페트병', '무색페트': '페트병', '플라스틱': '플라스틱', '비닐류': '비닐',
   '종이': '종이', '일반팩': '종이', '멸균팩': '종이', '종이팩': '종이', '유리': '유리', '캔류': '금속·캔',
 };
+const partLabels = { 본체: 'body', 몸체: 'body', 뚜껑: 'lid', 마개: 'lid', 캡: 'lid', 라벨: 'label', 필름: 'film', '포장 필름': 'film' };
+const photoPartPrefix = /^(본체|몸체|뚜껑|마개|캡|라벨|포장 필름|필름)\s*:\s*/;
+export function photoMarkPart(marking) {
+  const label = photoPartPrefix.exec(String(marking || '').normalize('NFKC').trim())?.[1];
+  return label ? partLabels[label] : '';
+}
 function photoMarkCode(marking) {
   return String(marking || '').normalize('NFKC').trim().toUpperCase()
-    .replace(/^(?:본체|몸체|뚜껑|마개|라벨|필름)\s*:\s*/, '');
+    .replace(photoPartPrefix, '');
 }
 export function photoMarkMaterial(marking) {
   const code = photoMarkCode(marking).replace(/^플라스틱\s+(?=[A-Z]+$)/, '');

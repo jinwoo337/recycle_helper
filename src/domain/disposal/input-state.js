@@ -24,7 +24,6 @@ export function linkedComponentState(body, component) {
   if (!['clean', 'dirty', 'washed-dirty'].includes(current)) return null;
   const answer = current === 'washed-dirty' && !componentWashable ? 'dirty' : current;
   const state = stateAnswers(answer, componentWashable);
-  // 종이의 오염 부분을 떼는 질문과 물로 헹구는 질문은 답을 공유할 수 없습니다.
-  const removable = state.contaminated === 'yes' && bodyWashable === componentWashable ? body.removable || '' : '';
-  return { washed: '', vinylResidue: '', removable, ...state };
+  // 오염을 실제로 없앨 수 있는지는 부속품마다 따로 답합니다.
+  return { washed: '', vinylResidue: '', removable: '', ...state };
 }

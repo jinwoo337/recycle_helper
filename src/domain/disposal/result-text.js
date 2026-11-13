@@ -1,5 +1,5 @@
 import { categoryLabel } from './item-categories.js';
-import { conditionDetails, inputForDisplay, resultForDisplay, resultStepsForDisplay } from './result-display.js';
+import { conditionDetails, disposalReasons, inputForDisplay, resultForDisplay, resultStepsForDisplay } from './result-display.js';
 import { resultRegionLabel } from './regions.js';
 import { handlingConditionQuestion } from './special-guides.js';
 import { lookupItem } from './item-suggestions.js';
@@ -16,6 +16,8 @@ export function resultToText(input, result) {
   const { parts, steps } = resultStepsForDisplay(result);
   const preparation = steps.length ? `\n\n${parts.length ? '먼저 할 일' : result.status === 'check' ? '배출 전에 확인하세요' : '이렇게 배출하세요'}\n${numbered(steps)}` : '';
   const partInstructions = parts.length ? `\n\n본체와 부속품 배출 방법\n${parts.map(part => `${part.label} (${part.material}) · ${part.method}\n${numbered(part.steps)}`).join('\n\n')}` : '';
+  const reasons = disposalReasons(result);
+  const explanation = reasons.length ? `\n\n${result.status === 'check' ? '왜 확인이 필요한가요?' : '왜 이렇게 버리나요?'}\n${reasons.join('\n')}` : '';
   const regionNotes = (result.regional?.notes || []).filter(note => !result.steps.includes(note) && note !== result.notice);
   const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const details = part => conditionDetails(part).map(([title, value]) => `${title} · ${value}`).join('\n');
@@ -35,7 +37,7 @@ export function resultToText(input, result) {
     handlingAnswer ? `물건 상태 · ${handlingAnswer}` : '',
   ].filter(Boolean).join('\n');
   const evidence = [
-    '판단 이유', ...result.reasons, ...regionNotes, '', result.notice,
+    '판단 근거·지역 기준', ...result.reasons.filter(reason => !reasons.includes(reason)), ...regionNotes, '', result.notice,
     `규칙 ${result.ruleVersion} · 확인일 ${(result.regional?.coverage === 'verified' ? result.regional.checkedAt : result.checkedAt) || '미기록'}`,
     '공식 출처', ...sources,
   ].join('\n');
@@ -43,5 +45,5 @@ export function resultToText(input, result) {
     action.scope, action.note, action.phone && `${action.office} ${action.phone}`,
     ...(action.housing || []).map(([label, note]) => `${label} · ${note}`),
   ].filter(Boolean).join('\n')}` : '';
-  return `${prefix}${heading}${preparation}${partInstructions}${contact}${conditions ? `\n\n입력한 조건\n${conditions}` : ''}\n\n${evidence}`;
+  return `${prefix}${heading}${preparation}${partInstructions}${explanation}${contact}${conditions ? `\n\n입력한 조건\n${conditions}` : ''}\n\n${evidence}`;
 }

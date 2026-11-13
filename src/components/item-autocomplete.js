@@ -1,5 +1,5 @@
 import { escapeHtml } from '../utils/html.js';
-import { itemMatchLabel, lookupItem } from '../domain/disposal/item-suggestions.js';
+import { itemCandidateTitle, itemMatchLabel, lookupItem } from '../domain/disposal/item-suggestions.js';
 
 export function bindItemAutocomplete({ input, options, status, search, onSelect = () => {}, onCompositionEnd = () => {}, noResultsMessage = '등록되지 않은 이름도 아래에서 물건 종류를 선택해 안내받을 수 있어요.' }) {
   let candidates = [], active = -1, dismissedQuery = null, compositionCommitted = false;
@@ -19,7 +19,7 @@ export function bindItemAutocomplete({ input, options, status, search, onSelect 
     candidates = search(input.value); active = -1;
     input.removeAttribute('aria-activedescendant');
     options.innerHTML = candidates.map((name, index) =>
-      `<button type="button" role="option" tabindex="-1" aria-selected="false" id="${optionPrefix}${index}" data-candidate="${index}"><span>${escapeHtml(name)}</span><small class="item-match-label">${itemMatchLabel(input.value, name)}</small></button>`
+      `<button type="button" role="option" tabindex="-1" aria-selected="false" id="${optionPrefix}${index}" data-candidate="${index}"><span>${escapeHtml(itemCandidateTitle(name))}</span><small class="item-match-label">${itemMatchLabel(input.value, name)}</small></button>`
     ).join('');
     options.hidden = !candidates.length; input.setAttribute('aria-expanded', String(candidates.length > 0));
     suggestionMessage = candidates.length ? (lookupItem(input.value)?.material

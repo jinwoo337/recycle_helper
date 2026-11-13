@@ -1,7 +1,7 @@
 import { expandedItemEntries } from './expanded-catalog.js';
 import { ITEM_VARIANTS } from './item-variants.js';
 import { BATTERY_PACKAGING_NAMES, detectItemCategory, splitItemList } from './category-keywords.js';
-import { ALUMINUM_CAPSULE_SOURCE, GEL_ICE_PACK_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, WATER_ICE_PACK_SOURCE } from './catalog-sources.js';
+import { ALUMINUM_CAPSULE_SOURCE, GEL_ICE_PACK_SOURCE, LAMP_DISPOSAL_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, PAPER_NOODLE_CUP_SOURCE, WATER_ICE_PACK_SOURCE, WET_WIPE_SOURCE } from './catalog-sources.js';
 // 정확한 품목명만 일치시킵니다. 대표 구성은 별도 메타데이터로 관리합니다.
 export const bundledItemEntries = [
   [['우유팩', '두유팩', '주스팩', '쥬스팩', '멸균우유팩', '멸균팩', '종이팩'], '종이', 'carton'],
@@ -51,9 +51,28 @@ const aliases = {
   '종이우유팩': '우유팩', '키보드': '컴퓨터키보드',
   '택배송장': '감열택배송장', '감열배송송장': '감열택배송장',
   '택배운송장': '감열택배송장', '택배송장스티커': '감열택배송장', '운송장스티커': '감열택배송장',
+  '물티슈뚜껑': '플라스틱물티슈캡', '물티슈캡': '플라스틱물티슈캡',
 };
 // These names require a choice even if a server catalog has an old entry.
 const requiredVariants = [
+  { names: ['컵라면', '컵라면용기', '컵라면컵', '라면컵'],
+    variants: ['종이컵라면용기', '스티로폼컵라면용기', '단단한플라스틱컵라면용기'],
+    title: '컵라면 용기의 재질 확인', question: '용기 본체는 어떤 재질인가요?',
+    hint: '국물을 비운 뒤 용기 바닥이나 겉면에 적힌 분리배출 표시를 보세요.',
+    unknown: '겉포장과 뚜껑은 각각 확인해 주세요. 본체 재질을 모르면 관할 지역의 컵라면 용기 안내를 확인해 주세요.',
+    reason: '종이·스티로폼·단단한 플라스틱은 수거 경로가 다르고, 씻어도 국물이나 기름이 남으면 재활용이 어려워요.', sources: [PAPER_NOODLE_CUP_SOURCE] },
+  { names: ['물티슈', '물티슈포장', '물티슈봉지'],
+    variants: ['사용한물티슈', '비닐물티슈겉포장', '플라스틱물티슈캡'],
+    title: '물티슈에서 버릴 부분 확인', question: '어느 부분을 버리나요?',
+    hint: '물티슈 낱장은 종량제봉투에 넣어요. 포장은 버릴 부분을 골라 확인해 주세요.',
+    unknown: '겉포장과 뚜껑의 재질은 포장에 적힌 분리배출 표시를 확인해 주세요.',
+    reason: '물티슈 낱장과 포장은 재질이 달라 배출 방법도 달라요.', sources: [WET_WIPE_SOURCE] },
+  { names: ['전구', '전등', '전구램프', '조명전구', '다쓴전구', '고장난전구', '폐전구'],
+    variants: ['LED전구', '전구형형광등', '백열전구', '깨진전구'],
+    title: '전구 종류와 깨짐 여부 확인', question: '어떤 전구인가요?',
+    hint: '깨졌다면 ‘깨진 전구’를 고르고, 온전하다면 제품에 적힌 종류를 확인해 주세요.',
+    unknown: '종류를 모르겠으면 깨지지 않게 보관하고 지역 조명 수거 기준을 확인해 주세요.',
+    reason: 'LED·형광등·백열전구와 깨진 조명은 수거 기준이 달라질 수 있어요.', sources: [LAMP_DISPOSAL_SOURCE] },
   { names: ['영수증', '영수', '종이영수증', '카드영수증', '마트영수증', '전표', '영수중', '영수즹', '영슈증', '영수쯩'],
     pattern: /^(?:가게|편의점|매장|은행|계산대|결제|구매|카드결제|현금|식당|카페|종이로된)영수증$/,
     variants: ['감열영수증', '일반종이영수증'],
@@ -76,10 +95,15 @@ const requiredVariants = [
 ];
 // Other vague names get helpful choices before ordinary catalog matches.
 const variantNames = [
+  { names: ['햇반그릇', '햇반통', '즉석밥그릇'], variants: ['플라스틱즉석밥용기', '즉석밥용기'] },
+  { names: ['샴푸펌프', '세제펌프', '로션펌프'], variants: ['스프링이든복합재질펌프', '펌프형플라스틱샴푸통'] },
+  { names: ['흡수패드', '고기받침', '고기밑종이', '고기밑패드'], variants: ['식품포장흡수패드', '랩포장스티로폼정육트레이'] },
   { names: ['컵'], variants: ['종이컵', '플라스틱컵', '유리컵', '도자기컵'] },
   { names: ['병'], variants: ['생수병', '유리병', '유색페트병'] },
   { names: ['음료병', '음료수병'], variants: ['투명탄산음료페트병', '유리음료병', '유색음료페트병'] },
   { names: ['뚜껑', '마개'], variants: ['플라스틱용기뚜껑', '플라스틱컵뚜껑', '유리냄비뚜껑'] },
+  { names: ['생수병뚜껑', '페트병뚜껑', '생수병마개', '페트병마개', '플라스틱병뚜껑'], variants: ['플라스틱용기뚜껑', '생수병'] },
+  { names: ['컵뚜껑', '커피컵뚜껑', '테이크아웃컵뚜껑'], variants: ['플라스틱컵뚜껑', '플라스틱테이크아웃컵', '종이컵'] },
   { names: ['그릇', '접시'], variants: ['도자기그릇', '유리그릇', '플라스틱용기'] },
   { names: ['깨진접시', '깨진그릇'], variants: ['깨진도자기', '깨진유리'] },
   { names: ['코팅된종이', '코팅종이'], variants: ['분리되지않는코팅종이', '금속박종이포장지', '복사용지'] },
@@ -106,6 +130,21 @@ export function itemMatchLabel(query, name) {
 }
 
 const candidateHints = {
+  플라스틱즉석밥용기: '덮개를 떼고 남은 그릇',
+  즉석밥용기: '그릇과 떼어내는 덮개',
+  스프링이든복합재질펌프: '병에서 뗀 금속 스프링이 든 펌프',
+  종이컵라면용기: '종이류 표시가 있는 컵라면 본체',
+  스티로폼컵라면용기: '가볍고 푹신한 발포 소재의 본체',
+  단단한플라스틱컵라면용기: '플라스틱 표시가 있는 단단한 본체',
+  식품포장흡수패드: '고기·생선 아래에서 물기를 흡수하는 패드',
+  랩포장스티로폼정육트레이: '고기를 담았던 발포 스티로폼 받침',
+  사용한물티슈: '포장을 제외한 물티슈 낱장',
+  비닐물티슈겉포장: '물티슈를 담았던 비닐 포장',
+  플라스틱물티슈캡: '겉포장에서 떼어낸 플라스틱 뚜껑',
+  led전구: '제품에 LED라고 적힌 전구',
+  전구형형광등: '형광등·삼파장으로 표시된 전구',
+  백열전구: '백열·할로겐 전구',
+  깨진전구: '금이 가거나 파편이 생긴 전구',
   감열영수증: '감열지에 인쇄된 영수증',
   일반종이영수증: '코팅 없는 일반 인쇄용지',
   감열택배송장: '상자나 봉투에서 떼어낸 송장',
@@ -122,6 +161,23 @@ const candidateHints = {
   유리냄비뚜껑: '내열·특수 유리',
   분리되지않는코팅종이: '코팅층을 떼기 어려운 종이',
   복사용지: '코팅 없는 일반 인쇄용지',
+};
+const candidateTitles = {
+  플라스틱즉석밥용기: '플라스틱 즉석밥 그릇',
+  즉석밥용기: '즉석밥 용기 전체',
+  스프링이든복합재질펌프: '스프링이 든 펌프',
+  종이컵라면용기: '종이 컵라면 용기',
+  스티로폼컵라면용기: '스티로폼 컵라면 용기',
+  단단한플라스틱컵라면용기: '단단한 플라스틱 컵라면 용기',
+  식품포장흡수패드: '고기·생선 포장의 흡수패드',
+  랩포장스티로폼정육트레이: '스티로폼 받침과 비닐 랩',
+  사용한물티슈: '물티슈 낱장',
+  비닐물티슈겉포장: '물티슈 비닐 겉포장',
+  플라스틱물티슈캡: '물티슈 플라스틱 뚜껑',
+};
+export const itemCandidateTitle = name => {
+  const key = normalizeItemName(name);
+  return Object.hasOwn(candidateTitles, key) ? candidateTitles[key] : name;
 };
 export const itemCandidateHint = name => {
   const key = normalizeItemName(name);
@@ -254,11 +310,11 @@ function oneEdit(left, right) {
   return left.length < right.length ? left.slice(i) === right.slice(i + 1) : left.slice(i + 1) === right.slice(i);
 }
 
-function appendUnique(names, limit, exact = '') {
+export function uniqueItemNames(names, limit, exact = '') {
   const seen = new Set(), result = [];
   for (const name of names) {
     const key = normalizeItemName(name);
-    if (seen.has(key) || (exact && key === exact)) continue;
+    if (!key || seen.has(key) || key === exact) continue;
     seen.add(key);
     result.push(name);
     if (result.length >= limit) break;
@@ -292,7 +348,7 @@ function candidatesFor(query, limit, { confirmedOnly = false } = {}) {
         || Math.abs(a.name.length - search.length) - Math.abs(b.name.length - search.length) || a.name.length - b.name.length);
     names.push(...fuzzy.map(entry => entry.name));
   }
-  return confirmedOnly ? appendUnique(names, capacity, items.get(normalizeItemName(query))?.material ? normalizeItemName(query) : '') : [...new Set(names)].slice(0, capacity);
+  return uniqueItemNames(names, capacity, confirmedOnly && items.get(normalizeItemName(query))?.material ? normalizeItemName(query) : '');
 }
 
 export function searchItemNames(query, limit = 6) {
@@ -329,7 +385,8 @@ export function explicitDescriptionItemName(description) {
   if (/[\s,](?:아니|다른 물건|모르|같아)|(?:아니고|모르겠|같기도)/u.test(text)) return '';
   const statedName = clause => /^(.{1,75}?)(?:이에요|예요|입니다|이라고 해요)(?=$|[,\s])/u.exec(clause.trim())?.[1].trim();
   const knownName = name => Boolean(items.get(normalizeItemName(name))?.material || itemTypeClarification(name) || detectItemCategory(name));
-  const stated = statedName(first);
+  const subject = /^(.{1,75}?)(?:은|는)?(?:\s*[,]\s*|\s+)(?=(?:안(?:에|에는)|속(?:에|에는)|겉(?:에|에는)|본체(?:는|가|에)|뚜껑(?:은|이|에)|라벨(?:은|이|에))\s)/u.exec(first)?.[1].trim();
+  const stated = statedName(first) || subject;
   if (!stated || !(items.get(normalizeItemName(stated))?.material || itemTypeClarification(stated))) return '';
   const otherItem = clauses.slice(1).some(clause => {
     const other = statedName(clause);

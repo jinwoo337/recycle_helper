@@ -32,20 +32,32 @@ test('확장 품목의 모든 명칭이 유효한 기본 정보·출처를 갖�
     }
   }
 });
-test('실제 검색어 용기의 대표 재질은 수정할 수 있고 재질을 명시한 이름의 충돌은 계속 막는다', () => {
-  const preset = itemPresetInput('컵라면용기');
+test('컵라면은 재질 후보를 먼저 보여 주고 재질을 명시한 이름의 충돌은 막는다', () => {
+  const ambiguous = judgeDisposal({ itemName: '컵라면용기', material: '종이', type: 'food-container', contaminated: 'no', combined: 'no' });
+  assert.equal(ambiguous.status, 'check');
+  assert.deepEqual(ambiguous.itemCandidates, ['종이컵라면용기', '스티로폼컵라면용기', '단단한플라스틱컵라면용기']);
+  const preset = itemPresetInput('종이컵라면용기');
   assert.equal(preset.material,'종이'); assert.equal(preset.type,'food-container');
   const clean = {...preset,contaminated:'no',combined:'no'};
   assert.equal(judgeDisposal(clean).status,'recycle');
   assert.ok(judgeDisposal(clean).steps.some(step=>step.includes('헹')));
   assert.ok(!judgeDisposal(clean).steps.some(step=>step.includes('물에 씻지')));
-  assert.equal(judgeDisposal({...clean,material:'플라스틱',type:'container'}).status,'recycle');
-  assert.ok(!judgeDisposal({...clean,material:'플라스틱',type:'container'}).sourceUrls.includes(lookupItem('컵라면용기').source));
+  assert.equal(judgeDisposal({ ...clean, itemName:'단단한플라스틱컵라면용기', material:'플라스틱', type:'container' }).status,'recycle');
+  assert.match(judgeDisposal({ itemName:'스티로폼컵라면용기' }).method, /지역 수거 기준 확인/);
   assert.equal(judgeDisposal({...clean,material:'스티로폼',type:'other'}).status,'check');
   assert.equal(judgeDisposal({...clean,itemName:'종이컵라면용기',material:'플라스틱',type:'container'}).status,'check');
   assert.equal(judgeDisposal({...clean,itemName:'샴푸통',material:'페트병',type:'other-pet'}).status,'recycle');
   assert.equal(judgeDisposal({...clean,itemName:'샴푸통',material:'페트병',type:'clear-drink'}).status,'check');
   assert.equal(judgeDisposal({...clean,itemName:'샴푸통',material:'유리',type:'bottle'}).status,'check');
+});
+
+test('고기 밑 흡수패드는 트레이와 분리하고 낱장 물티슈는 포장과 분리한다', () => {
+  for (const [name, reason] of [['고기밑흡수패드', /핏물/], ['물티슈낱장', /부직포/]]) {
+    const result = judgeDisposal(itemPresetInput(name));
+    assert.equal(result.status, 'general');
+    assert.match(result.reasons[0], reason);
+    assert.ok(result.sourceUrls.includes(lookupItem(name).source));
+  }
 });
 test('학생 필기구와 음식 포장을 정확한 검색어로 찾고 해당 공식 출처를 함께 반환한다', () => {
   for (const name of ['연필','색연필','볼펜','형광펜','지우개','보드마카']) {

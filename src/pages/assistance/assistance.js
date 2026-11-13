@@ -9,11 +9,13 @@ import { prepareAssistancePhoto, PHOTO_ACCEPT } from '../../services/assistance-
 import { stepListMarkup } from '../../components/step-list.js';
 import { collectionPointMarkup } from '../../components/collection-help.js';
 import { collectionActionMarkup } from '../../components/collection-action.js';
+import { disposalReasonMarkup } from '../../components/disposal-reason.js';
+import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNAMED_ITEM } from '../../services/input-draft.js';
-import { confirmedPhotoMark, photoMarkMaterial } from '../../domain/disposal/recycle-marks.js';
+import { confirmedPhotoMark, photoMarkMaterial, photoMarkPart } from '../../domain/disposal/recycle-marks.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
-import { disposalItemList, explicitDescriptionItemName, itemTypeClarification, itemCandidateHint, lookupItem, normalizeItemName, relatedItemCandidates, searchItemNames } from '../../domain/disposal/item-suggestions.js';
+import { disposalItemList, explicitDescriptionItemName, itemTypeClarification, itemCandidateHint, itemCandidateTitle, lookupItem, normalizeItemName, relatedItemCandidates, searchItemNames, uniqueItemNames } from '../../domain/disposal/item-suggestions.js';
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { judgeDisposal, RULE_SOURCE, supportsState } from '../../domain/disposal/rules.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
@@ -44,6 +46,15 @@ function descriptionName(input) {
   if (input.length > 80) return '';
   const parts = disposalItemList(input);
   return parts.length && parts.every(part => lookupItem(part) || itemTypeClarification(part)) ? input : '';
+}
+
+function syncMarkShape(form, answer) {
+  const marking = answer?.markings[Number(form.elements.namedItem('mark').value)];
+  const part = form.elements.namedItem('part').value;
+  const shape = form.elements.namedItem('shape');
+  const showShape = Boolean(part && part !== 'film' && photoMarkMaterial(marking) === '플라스틱');
+  form.querySelector('[data-assist-mark-shape]').hidden = !showShape;
+  if (!showShape) shape.value = '';
 }
 
 function registeredGuide(name, region, { infer = true, condition } = {}) {
@@ -118,8 +129,8 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
   const correction = `<form class="assist-correction" data-assist-correction><div class="field"><label for="assist-correct-name">다른 물건이면 이름을 고쳐 주세요</label>
     <div class="item-name-control"><input id="assist-correct-name" name="itemName" maxlength="80" required autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="assist-correct-options" aria-expanded="false" aria-describedby="assist-correct-status"><div class="item-name-options" id="assist-correct-options" role="listbox" aria-label="추천 물품" hidden></div></div>
     <p id="assist-correct-status" class="input-hint" role="status"></p></div><button type="submit" class="button secondary">이 이름으로 기준 확인</button></form>`;
-  const alternatives = !guide ? [...new Set([...relatedItemCandidates(answer.itemName), ...(answer.candidates || [])])].slice(0, 4) : [];
-  const candidates = alternatives.length ? `<div class="assist-result-actions" aria-label="인식 후보">${alternatives.map(name => `<button type="button" class="button secondary" data-assist-candidate="${escapeHtml(name)}">${escapeHtml(name)} 기준 확인${itemCandidateHint(name) ? ` · ${escapeHtml(itemCandidateHint(name))}` : ''}</button>`).join('')}</div>` : '';
+  const alternatives = guide ? [] : uniqueItemNames([...relatedItemCandidates(answer.itemName), ...(answer.candidates || [])], 4);
+  const candidates = alternatives.length ? `<div class="assist-result-actions" aria-label="인식 후보">${alternatives.map(name => `<button type="button" class="button secondary" data-assist-candidate="${escapeHtml(name)}">${escapeHtml(itemCandidateTitle(name))}${itemCandidateHint(name) ? ` · ${escapeHtml(itemCandidateHint(name))}` : ''}</button>`).join('')}</div>` : '';
   const hint = guide?.hint || '제품에 적힌 재질 표시와 용도를 확인해 주세요. 알 수 없다면 사진이나 제품명을 준비해 거주지 폐기물 담당 부서에 수거 여부를 문의해 주세요.';
   const checklist = Boolean(guide && steps.length);
   const tools = guide?.ruleVersion && steps.length && !confirmIdentity ? `<div class="result-actions"><button type="button" class="history-action" data-assist-batch>함께 버릴 목록에 담기</button>${copyResultButton}<button type="button" class="history-action" data-assist-save>판별 결과 저장</button></div><p class="input-hint" data-result-tools-status role="status"></p>${copyResultFallback}` : '';
@@ -129,14 +140,16 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
     : !guide ? '<button type="button" class="button secondary" data-assist-continue-manually>종류·재질 직접 확인</button>' : '';
   const observationFields = canContinue && observations.length && !guide?.ruleVersion ? `<fieldset class="assist-observations"><legend>확인한 조건만 선택해 주세요</legend>${observations.map((entry, index) =>
     `<label><input type="checkbox" data-assist-observation="${index}" ${(selectedObservations ? selectedObservations.includes(index) : entry.source === 'description') ? 'checked' : ''}><span>${escapeHtml(observationLabel(entry))}<small>${entry.source === 'description' ? '입력한 설명 · 필요하면 선택 해제' : mode === 'photo' ? '사진·설명에서 AI가 추정 · 확인 필요' : '설명에서 AI가 추정 · 확인 필요'}</small></span></label>`).join('')}</fieldset>` : '';
-  const guidance = `${checklist ? checklistMarkup() : ''}${steps.length ? stepListMarkup(steps, 'action-steps', { checklist }) : !guide?.prompt && !confirmIdentity ? `<p class="input-hint">${escapeHtml(hint)}</p>` : ''}`;
+  const guidance = steps.length ? stepListMarkup(steps, 'action-steps', { checklist, emphasizeFirst: true })
+    : !guide?.prompt && !confirmIdentity ? `<p class="input-hint">${escapeHtml(hint)}</p>` : '';
   const readableMarks = mode === 'photo' && answer.evidence === 'markings'
     ? answer.markings.map((mark, index) => photoMarkMaterial(mark) ? { mark, index } : null).filter(Boolean) : [];
+  const markedPart = photoMarkPart(readableMarks[0]?.mark);
   const markForm = readableMarks.length ? `<form class="assist-questions assist-mark-confirm" data-assist-mark-confirm>
     <h3>포장에 실제로 적힌 표시인가요?</h3><p class="input-hint">맞는 표시와 붙어 있는 곳을 골라 주세요.</p>
     <div class="field"><label for="assist-confirm-mark">확인한 표시</label><select id="assist-confirm-mark" name="mark">${readableMarks.map(({ mark, index }) => `<option value="${index}">${escapeHtml(mark)}</option>`).join('')}</select></div>
-    <div class="field"><label for="assist-confirm-mark-part">표시가 있는 곳</label><select id="assist-confirm-mark-part" name="part" required><option value="">부위를 골라 주세요</option><option value="body">본체</option><option value="lid">뚜껑·마개</option><option value="label">라벨</option><option value="film">포장 필름</option></select></div>
-    <div class="field"><label for="assist-confirm-mark-form">표시가 있는 부분의 형태</label><select id="assist-confirm-mark-form" name="shape"><option value="">다음 화면에서 고르기</option><option value="film">비닐 봉지·얇은 포장 필름</option><option value="container">단단한 용기·트레이</option></select></div>
+    <div class="field"><label for="assist-confirm-mark-part">표시가 있는 곳</label><select id="assist-confirm-mark-part" name="part" required><option value="">부위를 골라 주세요</option>${[['body', '본체'], ['lid', '뚜껑·마개'], ['label', '라벨'], ['film', '포장 필름']].map(([value, label]) => `<option value="${value}"${markedPart === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
+    <div class="field" data-assist-mark-shape hidden><label for="assist-confirm-mark-form">표시가 있는 부분의 형태</label><select id="assist-confirm-mark-form" name="shape"><option value="">다음 화면에서 고르기</option><option value="film">비닐 봉지·얇은 포장 필름</option><option value="container">단단한 용기·트레이</option></select></div>
     <button type="submit" class="button primary">이 표시로 이어서 확인</button>
   </form>` : '';
   return `<p class="eyebrow">${guide?.inferred ? '이름으로 알아본 종류의 안내' : guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide?.regional ? resultRegionLabel(guide) : regionLabel(region))}</p>
@@ -155,7 +168,12 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
     ${resumeName ? `<p><button type="button" class="history-action" data-assist-resume-name>입력한 ‘${escapeHtml(resumeName)}’의 조건으로 돌아가기</button></p>` : ''}
     ${guide?.ruleVersion && !confirmIdentity ? collectionActionMarkup(resultInput({ answer, region, guide }), guide) : ''}
     ${hasQuestions && !category ? followUpMarkup(answer, answers, mode, pendingAnswers) : guidance}
+    ${confirmIdentity ? disposalReasonMarkup(null, '물건이 맞는지 확인하면 해당 품목의 배출 기준을 적용할 수 있어요.')
+      : guide?.ruleVersion ? disposalReasonMarkup(guide)
+        : disposalReasonMarkup(null, '물건의 용도나 상태에 따라 배출 방법이 달라요. 위에서 확인할 수 있는 정보를 골라 주세요.')}
+    ${checklist ? checklistMarkup() : ''}
     ${guide?.handling && steps.length ? collectionPointMarkup({ ...guide, itemName: answer.itemName }, { official: false }) : ''}
+    ${guide?.ruleVersion && !confirmIdentity ? regionalComparisonMarkup(resultInput({ answer, region, guide }), guide) : ''}
     ${sources.length ? `<details class="assist-answer-history"><summary>등록 안내의 출처</summary><ul>${sources.map(url => `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a></li>`).join('')}</ul></details>` : ''}
     ${answers.length ? `<details class="assist-answer-history"><summary>지금까지 답한 내용 ${answers.length}개</summary><dl>${answers.map(pair => `<dt>${escapeHtml(pair.question)}</dt><dd>${escapeHtml(pair.answer)}</dd>`).join('')}</dl></details>` : ''}
     ${guide?.ruleVersion && !confirmIdentity ? relatedDisposalMarkup(answer.itemName) : ''}
@@ -361,6 +379,8 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       observations: view.observations, selectedObservations: view.selectedObservations, sourceName: assistanceDraft.sourceName,
       confirmIdentity: Boolean(view.guide?.ruleVersion && !view.fromInput && !view.guide?.condition && !view.identityConfirmed),
     });
+    const markForm = result.querySelector('[data-assist-mark-confirm]');
+    if (markForm) syncMarkShape(markForm, answer);
     const disposeChecklist = bindDisposalChecklist(result);
     const disposeCopy = bindResultCopy(result, () => resultToText(resultInput(view), view.guide));
     const save = result.querySelector('[data-assist-save]');
@@ -441,9 +461,20 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     });
   }
   result.addEventListener('input', event => {
+    const markForm = event.target.closest('[data-assist-mark-confirm]');
+    if (markForm) syncMarkShape(markForm, answer);
     const followupForm = event.target.closest('[data-assist-followup-form]');
     if (!followupForm || busy) return;
     syncChoices(followupForm); setStatus('');
+  });
+  result.addEventListener('change', event => {
+    const markForm = event.target.closest('[data-assist-mark-confirm]');
+    if (!markForm) return;
+    if (event.target.name === 'mark') {
+      markForm.elements.namedItem('part').value = photoMarkPart(answer?.markings[Number(event.target.value)]);
+      markForm.elements.namedItem('shape').value = '';
+    }
+    syncMarkShape(markForm, answer);
   });
   result.addEventListener('submit', async event => {
     const markForm = event.target.closest('[data-assist-mark-confirm]');

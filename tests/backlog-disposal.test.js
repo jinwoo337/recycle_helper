@@ -91,6 +91,24 @@ test('같은 지역과 확인 조건이면 미등록 포장재의 이름·설명
   }
 });
 
+test('한 문장에서 부속품과 본체를 함께 설명해도 재질과 상태를 각각 보존한다', () => {
+  const observations = observationsFromDescription('뚜껑은 PP이고 본체는 깨끗해요.');
+  assert.deepEqual(observations, [
+    { part: 'lid', field: 'material', value: '플라스틱' },
+    { part: 'body', field: 'state', value: 'clean' },
+  ]);
+});
+
+test('포장 랩의 사진 표시를 기존 부속품에 반영하고 붙은 재질에 관한 모순은 다시 묻는다', () => {
+  const input = itemPresetInput('랩포장스티로폼정육트레이');
+  const film = { part: 'film', field: 'material', value: '비닐', type: 'packaging' };
+  assert.equal(applyItemObservations(input, [film]).components.length, 1);
+  const conflict = applyItemObservations(input, [film, { part: 'body', field: 'combined', value: 'no' }]);
+  assert.equal(conflict.combined, 'unknown');
+  assert.equal(conflict.separable, undefined);
+  assert.equal(judgeDisposal({ ...conflict, contaminated: 'no' }).pendingCondition, 'combined');
+});
+
 test('검증 지역 링크는 다음 행동과 복사에 남고, 손상 전지에는 주택 유형별 수거함 안내를 표시하지 않는다', () => {
   const input = { itemName: '건전지', handlingCondition: 'undamaged', region: { province: '충청남도', district: '아산시' } };
   const good = judgeDisposal(input);

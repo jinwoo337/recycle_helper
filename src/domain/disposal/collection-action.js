@@ -35,6 +35,10 @@ export function collectionAction(input, result) {
   };
   const isBattery = batteries.includes(handling);
   const brokenGlass = input.material === '유리' && input.type === 'broken';
+  if (handling === 'gel-ice-pack' && regional?.comparisonKey === 'ice-pack:gyeonggi-gwangju-reuse') {
+    return { url: REGIONAL_SOURCES.gyeonggiGwangjuIcePack, scope, label: '경기 광주시 젤 아이스팩 수거함 위치',
+      note: '깨끗하고 터지지 않은 젤 아이스팩을 받는 곳을 확인해 주세요.' };
+  }
   if (region?.province === '대전광역시' && region.district === '유성구' && ['medicine', 'fluorescent', 'battery'].includes(handling)) {
     const labels = { medicine: '폐의약품', fluorescent: '폐형광등', battery: '폐건전지' };
     return {
@@ -76,7 +80,7 @@ export function collectionAction(input, result) {
     };
   }
   const glassSource = brokenGlass && regional?.comparisonKey?.startsWith('glass:')
-    && regional.sources?.find(url => [REGIONAL_SOURCES.gimpoWaste, REGIONAL_SOURCES.seoulrecycle, DAEJEON_GUIDES['서구'].recycle].includes(url));
+    && regional.sources?.[0];
   if (glassSource) {
     return { url: glassSource, scope: regional.cityLabel || scope, label: '깨진 유리 공식 배출 안내',
       note: glassSource === REGIONAL_SOURCES.gimpoWaste

@@ -14,6 +14,9 @@ export const COMPARISON_REGIONS = [
   ...SEOUL_DISTRICTS.map(district => ({ province: '서울특별시', district })),
   ...DAEJEON_DISTRICTS.map(district => ({ province: '대전광역시', district })),
   { province: '경기도', district: '김포시' },
+  { province: '경기도', district: '광주시' },
+  ...Object.entries(METRO_GUIDES).flatMap(([province, guide]) => guide.city
+    ? Object.keys(guide.districts).map(district => ({ province, district })) : []),
 ];
 export function normalizeRegion(value) {
   if (!value || !PROVINCES.includes(value.province)) return null;
@@ -30,6 +33,7 @@ export function normalizeRegion(value) {
   return { province: value.province, district };
 }
 export const regionLabel = value => { const region = normalizeRegion(value); return region ? [region.province, region.district].filter(Boolean).join(' ') : '지역 미설정'; };
+export const usesSeoulVinylQuestions = region => region?.province === '서울특별시' && region.district !== '도봉구';
 export const cityGuidanceLabel = result => `${result.regional?.cityLabel || '서울시'} 공통 안내`;
 
 export function resultRegionLabel(result) {
@@ -44,12 +48,24 @@ export const REGIONAL_SOURCES = {
   ...Object.fromEntries(DAEJEON_SOURCES.map((url, index) => [`daejeon${index}`, url])),
   ...Object.fromEntries(METRO_CITY_SOURCES.map((url, index) => [`metro${index}`, url])),
   gimpoWaste: 'https://m.gimpo.go.kr/portal/contents.do?key=2723',
+  dobongWaste: 'https://www.dobong.go.kr/subsite/waste/Contents.asp?code=10007366',
+  dobongIcePack: 'https://www.dobong.go.kr/dong/bbs.asp?bmode=D&code=10009780&intPage=3&pcode=12732434',
+  gangnamWaste: 'https://clean.gangnam.go.kr/use/guid/USEGUID01000000.do?contentId=con2411150005',
+  songpaWaste: 'https://www.songpa.go.kr/www/contents.do?key=3166',
+  seochoIcePack: 'https://www.seocho.go.kr/site/seocho/04/10414041500002021100804.jsp',
+  gyeonggiGwangjuIcePack: 'https://sil.gjcity.go.kr/depart/contents.do?mId=0901070200',
   gimpoRecycle: 'https://gimpo.go.kr/portal/contents.do?key=1435',
   geumcheonFood: 'https://geumcheon.go.kr/portal/contents.do?key=818',
   yuseongLargeFees: 'https://www.yuseong.go.kr/clean/html/sub02/02.html',
   ...Object.fromEntries(Object.entries(MEDICINE_SOURCES).map(([key, url]) => [`medicine-${key}`, url])),
 };
 export function regionalSourceLabel(url) {
+  if (url === REGIONAL_SOURCES.dobongWaste) return '도봉구 · 품목별 분리배출 안내';
+  if (url === REGIONAL_SOURCES.dobongIcePack) return '도봉구 · 아이스팩 배출 안내';
+  if (url === REGIONAL_SOURCES.gangnamWaste) return '강남구 · 생활폐기물 배출 안내';
+  if (url === REGIONAL_SOURCES.songpaWaste) return '송파구 · 생활폐기물 배출 안내';
+  if (url === REGIONAL_SOURCES.seochoIcePack) return '서초구 · 아이스팩 수거 종료 안내';
+  if (url === REGIONAL_SOURCES.gyeonggiGwangjuIcePack) return '경기 광주시 · 아이스팩 수거함 위치';
   if (url === MEDICINE_SOURCES.seoul) return '서울시 폐의약품 수거 안내';
   if (url === MEDICINE_SOURCES.daejeon) return '대전시 가정 내 폐의약품 안내';
   if (url === MEDICINE_SOURCES.donggu) return '대전 동구 폐의약품 배출 안내';
@@ -101,13 +117,21 @@ export function applyRegionalRules(input, base) {
   result.region = region;
   result.regional = { coverage: 'unverified', label: regionLabel(region), checkedAt: '2026-10-27', sources: [], notes: [], comparisonKey: `basic:${base.status}:${base.method}` };
   const single = input.combined !== 'yes' && !input.components?.length;
-  const knownGlass = result.parts.length === 1 && result.parts[0].label === '본체' && result.reasons.some(reason => reason.includes('일반 재활용 수거 대상'));
+  const knownGlass = result.disposalKind === 'broken-glass';
   const set = (url, note, comparisonKey) => {
     result.regional.coverage = 'verified';
     result.regional.sources.push(url); result.regional.notes.push(note);
     if (comparisonKey) result.regional.comparisonKey = comparisonKey;
     result.sourceUrls = [...new Set([...result.sourceUrls, url])];
   };
+  function applyLocalMethod({ method, reason, steps, status = 'check', source, note, key, pendingCondition }) {
+    Object.assign(result, { status, method, steps, reasons: [reason] });
+    delete result.pendingCondition;
+    if (pendingCondition) result.pendingCondition = pendingCondition;
+    result.parts[0] = { label: result.parts[0].label, material: result.parts[0].material, status, method, steps: [...steps], reasons: [reason] };
+    result.regional.checkedAt = '2026-11-14';
+    set(source, note, key);
+  }
   const medicine = region && result.handling === 'medicine' && medicineRegionalGuidance(region, input.itemName);
   if (medicine) {
     result.regional.scope = medicine.scope;
@@ -123,8 +147,9 @@ export function applyRegionalRules(input, base) {
       const method = '깨진 유리 · 김포시 백색마대봉투로 배출';
       const steps = ['날카로운 유리를 안전하게 감싸고 깨진 유리가 들어 있음을 표시해 주세요.', '김포시 불연성 가정특수폐기물용 백색마대봉투에 담아 배출해 주세요.', '대량·대형 유리는 수거 가능 여부를 김포시에 먼저 확인해 주세요.'];
       result.method = method; result.steps = steps;
+      result.reasons = ['깨진 유리는 유리병과 따로 수거하고, 김포시는 가정에서 나온 깨진 유리에 백색마대봉투 사용을 안내해요.'];
       // 일반 종량제와 다른 불연성 전용 배출이므로 추가 확인 분류를 유지합니다.
-      result.parts[0] = { ...result.parts[0], method, steps: [...steps] };
+      result.parts[0] = { ...result.parts[0], method, steps: [...steps], reasons: [...result.reasons] };
       set(REGIONAL_SOURCES.gimpoWaste, '김포시는 깨진 유리를 불연성 가정특수폐기물로 구분하고 백색마대봉투 사용을 안내해요.', 'glass:gimpo-sack');
     }
     if (single && result.status === 'recycle' && input.material === '페트병' && input.type === 'clear-drink' && input.combined === 'no') {
@@ -132,6 +157,30 @@ export function applyRegionalRules(input, base) {
     }
   }
   const geumcheonFood = region?.province === '서울특별시' && region.district === '금천구' && single && input.material === '음식물류';
+  if (region?.province === '서울특별시' && region.district === '서초구' && result.handling === 'gel-ice-pack') {
+    applyLocalMethod({
+      method: '젤 아이스팩 · 서초구 종량제봉투로 배출',
+      reason: '서초구는 아이스팩 전용 수거를 종료해 젤 아이스팩을 종량제봉투로 안내해요.',
+      steps: ['팩을 뜯거나 내용물을 하수구에 붓지 마세요.', '팩을 통째로 서초구 종량제봉투에 넣어 주세요.'],
+      status: 'general', source: REGIONAL_SOURCES.seochoIcePack, note: '서초구 전용 수거함 운영은 2026년 10월 30일에 종료됐어요.', key: 'ice-pack:seocho-bag',
+    });
+  }
+  if (region?.province === '서울특별시' && region.district === '도봉구' && result.handling === 'gel-ice-pack') {
+    applyLocalMethod({
+      method: '젤 아이스팩 · 도봉구 특수종량제 마대로 배출',
+      reason: '도봉구는 젤 아이스팩 전용 수거를 종료해 특수종량제 마대를 사용해요.',
+      steps: ['팩을 뜯거나 내용물을 하수구에 붓지 마세요.', '팩을 통째로 도봉구 특수종량제 마대에 넣어 주세요.'],
+      source: REGIONAL_SOURCES.dobongIcePack, note: '도봉구 아이스팩 전용 수거는 2025년 1월 2일에 종료됐어요.', key: 'ice-pack:dobong-sack',
+    });
+  }
+  if (region?.province === '경기도' && region.district === '광주시' && result.handling === 'gel-ice-pack') {
+    applyLocalMethod({
+      method: '깨끗하고 온전한 젤 아이스팩 · 경기 광주시 전용 수거함',
+      reason: '경기 광주시는 오염이나 파손이 없는 젤 아이스팩을 모아 세척하고 재사용해요.',
+      steps: ['팩을 뜯거나 내용물을 하수구에 붓지 마세요.', '깨끗하고 터지지 않은 팩은 시에서 안내하는 전용 수거함에 넣어 주세요.', '오염됐거나 찢어진 팩은 재사용 수거함에 넣지 말고 광주시에 배출 방법을 확인해 주세요.'],
+      source: REGIONAL_SOURCES.gyeonggiGwangjuIcePack, note: '광주시청 안내에 행정복지센터 등 전용 수거함 위치가 있어요.', key: 'ice-pack:gyeonggi-gwangju-reuse',
+    });
+  }
   if (region?.province === '서울특별시' && single && result.parts.length === 1 && result.parts[0].label === '본체' && !geumcheonFood) {
     const city = (url, note, key) => {
       set(url, note, key);
@@ -140,11 +189,41 @@ export function applyRegionalRules(input, base) {
       result.regional.sources.push(SEOUL_SOURCES.scope);
       result.sourceUrls = [...new Set([...result.sourceUrls, SEOUL_SOURCES.scope])];
     };
-    if (knownGlass && input.material === '유리' && input.type === 'broken') {
+    if (knownGlass && region.district === '강남구') {
+      applyLocalMethod({
+        method: '깨진 유리 · 강남구 불연성 PP봉투로 배출',
+        reason: '강남구는 깨진 유리를 태워서는 안 되는 쓰레기로 분류해 전용 PP봉투를 안내해요.',
+        steps: ['파편을 감싸 날카로운 부분이 드러나지 않게 해 주세요.', '강남구 불연성 PP봉투에 담아 배출해 주세요. 20L 봉투 10개 분량을 초과하면 대형생활폐기물 배출 절차를 확인해 주세요.'],
+        source: REGIONAL_SOURCES.gangnamWaste, note: '봉투에 담기 어려운 크기나 양은 강남구에 배출 방법을 확인해 주세요.', key: 'glass:gangnam-pp-sack',
+      });
+    } else if (knownGlass && region.district === '송파구') {
+      applyLocalMethod({
+        method: '깨진 유리 · 송파구 특수마대에 담아 신고 후 배출',
+        reason: '송파구는 유리 조각을 재활용 수거 대상에서 제외하고 별도 배출 절차를 안내해요.',
+        steps: ['파편을 감싸 날카로운 부분이 드러나지 않게 해 주세요.', '주소지 지정판매소의 특수마대에 담은 뒤 관할 청소대행업체에 신고하고 안내받은 장소에 배출해 주세요.'],
+        source: REGIONAL_SOURCES.songpaWaste, note: '지정판매소와 담당 청소대행업체는 송파구에 확인해 주세요.', key: 'glass:songpa-sack-report',
+      });
+    } else if (knownGlass && region.district === '도봉구') {
+      applyLocalMethod({
+        method: '깨진 유리 · 양에 따라 봉투 선택',
+        reason: '유리 파편에 다치지 않도록 감싸고, 도봉구 품목별 안내에 따라 양에 맞는 봉투를 사용해요.',
+        steps: ['파편을 신문지 등으로 감싸 날카로운 부분이 드러나지 않게 해 주세요.', '도봉구는 소량이면 종량제봉투, 다량이면 특수규격봉투(PP마대)를 안내해요.'],
+        source: REGIONAL_SOURCES.dobongWaste, note: '봉투에 담기 어려운 크기나 양은 도봉구에 배출 방법을 확인해 주세요.', key: 'glass:seoul-amount',
+      });
+    } else if (knownGlass && input.material === '유리' && input.type === 'broken') {
       result.method = '깨진 유리 · 서울시 공통 안내 확인';
+      result.reasons = ['서울시 공통 안내는 깨진 유리를 일반 유리병과 구분하고, 양에 따라 봉투나 마대를 달리 사용해요.'];
       result.steps = ['파편을 신문지 등으로 감싸 날카로운 부분이 드러나지 않게 해 주세요.', '서울시 표준안은 소량은 종량제봉투, 다량은 특수규격마대를 안내해요. 크기·수량과 해당 구의 수거 기준을 먼저 확인해 주세요.'];
-      result.parts[0] = { ...result.parts[0], method: result.method, steps: [...result.steps] };
+      result.parts[0] = { ...result.parts[0], method: result.method, steps: [...result.steps], reasons: [...result.reasons] };
       city(SEOUL_SOURCES.recycle, '깨진 유리는 일반 유리병 수거함에 넣지 말고 양과 구별 수거 기준을 확인해 주세요.', 'glass:seoul-amount');
+    } else if (input.material === '비닐' && input.type === 'packaging' && input.combined === 'no' && !usesSeoulVinylQuestions(region)
+        && (['recycle', 'general'].includes(result.status) || result.pendingCondition === 'removable')) {
+      const note = '도봉구는 이물질을 완전히 제거한 비닐만 투명봉투에 모아 배출해요.';
+      const reason = result.status === 'general' ? '도봉구는 이물질이 묻은 비닐을 종량제봉투로 안내해요.' : `${note} ${result.reasons[0]}`;
+      applyLocalMethod({ method: result.method, reason, steps: result.steps, status: result.status, pendingCondition: result.pendingCondition,
+        source: REGIONAL_SOURCES.dobongWaste, note, key: result.regional.comparisonKey });
+    } else if (input.material === '비닐' && input.type === 'packaging' && input.combined === 'no' && input.contaminated === 'no' && result.status === 'recycle') {
+      city(SEOUL_SOURCES.vinyl, '비닐류는 다른 재활용품과 섞지 않고 투명 봉투에 모아 배출해 주세요.');
     } else if (input.material === '비닐' && input.type === 'packaging' && input.combined === 'no' && (['recycle', 'general'].includes(result.status) || result.pendingCondition === 'removable')) {
       if (input.contaminated === 'yes') {
         delete result.pendingCondition;
@@ -152,14 +231,17 @@ export function applyRegionalRules(input, base) {
           result.status = 'recycle'; result.method = '비닐류로 분리배출 · 서울시 공통 안내';
           result.reasons = ['내용물을 비웠고 고형물 없이 기름·물 자국만 남았다고 확인했어요. 서울시 폐비닐 수거 안내를 적용해요.'];
           result.steps = ['음식물·소스·부스러기 등 고형물이 없는지 다시 확인해 주세요.', '폐비닐 전용봉투가 있으면 사용하고, 없으면 투명 봉투에 비닐끼리 모아 배출해 주세요.'];
-        } else if (input.vinylResidue === 'solids' && input.removable === 'yes') {
+        } else if (input.vinylResidue === 'solids' && input.removable === 'yes' && result.status === 'recycle') {
           result.method = '고형물 제거 후 비닐류로 분리배출 · 서울시 공통 안내';
           result.reasons = ['고형물이 남아 있어 헹궈 제거한 뒤 배출해야 해요. 기름·물 자국만 남는 것은 수거할 수 있어요.'];
           result.steps = ['내용물을 비우고 음식물·소스 등 고형물을 물로 헹궈 제거해 주세요.', '고형물을 제거한 뒤 전용봉투 또는 투명 봉투에 비닐끼리 모아 배출해 주세요. 제거되지 않으면 구청·관리사무소에 수거 방법을 확인해 주세요.'];
         } else {
           result.status = 'check'; result.method = '비닐의 내용물·고형물 확인 필요 · 서울시 안내';
           if (input.vinylResidue !== 'solids') result.pendingCondition = 'vinyl-residue';
-          result.reasons = [input.vinylResidue === 'solids' ? '제거하기 어려운 고형물이 남아 있어 구별 수거 기준을 확인해야 해요.' : '남은 오염이 기름·물 자국인지 고형물인지 아직 확인되지 않았어요.'];
+          else if (!['yes', 'no'].includes(input.removable)) result.pendingCondition = 'removable';
+          result.reasons = [input.vinylResidue !== 'solids' ? '서울시는 기름·물 자국과 고형물이 남은 경우를 다르게 안내해요.'
+            : input.removable === 'no' ? '제거하기 어려운 고형물이 남아 있어 구별 수거 기준을 확인해야 해요.'
+              : '고형물을 제거할 수 있는지 확인해야 비닐류로 배출할 수 있는지 알 수 있어요.'];
           result.steps = ['비닐에 남은 것이 기름·물 자국인지 고형물인지 확인해 주세요.', '음식물·소스·부스러기는 비우거나 헹궈 제거해 주세요. 제거되지 않는 고형물은 구청·관리사무소에 수거 방법을 확인해 주세요.'];
         }
         result.parts[0] = { label: result.parts[0].label, material: result.parts[0].material, status: result.status, method: result.method, reasons: [...result.reasons], steps: [...result.steps] };
@@ -171,19 +253,21 @@ export function applyRegionalRules(input, base) {
       city(SEOUL_SOURCES.recycle, '단단한 뼈·껍데기와 질긴 뿌리 등은 음식물 수거에 섞지 말고 일반폐기물 배출 기준을 확인해 주세요.');
     } else if (result.status === 'recycle' && input.combined === 'no') {
       const key = seoulRecycleKey(input);
-      if (key) city(SEOUL_SOURCES.recycle, SEOUL_RECYCLE_NOTES[key], key === 'carton' ? 'carton:seoul-separated' : undefined);
+      if (key) city(SEOUL_SOURCES.recycle, SEOUL_RECYCLE_NOTES[key], key === 'carton' ? 'carton:separate-with-paper-fallback' : undefined);
     }
   }
   if (geumcheonFood && input.type === 'residue' && result.status === 'check' && result.parts.length===1 && result.parts[0].label==='본체') {
     result.status = 'general'; result.method = '금천구 음식물 수거 제외 · 일반규격봉투 배출';
+    result.reasons = ['금천구 안내에서 이 찌꺼기는 음식물 수거 대상에서 제외돼요.'];
     result.steps = ['포장·이물질을 따로 분리해 주세요.', '금천구 안내에 따라 생활폐기물 일반규격봉투로 배출해 주세요.', '커피박 등 별도 회수 사업을 이용하려면 해당 접수 조건을 먼저 확인해 주세요.'];
-    result.parts[0] = {...result.parts[0],status:result.status,method:result.method,steps:[...result.steps]};
+    result.parts[0] = {...result.parts[0],status:result.status,method:result.method,steps:[...result.steps],reasons:[...result.reasons]};
   }
   if (geumcheonFood && ['general', 'recycle'].includes(result.status)) {
     set(REGIONAL_SOURCES.geumcheonFood, result.status === 'general'
       ? '금천구는 해당 음식물 수거 제외 품목을 생활폐기물 일반규격봉투로 배출하도록 안내해요. 별도 회수 사업이 있으면 해당 안내를 확인해 주세요.'
       : '금천구 안내에 따라 음식물 외 이물질과 수분을 제거하고 음식물류 수거 방식에 맞춰 배출해 주세요.');
     if (input.type === 'soft') result.regional.comparisonKey = 'food:seoul-local';
+    if (input.type === 'residue') result.regional.comparisonKey = 'food:geumcheon-residue';
   }
   const daejeon = region?.province === '대전광역시' && DAEJEON_GUIDES[region.district];
   if (daejeon && single) {
@@ -195,48 +279,54 @@ export function applyRegionalRules(input, base) {
       set(REGIONAL_SOURCES.yuseongLargeFees, '유성구 품목표는 책상을 양수, 편수, 컴퓨터용, 세트로 구분해요.', 'desk:yuseong-types');
     } else if (knownGlass && region.district === '서구' && input.material === '유리' && input.type === 'broken') {
       result.status = 'general'; result.method = '깨진 유리 · 안전 포장 후 서구 종량제봉투로 배출';
+      result.reasons = ['파편으로 다칠 수 있어 대전 서구는 유리를 안전하게 감싼 뒤 봉투에 위험물 표시를 하도록 안내해요.'];
       result.steps = ['유리 조각을 신문지 등으로 안전하게 감싸 주세요.', '종량제봉투 겉면에 위험물이라고 크게 표시해 주세요.', '봉투에 담기 어려운 크기·양은 서구에 별도 처리 방법을 확인해 주세요.'];
-      result.parts[0] = { ...result.parts[0], status: result.status, method: result.method, steps: [...result.steps] };
+      result.parts[0] = { ...result.parts[0], status: result.status, method: result.method, steps: [...result.steps], reasons: [...result.reasons] };
       set(daejeon.recycle, '대전 서구는 깨진 유리를 안전하게 포장하고 종량제봉투에 위험물 표시를 하도록 안내해요.', 'glass:seogu-bag');
     } else if (result.status === 'recycle' && input.material === '음식물류' && input.type === 'soft') {
-      set(daejeon.food, daejeon.foodNote, `food:daejeon-${region.district}`);
+      const foodMethods = { 중구: 'sticker-3-or-5l', 대덕구: 'sticker-3-or-5l', 동구: 'sticker-5l', 서구: 'container', 유성구: 'cleannet' };
+      set(daejeon.food, daejeon.foodNote, `food:daejeon-${foodMethods[region.district]}`);
       result.steps = result.steps.filter(step => !step.includes('전용 봉투·전용 용기·RFID'));
       result.parts[0].steps = [...result.steps, daejeon.foodNote];
     } else if (result.status === 'recycle' && input.combined === 'no' && region.district === '유성구' && input.material === '스티로폼') {
       result.status = 'check'; result.method = '스티로폼 색상·이물질 추가 확인 필요';
+      result.reasons = ['유성구는 색이 있거나 이물질이 남은 스티로폼을 일반 재활용품으로 수거하지 않아요.'];
       result.steps = ['테이프·운송장을 제거하고 이물질이 남아 있지 않은지 확인해 주세요.', '유성구 안내에서 유색 스티로폼은 수거 제외 대상이므로 색상과 실제 수거 여부를 확인해 주세요.'];
-      result.parts[0] = { ...result.parts[0], status: result.status, method: result.method, steps: [...result.steps] };
+      result.parts[0] = { ...result.parts[0], status: result.status, method: result.method, steps: [...result.steps], reasons: [...result.reasons] };
       set(daejeon.recycle, '유성구는 색이 있거나 이물질이 남은 스티로폼을 일반 재활용 수거 대상에서 제외해요.', 'foam:yuseong-color');
     } else if ((result.status === 'general' || result.pendingCondition === 'removable') && input.material === '비닐' && input.type === 'packaging' && input.combined === 'no' && region.district === '유성구') {
       set(daejeon.recycle, daejeon.vinyl);
     } else if (result.status === 'recycle' && input.combined === 'no') {
       const note = daejeonRecycleNote(daejeon, input);
-      if (note) set(daejeon.recycle, note);
+      if (note) set(daejeon.recycle, note, daejeonComparisonKey(region.district, input));
     }
   }
   // 라벨·뚜껑을 떼어 각각 분리배출하는 물건(예: 라벨 붙은 생수병)도 본체에는 지역 기준을 붙입니다.
   // 부속품마다 다른 지역 문장을 섞으면 헷갈리므로 본체 재질의 문장 하나만 더합니다.
   const separated = input.combined === 'yes' && input.separable === 'yes' && input.components?.length
-    && result.status === 'recycle' && result.parts[0]?.label === '본체' && result.parts[0].status === 'recycle';
+    && result.parts[0]?.label === '본체' && result.parts[0].status === 'recycle';
+  const regionalBody = separated && result.status !== 'recycle';
   if (separated && result.regional.coverage !== 'verified') {
     if (region?.province === '서울특별시') {
       const key = seoulRecycleKey(input);
       if (key) {
-        set(SEOUL_SOURCES.recycle, SEOUL_RECYCLE_NOTES[key]);
+        set(SEOUL_SOURCES.recycle, SEOUL_RECYCLE_NOTES[key], key === 'carton' ? 'carton:separate-with-paper-fallback' : undefined);
         result.regional.scope = 'city'; result.regional.cityLabel = '서울시';
         result.regional.notes.push(SEOUL_SCOPE_NOTE);
         result.regional.sources.push(SEOUL_SOURCES.scope);
         result.sourceUrls = [...new Set([...result.sourceUrls, SEOUL_SOURCES.scope])];
       }
+    } else if (region?.province === '경기도' && region.district === '김포시' && input.material === '페트병' && input.type === 'clear-drink') {
+      set(REGIONAL_SOURCES.gimpoRecycle, '김포시: 공동주택은 투명 페트병 전용 수거함, 단독주택 등은 전용봉투 또는 투명·반투명 봉투에 담아 배출해요.', 'pet:gimpo-collection');
     } else if (daejeon && input.material !== '비닐') {
       const note = daejeonRecycleNote(daejeon, input);
-      if (note) set(daejeon.recycle, note);
+      if (note) set(daejeon.recycle, note, daejeonComparisonKey(region.district, input));
     }
   }
   // 광역시(대구·광주·울산): 시청 공통 안내 문장을 붙입니다. 구·군별 수거 요일·장소는 구청 안내를 따릅니다.
   const metro = METRO_GUIDES[region?.province]?.city;
   if (metro && result.regional.coverage !== 'verified' && result.parts[0]?.label === '본체') {
-    const bodyRecyclable = result.status === 'recycle' && (input.combined === 'no' || separated);
+    const bodyRecyclable = separated || (result.status === 'recycle' && input.combined === 'no');
     const notes = [];
     const isFood = single && result.status === 'recycle' && input.material === '음식물류' && input.type === 'soft' && Boolean(metro.foodNote);
     if (isFood) notes.push(metro.foodNote);
@@ -246,7 +336,11 @@ export function applyRegionalRules(input, base) {
     }
     if (notes.length) {
       const scopeNote = `${metro.label} 공통 안내예요. 구·군마다 수거 요일·장소가 다를 수 있으니 구청·관리사무소 안내를 함께 확인해 주세요.`;
-      for (const note of notes) set(isFood ? metro.food || metro.recycle : metro.recycle, note);
+      const methodKey = isFood ? `food:${region.province}`
+        : region.province === '대구광역시' && input.material === '비닐' ? 'vinyl:daegu-bundle'
+          : region.province === '광주광역시' && input.material === '종이' && input.type === 'carton' ? 'carton:separate-with-paper-fallback'
+            : undefined;
+      for (const note of notes) set(isFood ? metro.food || metro.recycle : metro.recycle, note, methodKey);
       result.regional.scope = 'city'; result.regional.cityLabel = metro.label; result.regional.scopeNote = scopeNote; result.regional.checkedAt = METRO_CHECKED_AT;
       result.regional.notes.push(scopeNote);
       if (isFood) result.steps = result.steps.filter(step => !step.includes('전용 봉투·전용 용기·RFID'));
@@ -254,11 +348,19 @@ export function applyRegionalRules(input, base) {
   }
   if (result.regional.coverage === 'verified') {
     const scopeNotes = [SEOUL_SCOPE_NOTE, result.regional.scopeNote].filter(Boolean);
-    result.steps = [...new Set([...result.steps, ...result.regional.notes.filter(note => !scopeNotes.includes(note) && !(note === SEOUL_VINYL_NOTE && input.contaminated === 'yes'))])];
+    const notes = result.regional.notes.filter(note => !scopeNotes.includes(note) && !(note === SEOUL_VINYL_NOTE && input.contaminated === 'yes'));
+    const target = regionalBody ? result.parts[0] : result;
+    target.steps = [...new Set([...target.steps, ...notes])];
     result.reasons.push(result.regional.scope === 'city' ? `${cityGuidanceLabel(result)}를 적용했어요. 해당 구·군의 수거 기준도 확인해 주세요.` : `${regionLabel(region)} 공식 자료로 확인한 해당 품목의 지역 기준을 적용했어요.`);
     result.notice = medicine ? '수거함 위치와 접수 가능 여부는 방문 전에 확인해 주세요.' : result.regional.scope === 'city' ? result.regional.scopeNote || SEOUL_SCOPE_NOTE : '표시된 품목의 지역 기준을 적용했어요. 배출일·시간·장소는 동별·주택 유형·관리사무소 안내를 확인해 주세요.';
   } else {
     result.regional.notes.push(region ? '이 지역의 해당 품목에 대한 세부 기준은 아직 검증하지 못했어요. 아래 기본 안내를 참고하고 관할 시·군·구 청소 담당 부서 또는 관리사무소에 확인해 주세요.' : '지역을 설정하면 확인된 지역별 기준을 적용할 수 있어요. 현재는 기본 안내예요.');
   }
   return result;
+}
+
+function daejeonComparisonKey(district, input) {
+  if (input.material !== '종이' || input.type !== 'carton') return;
+  if (['동구', '중구'].includes(district)) return 'carton:separate-with-recycling-fallback';
+  if (district === '유성구') return 'carton:separate-from-paper';
 }

@@ -30,12 +30,13 @@ export function stepIcon(text) {
   return found ? { icon: found[1], label: found[2] } : { icon: '✅', label: '하기' };
 }
 
-export function stepListMarkup(steps, className = 'action-steps', { checklist = false } = {}) {
-  const items = steps.map(step => {
+export function stepListMarkup(steps, className = 'action-steps', { checklist = false, emphasizeFirst = false } = {}) {
+  const items = steps.map((step, index) => {
     const { icon, label } = stepIcon(step);
     const text = `<span class="step-text">${escapeHtml(step)}</span>`;
     const content = checklist ? `<label class="step-check"><input type="checkbox" data-disposal-step hidden disabled>${text}</label>` : text;
-    return `<li><span class="step-icon" role="img" aria-label="${label}">${icon}</span>${content}</li>`;
+    const emphasis = emphasizeFirst && index === 0 ? ' class="result-first-step"' : '';
+    return `<li${emphasis}><span class="step-icon" role="img" aria-label="${label}">${icon}</span>${content}</li>`;
   });
   return `<ol class="${className} icon-steps">${items.join('')}</ol>`;
 }

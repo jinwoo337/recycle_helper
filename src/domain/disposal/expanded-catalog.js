@@ -1,7 +1,7 @@
 // 품목명은 정확히 일치할 때만 사용합니다. 제품 상태(오염·세척)는 기본값에 넣지 않습니다.
 // 포장 구성은 대표적인 예시이며, 사용자가 실제 제품에 맞춰 수정해야 합니다.
 import { FOOD_SOURCE } from './food.js';
-import { ALUMINUM_CAPSULE_SOURCE, GEL_ICE_PACK_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, WATER_ICE_PACK_SOURCE } from './catalog-sources.js';
+import { ALUMINUM_CAPSULE_SOURCE, FOAM_NOODLE_CUP_SOURCE, FOOD_PAD_SOURCE, GEL_ICE_PACK_SOURCE, LAMP_DISPOSAL_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, PAPER_NOODLE_CUP_SOURCE, RICE_CONTAINER_SOURCE, WATER_ICE_PACK_SOURCE, WET_WIPE_SOURCE } from './catalog-sources.js';
 export const CATALOG_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const CATALOG_CHECKED_AT = '2026-10-27';
 const plastic = { material:'플라스틱', type:'container', label:'플라스틱 덮개·마개' };
@@ -58,7 +58,7 @@ export const expandedItemEntries = [
   row('플라스틱계란판', '플라스틱', 'container', containerNote),
   row('플라스틱샐러드용기', '플라스틱', 'container', containerNote),
   row('플라스틱두부용기', '플라스틱', 'container', containerNote),
-  row('플라스틱즉석밥용기|플라스틱햇반용기', '플라스틱', 'container', containerNote),
+  row('플라스틱즉석밥용기|플라스틱햇반용기|즉석밥플라스틱그릇', '플라스틱', 'container', '떼어낸 덮개를 제외한 플라스틱 그릇 기준이에요. 남은 밥과 기름기를 제거해 주세요.', undefined, undefined, RICE_CONTAINER_SOURCE, '2026-11-14'),
   row('플라스틱국물용기|플라스틱탕용기', '플라스틱', 'container', containerNote),
   row('플라스틱배달뚜껑|플라스틱용기뚜껑', '플라스틱', 'container', containerNote),
   row('플라스틱테이크아웃컵|플라스틱아이스커피컵', '플라스틱', 'container', 'PET여도 음료용 페트병 전용 수거 대상이 아닌 컵이에요. 뚜껑·빨대·종이 홀더는 실제 구성에 맞춰 추가해 주세요.'),
@@ -120,6 +120,7 @@ export const expandedItemEntries = [
   row('부푼배터리|손상된배터리|누액건전지', '기타', '', '손상·팽창·누액이 있는 전지는 정상 전지와 구분해요. 임의로 수거함에 넣기 전에 담당 기관에 문의해 주세요.', undefined, 'damaged-battery'),
   row('형광등|직관형광등|전구형형광등', '기타', '', '수은을 포함할 수 있는 형광등 기준이에요. LED·백열전구와 구분해 주세요.', undefined, 'fluorescent'),
   row('깨진형광등', '기타', '', '깨진 형광등은 정상 형광등 수거함에 바로 넣지 않아요. 접촉을 피하고 지역 담당 기관에 문의해 주세요.', undefined, 'broken-lamp'),
+  row('깨진전구|파손전구|깨진조명', '기타', '', '깨진 조명은 다치지 않도록 감싸고 지역 배출 기준을 확인해 주세요.', undefined, 'broken-lamp', LAMP_DISPOSAL_SOURCE, '2026-11-14'),
   row('LED전구|LED조명', '기타', '', 'LED 조명은 형광등과 다른 품목이에요. 지역별 전용 회수·소형가전 수거 기준을 확인해 주세요.', undefined, 'led'),
   row('백열전구|할로겐전구', '기타', '', '형광등·유리병과 구분해요. 지역 불연성 폐기물 기준을 확인해 주세요.', undefined, 'bulb'),
   row('휴대폰|스마트폰|폐휴대폰', '기타', '', '전기·전자제품으로 안내하므로 재질을 직접 고를 필요가 없어요. 개인정보와 배터리 상태를 확인해 주세요.', undefined, 'electronic'),
@@ -158,6 +159,7 @@ export const expandedItemEntries = [
   row('건축용스티로폼|단열스티로폼', '스티로폼', 'other', '포장용 완충재가 아닌 건축·단열재 기준이에요. 지역 공사장 생활폐기물 처리 기준을 확인해 주세요.'),
   row('코팅스티로폼|분리불가접착스티로폼', '스티로폼', 'other', '다른 재질이 코팅·접착되어 분리되지 않는 발포수지 기준이에요.'),
   row('플라스틱샴푸통|플라스틱린스통', '플라스틱', 'container', '플라스틱 용기 본체 기준이에요. 철제 스프링이 든 펌프는 부속품으로 따로 확인하고 억지로 분해하지 마세요.'),
+  row('스프링이든복합재질펌프|스프링샴푸펌프|금속스프링세제펌프', '기타', '', '용기에서 떼어낸 금속 스프링이 들어 있는 펌프 기준이에요.', undefined, 'pump-with-spring', undefined, '2026-11-14'),
   row('플라스틱바디워시통|플라스틱손세정제통', '플라스틱', 'container', '플라스틱 본체 기준이에요. 펌프 내부 스프링·라벨·내용물을 실제로 확인해 주세요.'),
   row('플라스틱세탁세제통|플라스틱주방세제통', '플라스틱', 'container', '플라스틱 용기 기준이에요. PET 표시가 있으면 다른 용도의 PET 종류로 수정해 주세요. 뚜껑·펌프는 직접 확인해 주세요.'),
   row('플라스틱섬유유연제통', '플라스틱', 'container', '플라스틱 본체 기준이에요. PET 재질이면 세제용 PET로 수정하고 라벨·뚜껑을 확인해 주세요.'),
@@ -169,8 +171,10 @@ export const expandedItemEntries = [
   row('비닐과일봉지|비닐얼음봉지', '비닐', 'packaging', filmNote),
   row('비닐떡포장지|비닐어묵포장지', '비닐', 'packaging', filmNote),
   row('비닐치즈포장지|비닐햄포장지', '비닐', 'packaging', filmNote),
-  row('비닐물티슈겉포장', '비닐', 'packaging', '비닐 겉포장 기준이에요. 플라스틱 캡과 남은 물티슈는 따로 확인해 주세요.'),
-  row('플라스틱물티슈캡', '플라스틱', 'container', '포장에서 분리한 플라스틱 캡 기준이에요. 접착 비닐 등 다른 재질이 남으면 실제 상태를 입력해 주세요.'),
+  row('사용한물티슈|쓰던물티슈|물티슈낱장', '기타', '', '포장을 제외한 물티슈 낱장 기준이에요.', undefined, 'wet-wipe', WET_WIPE_SOURCE, '2026-11-14'),
+  row('비닐물티슈겉포장|비닐물티슈포장', '비닐', 'packaging', '비닐 겉포장 기준이에요. 플라스틱 캡과 남은 물티슈는 따로 확인해 주세요.', undefined, undefined, WET_WIPE_SOURCE, '2026-11-14'),
+  row('플라스틱물티슈캡|플라스틱물티슈뚜껑', '플라스틱', 'container', '포장에서 분리한 플라스틱 캡 기준이에요. 접착 비닐 등 다른 재질이 남으면 실제 상태를 입력해 주세요.', undefined, undefined, WET_WIPE_SOURCE, '2026-11-14'),
+  row('식품포장흡수패드|정육흡수패드|생선포장흡수패드|고기밑흡수패드', '기타', '', '고기·생선 아래에서 핏물이나 물기를 흡수하는 패드 기준이에요.', undefined, 'food-absorbent-pad', FOOD_PAD_SOURCE, '2026-11-14'),
   row('플라스틱식품보관통|플라스틱김치통', '플라스틱', 'container', '플라스틱 용기 본체 기준이에요. 고무 패킹·금속 잠금장치·뚜껑의 실제 구성을 확인해 주세요.'),
   // 5차: 주요 가전. 본체의 금속·플라스틱을 따로 고르게 하지 않습니다.
   row('청소기|진공청소기|유선청소기', '기타', '', '전기제품 본체 기준이에요. 먼지·봉투 등 소모품은 따로 정리하고 지역 소형 폐가전 수거 조건을 확인해 주세요.', undefined, 'electronic'),
@@ -236,7 +240,7 @@ export const expandedItemEntries = [
   row('고철|금속못|철사|고철조각', '금속·캔', 'other', '전기·전자·전지 제품이 아닌 고철 기준이에요. 날카로운 부분과 다른 재질을 확인해 주세요.', undefined, 'scrap-metal'),
   // 7차: 자주 보는 포장의 대표 결합 구성. 오염 상태와 실물 구성은 반드시 확인합니다.
   row('두부용기|필름뚜껑두부용기', '플라스틱', 'container', '플라스틱 본체와 떼어내는 비닐 필름의 대표 예시예요. 종이·알루미늄 등 다른 제품이면 재질과 부속품을 수정해 주세요.', joined(film)),
-  row('즉석밥용기|햇반용기|즉석밥플라스틱용기', '플라스틱', 'container', '플라스틱 용기와 떼어내는 비닐 필름의 대표 예시예요. 포장 표시가 다르거나 필름을 이미 제거했으면 수정해 주세요.', joined(film)),
+  row('즉석밥용기|햇반용기|즉석밥플라스틱용기', '플라스틱', 'container', '플라스틱 용기와 떼어내는 비닐 필름의 대표 예시예요. 포장 표시가 다르거나 필름을 이미 제거했으면 수정해 주세요.', joined(film), undefined, RICE_CONTAINER_SOURCE, '2026-11-14'),
   row('필름포장플라스틱반찬용기|필름뚜껑플라스틱반찬용기', '플라스틱', 'container', '플라스틱 본체와 떼어내는 비닐 필름 기준이에요. 접착·코팅된 일체형 제품이면 분리 여부를 수정해 주세요.', joined(film)),
   row('필름포장플라스틱도시락용기', '플라스틱', 'container', '플라스틱 본체와 비닐 필름 기준이에요. 고무줄·종이 띠 등 다른 부속품은 추가해 주세요.', joined(film)),
   row('필름포장플라스틱샐러드용기', '플라스틱', 'container', '플라스틱 본체와 떼어내는 비닐 필름 기준이에요. 소스 봉지·포크 등은 별도 확인해 주세요.', joined(film)),
@@ -422,8 +426,9 @@ export const expandedItemEntries = [
   row('즉석짜장봉지|짜장레토르트봉지','비닐','packaging','비닐로 표시된 포장 기준이에요. 음식물·기름과 별도 표시를 확인해 주세요.',undefined,undefined,filmSource),
   row('음료파우치|주스파우치|과즙파우치','비닐','packaging','비닐 표시가 있는 음료 포장 기준이에요. 플라스틱 마개·빨대 등은 별도로 확인해 주세요.',undefined,undefined,filmSource),
   row('삼각커피우유팩|삼각커피우유포장','비닐','packaging','삼각형 비닐 포장 제품 기준이에요. 종이팩과 구분하고 실제 분리배출 표시를 확인해 주세요.',undefined,undefined,filmSource),
-  row('컵라면용기|컵라면컵|라면컵','종이','food-container','종이 컵라면 용기를 대표 예시로 채웠어요. 플라스틱·스티로폼 제품이면 재질과 종류를 바꿔 주세요. 은박 뚜껑·비닐 포장은 따로 확인해 주세요.',undefined,undefined,'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=406'),
-  row('종이컵라면용기|종이라면컵','종이','food-container','종이 식품 용기 기준이에요. 내용물과 오염 제거 여부, 도포·첩합 표시와 지역 수거 기준을 확인해 주세요.',undefined,undefined,'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=406'),
+  row('종이컵라면용기|종이라면컵','종이','food-container','종이 식품 용기 기준이에요. 내용물과 오염 제거 여부, 도포·첩합 표시와 지역 수거 기준을 확인해 주세요.',undefined,undefined,PAPER_NOODLE_CUP_SOURCE,'2026-11-14'),
+  row('스티로폼컵라면용기|스티로폼컵라면|스티로폼라면컵','기타','','컵라면 본체가 발포 소재인 경우에 해당해요. 지역에서 컵라면 용기를 받는지 확인해 주세요.',undefined,'foam-noodle-cup',FOAM_NOODLE_CUP_SOURCE,'2026-11-14'),
+  row('단단한플라스틱컵라면용기|플라스틱라면컵','플라스틱','container','단단한 플라스틱 용기에만 해당해요. 내용물을 비우고 겉포장과 뚜껑을 따로 확인해 주세요.',undefined,undefined,undefined,'2026-11-14'),
   row('컵밥용기','플라스틱','container','일반적인 플라스틱 용기를 예시로 채웠어요. 종이 등 다른 제품이면 재질·종류를 수정하고 필름·뚜껑은 실제 구성에 맞춰 확인해 주세요.'),
   row('편의점도시락용기|도시락용기','플라스틱','container','일반적인 플라스틱 용기를 예시로 채웠어요. 종이 등 다른 제품이면 수정해 주세요. 필름·종이 띠·고무줄은 직접 확인해 주세요.'),
   row('배달용기','플라스틱','container','일반적인 플라스틱 용기를 대표 예시로 채웠어요. 종이·스티로폼 등 다른 제품이면 수정하고 뚜껑·필름·음식물을 확인해 주세요.'),

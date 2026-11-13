@@ -44,6 +44,7 @@ export function inputForDisplay(input, savedResult) {
 
 const pendingQuestionLabels = {
   material: '재질 확인하기',
+  label: '부속품 이름 확인하기',
   type: '세부 종류 확인하기',
   state: '오염 상태 확인하기',
   removable: '오염 제거 여부 확인하기',
@@ -80,6 +81,23 @@ export function resultPendingQuestions(input, result) {
 
 export function resultPendingQuestion(input, result) {
   return resultPendingQuestions(input, result)[0] || null;
+}
+
+export function disposalReasons(result) {
+  if (!result) return [];
+  const reasons = result.reasons || [];
+  const parts = result.parts || [];
+  if (parts.length < 2) {
+    const needsComposition = result.status === 'check' && ['combined', 'separable', 'components'].includes(result.pendingCondition);
+    if (needsComposition) return [reasons.at(-1) || reasons[0]].filter(Boolean);
+    const hasRemovableContamination = result.status === 'recycle' && result.method.startsWith('오염 제거 후');
+    return (hasRemovableContamination ? reasons.slice(0, 2) : reasons.slice(0, 1)).filter(Boolean);
+  }
+  const body = parts[0];
+  const attachments = parts.slice(1);
+  const affected = attachments.find(part => part.status === 'check')
+    || attachments.find(part => part.status !== body.status) || attachments[0];
+  return [body, affected].filter(part => part.reasons?.[0]).map(part => `${part.label} · ${part.reasons[0]}`);
 }
 
 export function resultStepsForDisplay(result) {

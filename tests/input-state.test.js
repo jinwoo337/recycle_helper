@@ -21,12 +21,12 @@ test('일반 종이는 세척을 묻거나 세척했다고 저장하지 않는�
   assert.equal(selectedState({contaminated:'yes'},false),'dirty');
 });
 
-test('본체 상태를 복사해도 종이와 플라스틱 사이에 다른 오염 제거 답이 섞이지 않는다', () => {
+test('본체 상태를 복사해도 부속품의 오염 제거 가능 여부는 따로 확인한다', () => {
   const body = { material: '플라스틱', type: 'container', contaminated: 'yes', washed: 'yes', removable: 'no' };
   const paper = { material: '종이', type: 'paper', removable: 'yes' };
   const film = { material: '비닐', type: 'packaging', vinylResidue: 'liquid-only' };
   assert.deepEqual(linkedComponentState(body, paper), { contaminated: 'yes', washed: '', removable: '', vinylResidue: '' });
-  assert.deepEqual(linkedComponentState(body, film), { contaminated: 'yes', washed: 'yes', removable: 'no', vinylResidue: '' });
+  assert.deepEqual(linkedComponentState(body, film), { contaminated: 'yes', washed: 'yes', removable: '', vinylResidue: '' });
   assert.equal(linkedComponentState(body, { material: '기타' }), null);
   assert.equal(paper.removable, 'yes');
 });

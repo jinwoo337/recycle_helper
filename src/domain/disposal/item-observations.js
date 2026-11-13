@@ -11,8 +11,9 @@ const fields = {
 };
 const partNames = { body: '본체', lid: '뚜껑', label: '라벨', film: '포장 필름' };
 const partAliases = {
-  lid: ['뚜껑', '마개', '병뚜껑'], label: ['라벨', '비닐라벨', '분리한라벨'],
-  film: ['포장필름', '비닐포장필름', '떼어내는비닐포장필름'],
+  lid: /^(?:플라스틱|종이|금속|유리|알루미늄포일|은박)?(?:병|컵|용기)?(?:뚜껑|마개|덮개|덮개·마개)$/,
+  label: /^(?:떼어내는|분리한)?(?:비닐|종이)?(?:라벨|라벨·상표)$/,
+  film: /^(?:떼어내는|분리한)?(?:비닐)?(?:포장)?(?:필름|랩)$/,
 };
 const stateNames = { clean: '깨끗함', dirty: '오염 있음 · 세척 전', 'washed-dirty': '세척 후에도 오염 있음' };
 const handlingNames = { undamaged: '전지 · 손상 없음', damaged: '전지 · 팽창·누액 또는 파손 있음', reusable: '의류·잡화 · 다시 쓸 수 있음', unusable: '의류·잡화 · 심한 오염 또는 훼손 있음' };
@@ -44,11 +45,12 @@ export function observationsFromDescription(value) {
     if (damaged || undamaged) entries.push({ part: 'body', field: 'handlingCondition', value: damaged ? 'damaged' : 'undamaged' });
   }
   let part = 'body';
-  for (const chunk of source.split(/[,.!?;·\n]|그리고/)) {
+  const clauses = source.split(/[,.!?;·\n]|그리고|(?<=고)\s+(?=(?:본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:이|가|은|는|에)\s)/);
+  for (const chunk of clauses) {
     const clause = chunk.trim();
     if (!clause || /아닌|아니|같아|같고|인 듯|아마|추정|불확실|모르|인가|일까|라면|라든지/.test(clause)) continue;
     if (/^(본체|몸체|용기|통|안에|안에는|속에|내부)/.test(clause)) part = 'body';
-    else if (/^(뚜껑|캡)/.test(clause)) part = 'lid';
+    else if (/^(뚜껑|마개|캡)/.test(clause)) part = 'lid';
     else if (/^라벨/.test(clause)) part = 'label';
     else if (/^(포장\s*)?필름/.test(clause)) part = 'film';
     if (/다른\s*재질(?:이|은)?\s*(?:전혀\s*)?(?:없어요|없습니다|붙어\s*있지\s*않아요|붙지\s*않았어요)(?=\s*$)/.test(clause)) {
@@ -131,16 +133,22 @@ export function applyItemObservations(input, observations) {
   }
   if (parts.has('body')) applyPart(next, parts.get('body'));
   const attachments = [...parts].filter(([key]) => key !== 'body');
+  const confirmedNoAttachments = entries.some(entry => entry.field === 'combined' && entry.value === 'no');
   const checkedSeparation = entries.some(entry => entry.field === 'separable');
-  if (attachments.length || checkedSeparation) {
+  if (confirmedNoAttachments && (attachments.length || checkedSeparation)) {
+    // Conflicting checked statements leave composition for the user to resolve.
+    next.combined = 'unknown';
+  } else if (attachments.length || checkedSeparation) {
     if (next.combined !== 'yes' && !checkedSeparation) delete next.separable;
     next.combined = 'yes';
   }
-  if (attachments.length) {
+  if (attachments.length && next.combined === 'yes') {
     next.components ||= [];
     for (const [key, evidence] of attachments) {
       const label = partNames[key];
-      let part = next.components.find(item => partAliases[key].includes(normalizeItemName(item.label)));
+      const matches = next.components.filter(item => partAliases[key].test(normalizeItemName(item.label)));
+      if (matches.length > 1) continue;
+      let part = matches[0];
       if (!part) {
         if (next.components.length >= 5) continue;
         next.components.push(part = { label });

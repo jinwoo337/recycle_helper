@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RECYCLE_MARKS, confirmedPhotoMark, markById, photoMarkMaterial } from '../src/domain/disposal/recycle-marks.js';
+import { RECYCLE_MARKS, confirmedPhotoMark, markById, photoMarkMaterial, photoMarkPart } from '../src/domain/disposal/recycle-marks.js';
 import { assistanceResultMarkup } from '../src/pages/assistance/assistance.js';
 import { MATERIALS, TYPES, judgeDisposal } from '../src/domain/disposal/rules.js';
 
@@ -15,6 +15,8 @@ test('분리배출 표시 버튼은 실제 재질·세부 종류로 이어진다
 
 test('사진에서 PP 표시만 읽은 경우 부위를 확인하고 배출 방법은 확정하지 않는다', () => {
   assert.equal(photoMarkMaterial('라벨: pp'), '플라스틱');
+  assert.equal(photoMarkPart('포장 필름： PP'), 'film');
+  assert.equal(photoMarkPart('PP'), '');
   assert.equal(photoMarkMaterial('PP일 수도 있음'), '');
   assert.equal(photoMarkMaterial('OTHER'), '');
   const answer = { itemName: '확인할 물건', evidence: 'markings', confidence: 'low', markings: ['PP'],

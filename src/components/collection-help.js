@@ -12,6 +12,7 @@ export function collectionPointMarkup(result, { official = true } = {}) {
   const heading = help.inquiryOnly ? '배출 방법 문의할 곳' : `${escapeHtml(help.name)} 수거처 확인`;
   return `<section class="collection-help" aria-labelledby="collection-title"><h3 id="collection-title">${heading}</h3>
     <p class="input-hint">${escapeHtml(help.note)}</p>
+    ${!help.inquiryOnly ? '<p><a class="history-action" href="https://www.wasteguide.or.kr/front/region/location.do" target="_blank" rel="noopener noreferrer">공식 분리배출 장소 지도 ↗</a></p>' : ''}
     ${official && officialMedicine ? `<div class="collection-links">${link(officialMedicine, '공식 폐의약품 수거처·접수 안내 ↗')}</div>` : ''}
     ${help.pickup ? `<div class="collection-links">${link(help.pickup.url, `${escapeHtml(help.pickup.label)} ↗`)}</div>` : ''}
     <div class="collection-links" role="group" aria-label="내 위치 주변 검색">${help.targets.map(target => link(target.mapUrl, `내 주변 ${escapeHtml(target.label)} ↗`, ` data-collection-target="${escapeHtml(target.search)}"`)).join('')}</div>

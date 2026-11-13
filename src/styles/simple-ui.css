@@ -140,7 +140,7 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 #item-form section + section { margin-top:8px; padding-top:8px; }
 #item-form .preset-info > summary { min-height:30px; }
 #item-form .quick-condition { padding:0; border:0; background:none; margin-bottom:8px; }
-#item-form .quick-condition p { margin:4px 0 0; }
+#item-form .quick-condition p { margin:4px 0 6px; }
 #item-form .quick-condition button { font-size:14px; color:white; background:var(--green); }
 #item-form .quick-condition .secondary { margin-top:6px; color:var(--green); background:white; }
 #item-form .condition-editor { grid-column:1/-1; margin-block:4px 10px; }
@@ -203,8 +203,6 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .result-route-list strong { color:var(--green); }
 .result-route-list .history-action { display:block; min-height:36px; margin-top:4px; text-align:left; white-space:normal; }
 .result-partial-note { margin:0 0 8px; }
-.result-first-step { margin:8px 0 12px; padding:9px 12px; border-radius:8px; background:#f3f7ef; font-size:14px; }
-.result-first-step strong { color:var(--green); margin-right:4px; }
 .result-more-questions { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
 .result-more-questions .history-action { min-height:44px; white-space:normal; text-align:left; }
 .result-mark-action { min-height:44px; margin-bottom:10px; }
@@ -223,6 +221,7 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .large-waste-links .button { font-size:13px; min-height:40px; }
 .icon-steps { list-style:none; padding-left:0 !important; counter-reset:step; }
 .icon-steps > li { counter-increment:step; display:flex; align-items:flex-start; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; line-height:1.6; }
+.action-steps.icon-steps > .result-first-step { background:#f3f7ef; }
 .icon-steps > li + li { margin-top:8px; }
 .icon-steps .step-icon { flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:50%; background:#eef5e9; font-size:21px; line-height:1; position:relative; }
 .icon-steps .step-icon::after { content:counter(step); position:absolute; top:-4px; left:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; background:var(--green); color:#fff; font-size:11px; font-weight:700; display:grid; place-items:center; font-family:inherit; }
@@ -232,6 +231,10 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .part-steps.icon-steps .step-text { padding-top:4px; font-size:14px; }
 .collection-help { margin:0 0 22px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:#f1f7fb; }
 .collection-help h3 { margin:0 0 6px; font-size:16px; }
+.disposal-reason { margin-block:16px; padding:12px 14px; border-inline-start:3px solid var(--green); background:#f6f8f4; }
+.disposal-reason h3 { margin:0 0 4px; font-size:15px; }
+.disposal-reason p { margin:0; font-size:14px; }
+.disposal-reason p + p { margin-top:4px; }
 .collection-links { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 6px; }
 .collection-links .button { font-size:13px; min-height:40px; }
 .collection-region-search > summary { min-height:36px; align-content:center; cursor:pointer; color:var(--green); font-size:13px; }

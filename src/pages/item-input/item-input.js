@@ -1,7 +1,7 @@
 import { escapeHtml } from '../../utils/html.js';
 import { getDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisposalHistory } from '../../services/disposal-history.js';
 import { MATERIALS, TYPES, supportsState, needsWashQuestion, normalizePart, judgeDisposal, RULE_SOURCE, RULE_VERSION } from '../../domain/disposal/rules.js';
-import { disposalItemList, disposalQueryName, suggestItemInfo, searchItemNames, lookupItem, normalizeItemName, relatedItemCandidates, itemCandidateHint, itemTypeClarification } from '../../domain/disposal/item-suggestions.js';
+import { disposalItemList, disposalQueryName, suggestItemInfo, searchItemNames, lookupItem, normalizeItemName, relatedItemCandidates, itemCandidateHint, itemCandidateTitle, itemTypeClarification } from '../../domain/disposal/item-suggestions.js';
 import { cleanAiName, validateAiGuess, aiOpinionNeedsReview, suggestedItemCategory } from '../../domain/disposal/ai-classification.js';
 import { requestAiGuess, reportAiGuess } from '../../services/ai-classify.js';
 import { aiToggleMarkup, bindAiToggle, readAiEnabled } from '../../components/ai-toggle.js';
@@ -11,7 +11,7 @@ import { getCurrentMember } from '../../services/auth.js';
 import { getCatalogMessage, initializeItemCatalog } from '../../services/item-catalog.js';
 import { resultToolsMarkup, bindResultTools, missingItemMarkup } from '../../components/result-tools.js';
 import { memberTools } from '../../services/member-tools.js';
-import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel, resultRegionLabel } from '../../domain/disposal/regions.js';
+import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel, resultRegionLabel, usesSeoulVinylQuestions } from '../../domain/disposal/regions.js';
 import { METRO_GUIDES } from '../../domain/disposal/metro-guides.js';
 import { cityGuide } from '../../domain/disposal/city-guides.js';
 import { DAEJEON_GUIDES } from '../../domain/disposal/daejeon-guides.js';
@@ -23,7 +23,7 @@ import { linkedComponentState, stateAnswers, selectedState } from '../../domain/
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
-import { resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultPendingQuestions } from '../../domain/disposal/result-display.js';
+import { disposalReasons, resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultPendingQuestions } from '../../domain/disposal/result-display.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
@@ -32,6 +32,7 @@ import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
 import { collectionPointMarkup } from '../../components/collection-help.js';
 import { collectionActionMarkup } from '../../components/collection-action.js';
 import { collectionAction } from '../../domain/disposal/collection-action.js';
+import { disposalReasonMarkup } from '../../components/disposal-reason.js';
 import { stepListMarkup } from '../../components/step-list.js';
 import { inputModesMarkup, bindInputModes } from '../../components/input-modes.js';
 import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
@@ -282,7 +283,8 @@ export function sourceLineMarkup(result, sources) {
   return `<p class="result-source-line">📌 ${checkedAt ? `${escapeHtml(checkedAt)} 확인한 기준` : '참고한 기준'}${primary ? ` · <a href="${escapeHtml(primary)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel(primary))} ↗</a>` : ''}</p>`;
 }
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
-export function resultMarkup(input, result, createdAt, { editRegion = false } = {}) {
+const candidateContent = name => `${escapeHtml(itemCandidateTitle(name))}${itemCandidateHint(name) ? `<small>${escapeHtml(itemCandidateHint(name))}</small>` : ''}`;
+export function resultMarkup(input, result, createdAt, { editRegion = false, inlineRegion = false } = {}) {
   const updated = result.ruleVersion !== RULE_VERSION;
   input = inputForDisplay(input, result);
   result = resultForDisplay(input, result);
@@ -290,17 +292,18 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
   const sources = [...new Set(Array.isArray(result.sourceUrls) ? result.sourceUrls : [source])]
     .filter(url => [RULE_SOURCE, ...Object.values(REGIONAL_SOURCES), ...Object.keys(CATALOG_DETAIL_SOURCES)].includes(url));
   const { parts, steps } = resultStepsForDisplay(result);
+  const visibleReasons = new Set(disposalReasons(result));
   const pendingQuestions = resultPendingQuestions(input, result);
   const pendingQuestion = pendingQuestions[0];
   const resultCandidates = Array.isArray(result.itemCandidates) ? result.itemCandidates.filter(name => typeof name === 'string').slice(0, 6) : [];
-  const canSplit = input.separable === 'yes' && parts.length > 1;
+  const canSplit = input.combined === 'yes' && input.separable === 'yes' && parts.length > 1;
   const partial = canSplit && parts.some(part => part.status === 'check') && parts.some(part => part.status !== 'check');
   const collection = collectionAction(input, result);
   const canCheckMark = !itemTypeClarification(input.itemName) && (['unknown', 'material-only'].includes(input.category)
     || (input.category === 'packaging' && pendingQuestion?.condition === 'material'));
-  const firstStep = steps[0] || (canSplit ? '쉽게 떼어낼 수 있는 부분을 분리해 주세요.' : '');
   const badge = input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
   const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
+  const regionToggle = inlineRegion ? ' aria-controls="result-region-form" aria-expanded="false"' : '';
   const details = part => conditionDetails(part).map(([title, value]) =>
     `<div><dt>${title}</dt><dd>${escapeHtml(value)}</dd></div>`
   ).join('');
@@ -308,37 +311,39 @@ export function resultMarkup(input, result, createdAt, { editRegion = false } = 
     ${createdAt ? `<p class="input-hint">${escapeHtml(new Date(createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))} · 기록 저장일</p>` : ''}
     ${updated ? '<p class="input-hint">현재 기준으로 다시 확인한 안내예요.</p>' : ''}
     <div class="result-verdict ${result.status === 'check' ? 'needs-check' : ''}"><p class="eyebrow">어디에 버리나요?</p>${badge !== result.method ? `<span class="result-badge">${badge}</span>` : ''}<h3>${escapeHtml(result.method)}</h3>
-      <div class="result-region"><p class="input-hint">${escapeHtml(resultRegionLabel(result))}</p>${editRegion ? '<button type="button" class="history-action" data-edit-region>지역 변경</button>' : ''}</div></div>
+      <div class="result-region"><p class="input-hint">${escapeHtml(resultRegionLabel(result))}</p>${editRegion ? `<button type="button" class="history-action" data-edit-region${regionToggle}>지역 변경</button>` : ''}</div></div>
+    ${inlineRegion ? `<form id="result-region-form" class="result-region-form" aria-label="판별 지역 변경" novalidate hidden>${judgementRegionMarkup(result.region, { onResult: true })}
+      <div class="choice-row"><button type="submit" class="button primary">이 지역 기준 보기</button><button type="button" class="button secondary" data-cancel-region>취소</button></div></form>` : ''}
     ${result.aiAssisted ? '<p class="ai-badge">🤖 AI 추정 결과예요. 실제 제품의 분리배출 표시를 꼭 확인해 주세요.</p>' : ''}
     ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
     ${parts.length ? `<ul class="result-route-list" aria-label="재질별 배출 장소">${parts.map((part, index) => {
       const prefix = index === 0 ? '' : `part${index - 1}-`;
       const questionIndex = pendingQuestions.findIndex(question => question.prefix === prefix);
       return `<li><strong>${escapeHtml(part.label)}</strong><div>${escapeHtml(part.method)}
-        ${canSplit && part.status === 'check' && questionIndex >= 0 ? `<button type="button" class="history-action" data-edit-pending="${questionIndex}">${escapeHtml(pendingQuestions[questionIndex].label)}</button>` : ''}</div></li>`;
+        ${canSplit && part.status === 'check' && questionIndex > 0 ? `<button type="button" class="history-action" data-edit-pending="${questionIndex}">${escapeHtml(pendingQuestions[questionIndex].label)}</button>` : ''}</div></li>`;
     }).join('')}</ul>` : ''}
     ${partial ? '<p class="input-hint result-partial-note">쉽게 분리한 뒤, 배출 방법이 확인된 부분부터 버릴 수 있어요.</p>' : ''}
     ${resultCandidates.length ? `<p class="input-hint">${disposalItemList(input.itemName).length ? '물건마다 배출 방법이 달라요. 먼저 확인할 물건을 골라 주세요.' : '찾으시던 물건인가요? 실제로 맞는 이름만 골라 주세요.'}</p><div class="manual-category-options item-related-candidates" role="group" aria-label="확인할 물건">${resultCandidates.map(name =>
-      `<button type="button" class="history-action" data-result-candidate="${escapeHtml(name)}">${escapeHtml(name)}${itemCandidateHint(name) ? `<small>${escapeHtml(itemCandidateHint(name))}</small>` : ''}</button>`).join('')}</div>` : ''}
-    ${result.status !== 'check' && firstStep ? `<p class="result-first-step"><strong>먼저</strong> ${escapeHtml(firstStep)}</p>` : ''}
+      `<button type="button" class="history-action" data-result-candidate="${escapeHtml(name)}">${candidateContent(name)}</button>`).join('')}</div>` : ''}
     ${steps.length || parts.length || pendingQuestion || collection ? '<h3 class="result-action-title">지금 할 일</h3>' : ''}
     ${pendingQuestion ? `<div class="result-check-action"><button type="button" class="button ${canCheckMark ? 'secondary' : 'primary'}" id="edit-item">${escapeHtml(pendingQuestion.label)}</button></div>` : ''}
     ${pendingQuestions.length > 1 && !canSplit ? `<div class="result-more-questions" role="group" aria-label="다른 확인 항목">${pendingQuestions.slice(1).map(({ label }, index) =>
       `<button type="button" class="history-action" data-edit-pending="${index + 1}">${escapeHtml(label)}</button>`).join('')}</div>` : ''}
     ${canCheckMark ? '<button type="button" class="button primary result-mark-action" data-check-mark>바닥·겉포장에 적힌 표시 확인하기</button>' : ''}
     ${collectionActionMarkup(input, result, collection)}
-    ${editRegion && !result.region && collection ? '<p class="input-hint">지역별 접수 안내가 필요하면 <button type="button" class="history-action" data-edit-region>배출할 지역 선택</button>에서 골라 주세요.</p>' : ''}
+    ${editRegion && !result.region && collection ? `<p class="input-hint">지역별 접수 안내가 필요하면 <button type="button" class="history-action" data-edit-region${regionToggle}>배출할 지역 선택</button>에서 골라 주세요.</p>` : ''}
     <div id="disposal-instructions">
-    ${steps.length ? stepListMarkup(steps, 'action-steps', { checklist: true }) : ''}
+    ${steps.length ? stepListMarkup(steps, 'action-steps', { checklist: true, emphasizeFirst: true }) : ''}
     ${parts.length ? `<h3>본체와 부속품 배출 방법</h3><div class="result-parts">${parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${part.steps.length ? stepListMarkup(part.steps, 'part-steps', { checklist: true }) : ''}</article>`).join('')}</div>` : ''}
     </div>
+    ${disposalReasonMarkup(result)}
     ${steps.length || parts.some(part => part.steps.length) ? checklistMarkup({ target: 'disposal-instructions' }) : ''}
     ${largeWasteMarkup(result, { topActionUrl: collection?.url })}
     ${collectionPointMarkup({ ...result, itemName: input.itemName }, { official: false })}
     ${relatedDisposalMarkup(input.itemName)}
     ${regionalComparisonMarkup(input, result)}
     <div class="result-next-actions"><button type="button" class="button ${pendingQuestion ? 'secondary' : 'primary'}" data-new-item>다른 물건 찾기</button>${pendingQuestion ? '' : `<button type="button" class="button secondary" id="edit-item">${createdAt ? '오늘 상태 다시 판별' : '조건 수정'}</button>`}</div>
-    <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${sourceLineMarkup(result, sources)}${list(result.reasons)}${result.regional?.notes.length ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">${sources.map(url => outLink(url, sourceLabel(url))).join(' · ')}</p>${localGuideMarkup(result, input.itemName)}</details>
+    <details class="result-evidence"><summary>판단 근거·지역 기준</summary>${sourceLineMarkup(result, sources)}${list(result.reasons.filter(reason => !visibleReasons.has(reason)))}${result.regional?.notes.length ? list(result.regional.notes) : ''}<p class="input-hint">${escapeHtml(result.notice)}</p><p class="input-hint">${sources.map(url => outLink(url, sourceLabel(url))).join(' · ')}</p>${localGuideMarkup(result, input.itemName)}</details>
     <details class="input-details"><summary>입력한 조건</summary><dl><div><dt>물건</dt><dd>${escapeHtml(input.itemName)}</dd></div>${input.category ? `<div><dt>${result.keywordCategory ? '이름으로 알아본 종류' : '직접 선택한 종류'}</dt><dd>${escapeHtml(categoryLabel(input.category))}</dd></div>` : ''}${handlingAnswer ? `<div><dt>물건 상태</dt><dd>${handlingAnswer}</dd></div>` : ''}${details(input)}</dl>${(input.components || []).map((part, index) => `<h4>${escapeHtml(part.label || `부속품 ${index + 1}`)}</h4><dl>${details(part)}</dl>`).join('')}</details>
     <p class="input-hint" data-record-save-status role="status"></p>
     ${resultToolsMarkup(input, result)}`;
@@ -354,7 +359,7 @@ export function bindItemInput() {
   if (queued) {
     lastVisibleResult = undefined;
     const { fromAssistance, observations, batchItemId, fromConfirmedMark, ...next } = queued;
-    for (const key of ['reviewSaved', 'requestIdentification', 'showMarkPicker', 'showMissingItem', 'quickLookup', 'manualLookup', 'savedLookup']) delete next[key];
+    for (const key of ['reviewSaved', 'requestIdentification', 'showMarkPicker', 'showMissingItem', 'quickLookup', 'manualLookup', 'savedLookup', 'editRegion']) delete next[key];
     const same = fromAssistance && normalizeItemName(next.itemName) === normalizeItemName(draft.itemName);
     const confirmedSame = !fromConfirmedMark && same && draft.categoryOrigin === 'manual' && !['unknown', 'material-only'].includes(draft.category);
     if (confirmedSame) {
@@ -633,7 +638,7 @@ export function bindItemInput() {
     });
     const dirty = supported && value(`${prefix}contaminated`) === 'yes';
     const useSeoulVinylQuestions = !prefix && dirty && material === '비닐' && select.value === 'packaging'
-      && judgementRegion.get()?.province === '서울특별시';
+      && usesSeoulVinylQuestions(judgementRegion.get());
     const seoulVinyl = useSeoulVinylQuestions && value('combined') === 'no';
     toggle(node.querySelector('[data-condition="vinyl-residue"]'), seoulVinyl);
     const checkAttachmentFirst = useSeoulVinylQuestions && !value('combined');
@@ -647,7 +652,7 @@ export function bindItemInput() {
       : '남은 내용물을 먼저 따로 비우고, 음식물이나 기름기가 헹구거나 닦아서 없어지는지 확인해 보세요.';
     const summary = { clean: '깨끗해요', dirty: '오염이 남아 있어요', 'washed-dirty': '씻어도 오염이 남아요', unknown: '상태를 모르겠어요' };
     node.querySelector('[data-state-summary]').textContent = current ? `상태: ${summary[current]} · 바꾸기`
-      : prefix ? '부속품 상태 고르기' : '상태 직접 선택 · 오염 있음 / 모름';
+      : prefix ? '부속품 상태 고르기' : '상태 직접 선택';
     if (!active) materialSelect.value = '';
   }
   function updateConditional() {
@@ -681,7 +686,7 @@ export function bindItemInput() {
     const variantKey = alternatives.join('|');
     if (nameVariants.dataset.options !== variantKey) {
       nameVariants.dataset.options = variantKey;
-      nameVariants.innerHTML = alternatives.map(name => `<button class="history-action" type="button" data-item-variant="${escapeHtml(name)}">${escapeHtml(name)}${itemCandidateHint(name) ? `<small>${escapeHtml(itemCandidateHint(name))}</small>` : ''}</button>`).join('');
+      nameVariants.innerHTML = alternatives.map(name => `<button class="history-action" type="button" data-item-variant="${escapeHtml(name)}">${candidateContent(name)}</button>`).join('');
     }
     category.disabled = !unregistered;
     const materialSelect = form.elements.namedItem('material');
@@ -754,8 +759,8 @@ export function bindItemInput() {
       && !value('currentState') && !['yes', 'unknown'].includes(value('combined')) && cleanSingleMaterialInput(input));
     quickCondition.hidden = !shortcut;
     cleanWithoutLabel.hidden = !labelled;
-    cleanShortcut.textContent = labelled ? '깨끗해요 · 뗄 수 있는 비닐 라벨 있음 →' : '깨끗하고 다른 재질이 없어요 →';
-    cleanShortcutHint.textContent = labelled ? '병과 라벨이 깨끗하고, 뚜껑·비닐 라벨 외에 붙은 것이 없을 때 골라 주세요.'
+    cleanShortcut.textContent = labelled ? '깨끗해요 · 비닐 라벨만 떼면 돼요 →' : '깨끗하고 다른 재질이 없어요 →';
+    cleanShortcutHint.textContent = labelled ? '병과 라벨이 깨끗하고, 뚜껑·비닐 라벨 외에 붙은 것이 없을 때'
       : clearDrinkBottle ? '내용물과 오염이 없고, 병뚜껑 말고 붙어 있는 것이 없을 때 골라 주세요.'
         : '내용물·오염이 없고 라벨·뚜껑 등 다른 재질도 없을 때';
     const statePending = supported && (!value('currentState') || (!value('attachment')
@@ -771,8 +776,6 @@ export function bindItemInput() {
     form.classList.toggle('has-item-name', hasName);
     skipName.hidden = hasName;
     confirmName.hidden = !hasName || committedName === normalizeItemName(nameInput.value);
-    // On the main form, a complete fast option and the manual options are alternatives.
-    if (mainStateEditor.open && shortcut) showDisposal.hidden = false;
     const combinationHint = document.getElementById('combination-hint');
     combinationHint.textContent = value('material') === '종이' && value('type') === 'carton' ? '팩 안쪽 코팅층은 떼지 않아요. 붙어 있는 빨대·뚜껑을 확인해 주세요.'
       : value('material') === '페트병' && value('type') === 'clear-drink' ? '페트병 뚜껑은 본체 안내를 따라 주세요. 라벨이나 다른 재질이 붙어 있는지 확인해 주세요.' : '';
@@ -1165,6 +1168,7 @@ export function bindItemInput() {
       const { condition, prefix } = question;
       if (condition === 'handling') target = handlingCondition.querySelector('input');
       else if (['combined', 'separable'].includes(condition)) target = form.querySelector('input[name="attachment"]:not(:disabled)');
+      else if (condition === 'label') target = form.elements.namedItem(`${prefix}label`);
       else if (condition === 'material') target = form.elements.namedItem(`${prefix}material`);
       else if (condition === 'type') target = form.elements.namedItem(`${prefix}type`);
       else if (condition === 'components') target = form.elements.namedItem('part0-material');
@@ -1175,6 +1179,11 @@ export function bindItemInput() {
     }
     target ||= form.querySelector('.current-state input:checked:not(:disabled), #handling-condition input:checked') || handlingCondition.querySelector('input');
     if (target && !target.disabled) focusQuestion(target);
+    else if (question?.prefix) {
+      const material = form.elements.namedItem(`${question.prefix}material`);
+      if (material && !material.disabled) focusQuestion(material);
+      else focusNextCondition();
+    }
     else if (!category.disabled) focusCategory();
     else { nameInput.focus(); closeSuggestions(); }
   }
@@ -1268,7 +1277,7 @@ export function bindItemInput() {
     shownInput = input; shownResult = resultForDisplay(input, result);
     shownSnapshot = existingSnapshot || { input, result, createdAt, recordId };
     const editingInput = inputForDisplay(input, result);
-    summary.innerHTML = resultMarkup(input, result, createdAt, { editRegion: true });
+    summary.innerHTML = resultMarkup(input, result, createdAt, { editRegion: true, inlineRegion: true });
     if (draftBatchId) summary.querySelector('.result-next-actions').insertAdjacentHTML('afterbegin', '<a href="#/batch" class="button secondary">함께 버릴 물건 목록으로</a>');
     if (!existingSnapshot && !createdAt && input.itemName !== unnamedItem
         && (aiEnabled || shownResult.aiGuess || opinions.get(aiKey(input.itemName))?.guess?.shared) && attachOpinionPanel()) {
@@ -1296,11 +1305,41 @@ export function bindItemInput() {
       showInput(); restore(editingInput); saveStatus.textContent = '';
       openMarkPicker();
     });
-    summary.querySelectorAll('[data-edit-region]').forEach(button => button.addEventListener('click', () => {
-      showInput(); restore(editingInput); saveStatus.textContent = '';
-      if (draftBatchId) saveStatus.textContent = '지역을 바꾸면 새 결과는 기존 목록에 반영되지 않아요.';
-      judgementRegion.focus();
+    const regionForm = summary.querySelector('#result-region-form');
+    const regionButtons = [...summary.querySelectorAll('[data-edit-region]')];
+    const resultRegion = bindJudgementRegion(regionForm, shownResult.region);
+    let regionOpener;
+    function closeRegionEditor() {
+      regionForm.hidden = true;
+      regionButtons.forEach(button => button.setAttribute('aria-expanded', 'false'));
+      regionOpener?.focus();
+    }
+    regionButtons.forEach(button => button.addEventListener('click', () => {
+      if (!regionForm.hidden && regionOpener === button) { closeRegionEditor(); return; }
+      regionOpener = button;
+      if (regionForm.hidden) resultRegion.set(shownResult.region);
+      regionForm.hidden = false;
+      regionButtons.forEach(control => control.setAttribute('aria-expanded', 'true'));
+      resultRegion.focus();
     }));
+    regionForm.querySelector('[data-cancel-region]').addEventListener('click', closeRegionEditor);
+    regionForm.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); closeRegionEditor(); }
+    });
+    regionForm.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!resultRegion.validate()) return;
+      const region = resultRegion.get();
+      const current = shownResult.region;
+      if (region?.province === current?.province && region?.district === current?.district) { closeRegionEditor(); return; }
+      const next = { ...editingInput, region };
+      const verdict = judgeDisposal(next);
+      rememberJudgementRegion(region, getCurrentMember());
+      judgementRegion.set(region);
+      showResult(next, verdict);
+      if (draftBatchId) summary.querySelector('[data-result-tools-status]').textContent = '함께 버릴 목록에는 목록에서 선택한 지역의 결과가 유지돼요.';
+      void persistResult(next, verdict);
+    });
     disposeResultTools = bindResultTools(summary, input, result, {
       onNewItem: resetInput,
       onRelatedItem: openRelatedItem,
@@ -1382,9 +1421,7 @@ export function bindItemInput() {
   }
   restore(draft);
   refreshCatalog();
-  if (queued?.editRegion) {
-    judgementRegion.focus();
-  } else if (queued?.editCategory) {
+  if (queued?.editCategory) {
     focusCategory();
   } else if (queued?.editPendingQuestion) focusResultQuestion(queued.editPendingQuestion);
   else if (queued?.itemName && !queued.quickLookup && !queued.manualLookup) focusNextCondition();
@@ -1404,9 +1441,6 @@ export function bindItemInput() {
     draftVersion = startInputSearch();
     restore({ itemName: unnamedItem, keywordCategory: false });
     focusCategory();
-  });
-  mainStateEditor.addEventListener('toggle', () => {
-    if (!quickCondition.hidden) showDisposal.hidden = !mainStateEditor.open;
   });
   function submitCleanShortcut(withoutLabel = false) {
     if (deleting || quickCondition.hidden || !judgementRegion.validate()) return;
@@ -1786,6 +1820,7 @@ export function bindItemInput() {
   if (queued?.savedLookup) {
     const { input, result, createdAt, id } = queued.savedLookup;
     showResult(input, result, createdAt, id);
+    if (queued.editRegion) summary.querySelector('[data-edit-region]').click();
   } else if (queued?.quickLookup || (queued?.manualLookup && !queued.showMarkPicker)) advanceLookup();
   else if (!queued && lastVisibleResult) {
     const { input, result, createdAt, recordId } = lastVisibleResult;

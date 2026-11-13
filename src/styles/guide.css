@@ -9,14 +9,13 @@
 .judgement-region .field { min-width: 0; margin: 0; }
 .judgement-region select, .judgement-region input { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 7px; background: #fff; padding: 8px; font: inherit; font-size: 14px; }
 .judgement-region .field-error { margin-bottom: 0; }
+.result-region-form { margin-bottom: 16px; }
+.result-region-form .judgement-region { padding: 12px; }
 .regional-comparison { margin: 16px 0; border-block: 1px solid var(--line); padding-block: 4px; }
 .regional-comparison > summary { min-height: 44px; align-content: center; cursor: pointer; color: var(--green); font-size: 14px; font-weight: 600; }
 .comparison-explanation { font-size: 13px; color: var(--muted); margin: 8px 0; }
-.comparison-current, .comparison-card { padding: 14px; border-radius: 9px; border: 1px solid var(--line); margin-bottom: 8px; background: #fff; }
-.comparison-current { background: #f1f6ec; }
-.comparison-current .input-hint { margin-bottom: 0; }
-.comparison-label { font-size: 12px; color: var(--green); font-weight: 600; }
-.comparison-card h3, .comparison-current h3 { font-size: 16px; margin: 4px 0 8px; }
+.comparison-card { padding: 14px; border-radius: 9px; border: 1px solid var(--line); margin-bottom: 8px; background: #fff; }
+.comparison-card h3 { font-size: 16px; margin: 4px 0 8px; }
 .comparison-method { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
 .comparison-card ol { padding-left: 22px; font-size: 13px; margin-bottom: 6px; }
 .comparison-card li { margin-bottom: 6px; }

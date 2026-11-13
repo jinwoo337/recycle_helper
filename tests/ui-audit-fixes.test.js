@@ -143,8 +143,8 @@ test('재질별 안내 링크는 직접 열기·새로고침과 이전 링크에
 test('지역 비교는 현재 지침을 반복하지 않고 차이를 요약하며 전체 방법을 펼쳐 볼 수 있다', () => {
   const comparison = compareRegionalDisposal({itemName:'깨진유리',material:'유리',type:'broken',region:{province:'대전광역시',district:'서구'}});
   const markup = comparisonPanelMarkup(comparison);
-  assert.doesNotMatch(markup.match(/<article class="comparison-current">(.*?)<\/article>/s)[1], /<ol>/);
-  assert.equal((markup.match(/전체 배출 방법·근거 보기/g) || []).length, comparison.groups.length);
+  assert.doesNotMatch(markup, /comparison-current|대전광역시 서구/);
+  assert.equal((markup.match(/(?:나머지 단계·공식 자료|공식 자료 보기)/g) || []).length, comparison.groups.length);
   for (const group of comparison.groups) {
     assert.ok(comparisonHighlights(group.result, comparison.current).length <= 2);
     assert.ok(comparisonHighlights(group.result, comparison.current).every(step => !comparison.current.steps.includes(step)));
@@ -155,6 +155,27 @@ test('지역 비교는 현재 지침을 반복하지 않고 차이를 요약하�
   const withCommonPreparation = comparisonPanelMarkup(comparison);
   assert.equal(withCommonPreparation.split(preparation).length - 1, 1);
   assert.match(withCommonPreparation, /공통 준비/);
+});
+
+test('지금 할 일 다음에 같은 판별의 이유를 표시하고 복사하며, 구별 예외는 도시 공통 기준보다 우선한다', () => {
+  const input = { itemName: '깨진유리', material: '유리', type: 'broken', region: { province: '서울특별시', district: '도봉구' } };
+  const result = judgeDisposal(input);
+  assert.match(result.method, /양에 따라 봉투 선택/);
+  assert.match(result.steps.join(' '), /소량이면 종량제봉투, 다량이면 특수규격봉투/);
+  const markup = resultMarkup(input, result);
+  assert.match(markup, /지금 할 일[\s\S]*class="disposal-reason"[\s\S]*유리 파편에 다치지 않도록 감싸고/);
+  assert.match(resultToText(input, result), /배출 전에 확인하세요[\s\S]*왜 확인이 필요한가요\?[\s\S]*유리 파편에 다치지 않도록 감싸고/);
+  const icePack = judgeDisposal({ itemName: '젤아이스팩', region: { province: '서울특별시', district: '서초구' } });
+  assert.equal(icePack.status, 'general');
+  assert.match(icePack.reasons[0], /전용 수거를 종료/);
+});
+
+test('서울 비닐에서 고형물을 확인했으면 제거 가능 여부를 다음 질문으로 이어 준다', () => {
+  const input = { itemName: '과자봉지', region: { province: '서울특별시', district: '송파구' },
+    material: '비닐', type: 'packaging', contaminated: 'yes', washed: 'no', combined: 'no', vinylResidue: 'solids', removable: 'unknown' };
+  const result = judgeDisposal(input);
+  assert.equal(result.pendingCondition, 'removable');
+  assert.match(result.reasons[0], /제거할 수 있는지 확인/);
 });
 
 test('연습 종료 안내는 회원에게 불필요한 로그인을 요구하지 않는다', () => {

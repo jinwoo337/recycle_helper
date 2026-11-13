@@ -9,7 +9,7 @@ import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-14.v19';
+export const RULE_VERSION = '2026-11-14.v20';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -73,23 +73,36 @@ function judgePart(raw, itemName = '') {
     return outcome('check', '추가 확인 필요', '별도 수거 또는 안전한 처리가 필요한 물품일 수 있어요.', ['내용물을 임의로 붓거나 용기에 구멍을 내지 말고 지자체의 품목별 안내를 확인해 주세요.']);
   }
   const compactName = itemName.replace(/\s+/g, '');
-  const nameConflict = (p.material === '종이' && p.type === 'paper' && /감열|사진용지|종이호일|사용한휴지/.test(compactName))
+  const shippingLabel = /(?:택배|배송|운송)송장|(?:택배)?운송장/.test(compactName);
+  const nameConflict = (p.material === '종이' && p.type === 'paper' && (shippingLabel || /감열|사진용지|종이호일|사용한휴지/.test(compactName)))
     || (p.material === '종이' && p.type === 'cup' && /양면코팅/.test(compactName))
     || (p.material === '유리' && p.type === 'bottle' && /깨진|내열|거울|판유리|크리스탈|도자기/.test(compactName))
     || (p.material === '플라스틱' && p.type === 'container' && /칫솔|CD|DVD/.test(compactName))
     || (p.material === '금속·캔' && p.type === 'food-can' && /호일/.test(compactName))
     || (p.material === '페트병' && p.type === 'clear-drink' && /유색|갈색|녹색|세제|식용유/.test(compactName));
   if (nameConflict) {
-    return outcome('check', '추가 확인 필요', '물건 이름에 일반 수거 제외 품목의 단서가 있어 선택한 종류를 확인해야 해요.', ['실제 재질과 세부 종류를 다시 확인해 주세요. 이름만으로 배출 방법을 확정하지 않아요.']);
+    return { ...outcome('check', '세부 종류 다시 확인', '물건 이름에 일반 수거 제외 품목의 단서가 있어 선택한 종류를 확인해야 해요.', ['실제 재질 표시와 세부 종류를 다시 확인해 주세요.']), pendingCondition: 'type' };
   }
   if (p.material === '종이' && ['excluded', 'coated'].includes(p.type)) {
+    if (p.type === 'excluded' && shippingLabel) {
+      return outcome('general', '택배 송장은 종량제봉투로 배출', '택배 송장은 종이류 수거 대상에서 제외돼 상자와 분리해야 해요.',
+        ['송장을 상자나 봉투에서 떼어내 종량제봉투에 넣어 주세요.']);
+    }
     if (p.type === 'excluded' && /감열/.test(compactName)) {
       return outcome('general', '종량제봉투로 배출', '감열지는 종이류 재활용 대상에서 제외돼요.',
-        ['감열지 영수증이나 송장은 종이류에 섞지 말고 지역 종량제봉투에 넣어 주세요.']);
+        ['감열지 영수증은 종량제봉투에 넣어 주세요.']);
     }
-    return outcome('general', '종량제봉투로 배출', '감열지·사용한 휴지 또는 분리되지 않는 코팅 종이는 일반 종이류로 재활용하기 어려워요.', ['재활용 종이와 섞지 말고 지역 종량제 배출 기준을 따라 주세요.']);
+    const reason = p.type === 'coated' ? '종이에서 코팅이나 붙은 재질을 떼기 어려우면 일반 종이류로 재활용하기 어려워요.'
+      : '이 품목은 일반 종이류 재활용 수거 대상에서 제외돼요.';
+    return outcome('general', '종량제봉투로 배출', reason, ['지역의 일반 종량제봉투에 넣어 주세요.']);
   }
   if (!supportsState(p)) {
+    if (p.material === '유리' && p.type === 'broken') {
+      return { ...outcome('check', '깨진 유리 · 지역 배출 기준 확인',
+        '깨진 유리는 유리병 수거 대상에서 제외되고, 파편에 다칠 수 있어 따로 포장해야 해요.',
+        ['깨진 부분은 다치지 않도록 싸서 표시해 주세요.', '지역의 종량제봉투·특수규격마대 등 깨진 유리 배출 기준을 확인해 주세요.']),
+        disposalKind: 'broken-glass' };
+    }
     return outcome('check', '추가 확인 필요', '일반 재활용 수거 대상과 처리 방식이 다를 수 있는 종류예요.',
       p.material === '유리' ? ['깨진 부분은 다치지 않도록 싸서 표시해 주세요.', '유리병 수거함에 넣지 말고 지역의 종량제봉투·특수규격마대·대형폐기물 기준을 확인해 주세요.']
         : ['지역의 품목별 수거 안내 또는 관리사무소에 처리 방법을 확인해 주세요.']);
@@ -99,10 +112,10 @@ function judgePart(raw, itemName = '') {
   }
   if (p.contaminated === 'yes' && !['yes', 'no'].includes(p.removable)) {
     const step = p.material === '종이' && p.type === 'paper' ? '오염된 부분을 떼어내 깨끗한 종이만 남길 수 있는지 확인해 주세요.' : '남은 내용물이나 이물질을 제거할 수 있는지 확인해 주세요.';
-    return { ...outcome('check', '오염을 제거할 수 있는지 확인', '남은 오염을 제거할 수 있는지 아직 확인되지 않았어요.', [step]), pendingCondition: 'removable' };
+    return { ...outcome('check', '오염을 제거할 수 있는지 확인', '남은 오염을 제거할 수 있는지에 따라 재활용 수거 여부가 달라져요.', [step]), pendingCondition: 'removable' };
   }
   if (p.contaminated === 'yes' && needsWashQuestion(p) && !['yes', 'no'].includes(p.washed)) {
-    return outcome('check', '추가 확인 필요', '세척 상태가 입력되지 않았어요.', ['세척 여부를 입력하고 다시 판별해 주세요.']);
+    return { ...outcome('check', '현재 오염 상태 확인', '세척 상태가 입력되지 않았어요.', ['오염이 남았는지와 이미 씻었는지 확인해 주세요.']), pendingCondition: 'state' };
   }
   if (p.contaminated === 'yes' && p.removable === 'no') {
     if (['유리', '금속·캔'].includes(p.material)) {
@@ -142,6 +155,9 @@ function judgePart(raw, itemName = '') {
 function judgeComponent(component, index) {
   const part = normalizePart(component);
   const label = part.label || `부속품 ${index + 1}`;
+  const clarification = itemTypeClarification(part.label);
+  if (clarification) return { label, material: part.material || '미확인',
+    ...outcome('check', clarification.title, clarification.reason, [clarification.hint, clarification.unknown]), pendingCondition: 'label' };
   const registered = lookupItem(part.label);
   const name = normalizeItemName(part.label);
   const { category } = resolveInputCategory({ itemName: part.label });
@@ -149,8 +165,8 @@ function judgeComponent(component, index) {
   const special = guideForHandling(handling, component?.handlingCondition);
   if (special?.status === 'check') return { label, material: part.material || '미확인', ...special };
   const variant = registered?.variants?.[part.material]?.includes(part.type);
-  if (registered?.material && !variant &&
-      (registered.material !== part.material || (registered.type && registered.type !== part.type))) {
+  if (registered?.material && !variant && part.material && part.material !== '모르겠어요' &&
+      (registered.material !== part.material || (registered.type && part.type && part.type !== 'unknown' && registered.type !== part.type))) {
     return { label, material: part.material || '미확인', ...outcome('check', '부속품의 이름과 재질 확인',
       '부속품 이름과 입력한 재질이나 종류가 서로 달라요.', ['부속품 이름과 재질 표시를 다시 확인해 주세요.']),
       pendingCondition: registered.material === part.material ? 'type' : 'material' };
@@ -240,7 +256,7 @@ function judgeBaseDisposal(input = {}) {
     ...(/책상/.test(name) ? ['책상 상판의 가로·세로를 재고 서랍이나 책장이 붙어 있는지 확인해 주세요. 철제라는 이유만으로 금속캔 수거함에 넣지 마세요.'] : []),
     '구청 대형폐기물 안내에서 실제 품목·크기에 맞는 접수 대상을 확인해 주세요.', '접수 후 안내받은 필증·배출일·지정 장소에 따라 배출해 주세요.'])), handling: 'large', ...(fromKeyword ? { keywordCategory: { ...detected } } : {}) };
   if (['packaging', 'food'].includes(category) && !categoryAllowsMaterial(category, input.material)) {
-    return finish(outcome('check', '물건 종류와 재질을 다시 확인해 주세요', '선택한 물건 종류에 맞지 않는 재질이에요.', ['포장재·용기는 포장 재질을, 음식물은 음식물류를 선택해 주세요.']));
+    return finish({ ...outcome('check', '물건 종류와 재질을 다시 확인해 주세요', '선택한 물건 종류에 맞지 않는 재질이에요.', ['포장재·용기는 포장 재질을, 음식물은 음식물류를 선택해 주세요.']), pendingCondition: 'material' });
   }
   if (category === 'packaging' && ['기타', '모르겠어요'].includes(input.material)) {
     return finish({ ...outcome('check', '포장재의 재질·분리배출 표시 확인 필요', '포장재 종류는 확인했지만 재질별 수거 대상을 정할 정보가 부족해요.', ['포장에 적힌 재질·분리배출 표시와 실제 용도를 확인해 주세요.', '표시가 없거나 여러 재질을 구분하기 어려우면 제조사 또는 거주지 폐기물 담당 부서에 수거 방법을 확인해 주세요.']), pendingCondition: 'material' });
@@ -252,7 +268,10 @@ function judgeBaseDisposal(input = {}) {
   const reference = (batteryPackaging ? null : known) || (manualMaterial ? { material: input.material, type: input.type } : null) || (ai ? { material: ai.material, type: ai.type } : null);
   const allowedTypes = name === '종이컵' ? ['cup', 'coated'] : null;
   const acceptedVariant = known?.variants?.[input.material]?.includes(input.type);
-  const conflict = reference?.material && !acceptedVariant && (input.material !== reference.material || (reference.type && input.type !== reference.type) || (allowedTypes && !allowedTypes.includes(input.type)));
+  const materialKnown = MATERIALS.includes(input.material) && !['기타', '모르겠어요'].includes(input.material);
+  const typeKnown = Boolean(input.type && input.type !== 'unknown');
+  const conflict = reference?.material && !acceptedVariant && materialKnown
+    && (input.material !== reference.material || (typeKnown && ((reference.type && input.type !== reference.type) || (allowedTypes && !allowedTypes.includes(input.type)))));
   // 이름·재질 충돌이나 미등록 품목을 확인하기 전에는 재질별 배출도 확정하지 않습니다.
   if (dangerous || !reference || conflict) {
     const guarded = dangerous
