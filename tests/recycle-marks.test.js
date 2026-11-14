@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RECYCLE_MARKS, confirmedPhotoMark, markById, photoMarkMaterial, photoMarkPart } from '../src/domain/disposal/recycle-marks.js';
+import { RECYCLE_MARKS, confirmedPhotoMark, markById, photoMarkMaterial, photoMarkNeedsShape, photoMarkPart, photoMarkPartLabel } from '../src/domain/disposal/recycle-marks.js';
 import { assistanceResultMarkup } from '../src/pages/assistance/assistance.js';
 import { MATERIALS, TYPES, judgeDisposal } from '../src/domain/disposal/rules.js';
 
@@ -43,6 +43,13 @@ test('사진에서 확인한 무색페트·팩 표시는 본체 종류에만 적
   assert.deepEqual(confirmedPhotoMark('PET', 'body'), { material: '페트병', type: '' });
   assert.deepEqual(confirmedPhotoMark('무색페트', 'lid'), { material: '페트병', type: '' });
   assert.deepEqual(confirmedPhotoMark('PP', 'film'), { material: '비닐', type: 'packaging' });
+  assert.deepEqual(confirmedPhotoMark('PET', 'body', 'film'), { material: '비닐', type: 'packaging' });
+  assert.deepEqual(confirmedPhotoMark('안쪽 라벨: 비닐류 (PET)', 'label'), { material: '비닐', type: 'packaging' });
+  assert.deepEqual(confirmedPhotoMark('비닐류 OTHER', 'label'), { material: '기타', type: '' });
+  assert.equal(photoMarkNeedsShape('PET'), true);
+  assert.equal(photoMarkNeedsShape('무색페트'), false);
+  assert.equal(photoMarkPart('안쪽 라벨: 비닐류 (PET)'), 'label');
+  assert.equal(photoMarkPartLabel('안쪽 라벨: 비닐류 (PET)'), '안쪽 라벨');
 });
 
 test('표시로 고른 미등록 물건도 상태를 답하면 재질 기준으로 안내한다', () => {

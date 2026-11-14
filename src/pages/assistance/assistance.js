@@ -12,7 +12,7 @@ import { collectionActionMarkup } from '../../components/collection-action.js';
 import { disposalReasonMarkup } from '../../components/disposal-reason.js';
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNAMED_ITEM } from '../../services/input-draft.js';
-import { confirmedPhotoMark, photoMarkMaterial, photoMarkPart } from '../../domain/disposal/recycle-marks.js';
+import { confirmedPhotoMark, photoMarkMaterial, photoMarkNeedsShape, photoMarkPart, photoMarkPartLabel } from '../../domain/disposal/recycle-marks.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
 import { mergeAssistanceAnswers, ASSIST_ANSWERS_MAX } from '../../domain/disposal/ai-assistance.js';
 import { disposalItemList, explicitDescriptionItemName, itemTypeClarification, itemCandidateHint, itemCandidateTitle, lookupItem, normalizeItemName, relatedItemCandidates, searchItemNames, uniqueItemNames } from '../../domain/disposal/item-suggestions.js';
@@ -52,7 +52,7 @@ function syncMarkShape(row) {
   const part = row.querySelector('[data-mark-part]').value;
   const shape = row.querySelector('[data-mark-shape]');
   const marking = row.dataset.marking;
-  const showShape = Boolean(part && part !== 'film' && photoMarkMaterial(marking) === '플라스틱');
+  const showShape = Boolean(part && part !== 'film' && photoMarkNeedsShape(marking));
   shape.closest('[data-assist-mark-shape]').hidden = !showShape;
   if (!showShape) shape.value = '';
   const label = row.querySelector('[data-mark-label]');
@@ -163,8 +163,10 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
     ${readableMarks.map(mark => `<fieldset class="assist-observations" data-marking="${escapeHtml(mark)}">
       <legend>${escapeHtml(mark)}</legend><label><input type="checkbox" data-use-mark> 이 표시 적용</label>
       <div class="field"><label>표시가 있는 곳 <select data-mark-part><option value="">부위를 골라 주세요</option>${[['body', '본체'], ['lid', '뚜껑·마개'], ['label', '라벨'], ['film', '포장 필름']].map(([value, label]) => `<option value="${value}"${photoMarkPart(mark) === value ? ' selected' : ''}>${label}</option>`).join('')}</select></label></div>
-      <div class="field" hidden><label>부속품 이름 (선택) <input type="text" data-mark-label maxlength="40" placeholder="예: 바깥 뚜껑, 안쪽 마개"${componentLabels.length ? ' list="assist-existing-parts"' : ''}></label></div>
-      <div class="field" data-assist-mark-shape hidden><label>표시가 있는 부분의 형태 <select data-mark-shape><option value="">다음 화면에서 고르기</option><option value="film">비닐 봉지·얇은 포장 필름</option><option value="container">단단한 용기·트레이</option></select></label></div>
+      <div class="field" hidden><label>부속품 이름 (선택) <input type="text" data-mark-label maxlength="40" placeholder="예: 바깥 뚜껑, 안쪽 마개" value="${escapeHtml(photoMarkPartLabel(mark))}"${componentLabels.length ? ' list="assist-existing-parts"' : ''}></label></div>
+      <div class="field" data-assist-mark-shape hidden><label>표시가 있는 부분의 형태 <select data-mark-shape><option value="">다음 화면에서 고르기</option><option value="film">비닐 봉지·얇은 포장 필름</option>${photoMarkMaterial(mark) === '페트병'
+        ? '<option value="other-pet">유색 페트병 또는 음료병 외 PET 용기</option>'
+        : '<option value="container">단단한 용기·트레이</option>'}</select></label></div>
     </fieldset>`).join('')}
     ${componentLabels.length ? `<datalist id="assist-existing-parts">${componentLabels.map(label => `<option value="${escapeHtml(label)}"></option>`).join('')}</datalist>` : ''}
     <p class="field-error" data-mark-error role="alert"></p>

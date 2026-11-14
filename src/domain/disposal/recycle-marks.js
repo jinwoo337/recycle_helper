@@ -23,30 +23,45 @@ const photoMaterialCodes = {
   '종이': '종이', '일반팩': '종이', '멸균팩': '종이', '종이팩': '종이', '유리': '유리', '캔류': '금속·캔',
 };
 const partLabels = { 본체: 'body', 몸체: 'body', 뚜껑: 'lid', 마개: 'lid', 캡: 'lid', 라벨: 'label', 필름: 'film', '포장 필름': 'film' };
-const photoPartPrefix = /^(본체|몸체|뚜껑|마개|캡|라벨|포장 필름|필름)\s*:\s*/;
+const photoPartPrefix = /^((?:(?:안쪽|바깥(?:쪽)?|내부|외부|겉|속)\s*)?)(본체|몸체|뚜껑|마개|캡|라벨|포장\s*필름|필름)\s*:\s*/;
+const partPrefix = marking => photoPartPrefix.exec(String(marking || '').normalize('NFKC').trim());
 export function photoMarkPart(marking) {
-  const label = photoPartPrefix.exec(String(marking || '').normalize('NFKC').trim())?.[1];
-  return label ? partLabels[label] : '';
+  const label = partPrefix(marking)?.[2];
+  return label ? partLabels[label.replace(/포장\s*필름/, '포장 필름')] : '';
+}
+export function photoMarkPartLabel(marking) {
+  const match = partPrefix(marking);
+  return match?.[1] && photoMarkPart(marking) !== 'body' ? `${match[1].trim()} ${match[2]}` : '';
 }
 function photoMarkCode(marking) {
   return String(marking || '').normalize('NFKC').trim().toUpperCase()
     .replace(photoPartPrefix, '').replace(/\s+표시$/, '');
 }
 export function photoMarkMaterial(marking) {
-  const code = photoMarkCode(marking).replace(/^플라스틱\s+(?=[A-Z]+$)/, '');
+  const printed = photoMarkCode(marking);
+  if (/^(?:플라스틱|비닐류)(?:\s+OTHER|\s*\(OTHER\))$/.test(printed)) return '기타';
+  if (/^비닐류(?:\s+(?:PET|PP|HDPE|LDPE|PE|PS)|\s*\((?:PET|PP|HDPE|LDPE|PE|PS)\))$/.test(printed)) return '비닐';
+  const code = printed.replace(/^플라스틱(?:\s+([A-Z]+)|\s*\(([A-Z]+)\))$/, (_, label, enclosed) => label || enclosed);
   return Object.hasOwn(photoMaterialCodes, code) ? photoMaterialCodes[code] : '';
+}
+
+export function photoMarkNeedsShape(marking) {
+  const code = photoMarkCode(marking);
+  return photoMarkMaterial(marking) === '플라스틱' || code === 'PET';
 }
 
 export function confirmedPhotoMark(marking, part, shape) {
   const code = photoMarkCode(marking);
   const material = photoMarkMaterial(marking);
   if (!material) return null;
-  if (material === '비닐' || (material === '플라스틱' && (part === 'film' || shape === 'film'))) {
+  if (material === '비닐' || (photoMarkNeedsShape(marking) && (part === 'film' || shape === 'film'))) {
     return { material: '비닐', type: 'packaging' };
   }
   if (material === '플라스틱' && shape === 'container') return { material, type: 'container' };
+  if (code === 'PET' && shape === 'other-pet') return { material, type: 'other-pet' };
   // A plain PET code doesn't tell us whether the packaging is a clear beverage bottle.
-  const mark = RECYCLE_MARKS.find(entry => entry.label === code || (entry.id === 'carton' && code === '종이팩'));
+  const mark = RECYCLE_MARKS.find(entry => entry.label === code
+    || (entry.id === 'carton' && code === '종이팩') || (entry.id === 'pet' && /^플라스틱\s*\(PET\)$/.test(code)));
   const bodyOnly = ['clear-pet', 'carton', 'aseptic-carton', 'glass', 'can'].includes(mark?.id);
   const type = mark && (!bodyOnly || part === 'body') && mark.id !== 'plastic' ? mark.type : '';
   return { material, type };

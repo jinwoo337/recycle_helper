@@ -79,8 +79,8 @@ export function observationsFromDescription(value) {
     const separable = /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*없|분리되지\s*않|떼어지지\s*않/.test(clause) ? 'no'
       : /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*있|분리돼요/.test(clause) ? 'yes' : '';
     if (separable) entries.push({ part: 'body', field: 'separable', value: separable });
-    const possibleCodes = new Set((clause.match(/\b(?:PP|HDPE|LDPE|PE|PS|PET)\b|무색\s*페트|일반팩|멸균팩|종이팩|비닐류/gi) || [])
-      .map(code => code.toUpperCase().replace(/\s+/g, '')));
+    const possibleCodes = new Set((clause.match(/(?:플라스틱|비닐류)(?:\s+(?:PET|PP|HDPE|LDPE|PE|PS|OTHER)\b|\s*\((?:PET|PP|HDPE|LDPE|PE|PS|OTHER)\))|\b(?:PP|HDPE|LDPE|PE|PS|PET)\b|무색\s*페트|일반팩|멸균팩|종이팩|비닐류/gi) || [])
+      .map(code => code.toUpperCase().replace(/무색\s*페트/, '무색페트')));
     const markText = prefix ? clause.slice(prefix[0].length) : '';
     if (/^비닐(?:이에요|입니다|이고|이예요|$)/.test(markText)) entries.push({ part, targetLabel, field: 'material', value: '비닐', type: 'packaging' });
     else if (!/표시.{0,9}없|표기가?\s*없|또는|[\/]\s*(?:PP|PE|PS|PET)\b/i.test(clause)) {
