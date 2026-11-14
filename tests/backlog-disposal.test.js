@@ -212,6 +212,9 @@ test('비닐에 기름 자국만 남았다는 명시적 설명을 같은 지역 
   assert.equal(judgeDisposal(withSolids).pendingCondition, 'removable');
   const unsure = observationsFromDescription('기름 자국만 남았는지 모르겠어요.');
   assert.deepEqual(unsure, []);
+  const contradicted = observationsFromDescription('기름 자국만 남았어요. 그런데 부스러기가 남았어요.');
+  assert.ok(contradicted.some(entry => entry.field === 'vinylResidue' && entry.value === 'solids'));
+  assert.ok(contradicted.every(entry => entry.value !== 'liquid-only'));
 });
 
 test('붙은 재질이 분리되지 않는다고 답하면 같은 질문 대신 복합재질 안내가 나온다', () => {

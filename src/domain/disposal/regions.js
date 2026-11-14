@@ -350,7 +350,8 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
               ? ['제거하기 어려운 고형물이 붙은 비닐은 관할 구청이나 관리사무소에 배출 방법을 확인해 주세요.']
               : ['음식물·소스·부스러기를 비우거나 헹궈 제거할 수 있는지 확인해 주세요.'];
         }
-        result.parts[0] = { label: result.parts[0].label, material: result.parts[0].material, status: result.status, method: result.method, reasons: [...result.reasons], steps: [...result.steps] };
+        result.parts[0] = { label: result.parts[0].label, material: result.parts[0].material, status: result.status, method: result.method, reasons: [...result.reasons], steps: [...result.steps],
+          ...(result.pendingCondition ? { pendingCondition: result.pendingCondition } : {}) };
       }
       city(SEOUL_SOURCES.vinyl, SEOUL_VINYL_NOTE, 'vinyl:seoul-expanded');
     } else if (result.status === 'recycle' && input.material === '음식물류' && input.type === 'soft') {

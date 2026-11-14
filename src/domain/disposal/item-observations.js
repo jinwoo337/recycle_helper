@@ -97,18 +97,20 @@ export function observationsFromDescription(value) {
     const dirty = /(?:음식물|내용물|기름기|오염|얼룩)(?:이|가|은)?\s*(?:조금\s*)?(?:남았어요|남았습니다|남아\s*있어요|남아\s*있습니다|묻었어요|묻어\s*있어요|있어요|있습니다)|오염된\s*상태/.test(clause)
       && !/남아\s*있지\s*않|남아\s*있진\s*않|남[은아].{0,9}없/.test(clause);
     const liquidOnly = /(?:기름|물)\s*자국만\s*(?:남았어요|남아\s*있어요|있어요|남음|$)/.test(clause);
-    const solids = /(?:고형물|부스러기|음식\s*덩어리)(?:이|가|은|는)?\s*(?:남았어요|남아\s*있어요|있어요|남음)/.test(clause);
+    const solids = /(?:고형물|부스러기|음식\s*덩어리|음식물)(?:이|가|은|는)?\s*(?:남았어요|남아\s*있어요|있어요|남음)/.test(clause);
     if (clean) entries.push({ part, targetLabel, field: 'state', value: 'clean' });
     if (dirty || liquidOnly || solids) entries.push({ part, targetLabel, field: 'state', value: /씻(?:었는데|어도)|세척(?:했지만|해도)/.test(clause) ? 'washed-dirty' : 'dirty' });
     if (liquidOnly || solids) entries.push({ part, targetLabel, field: 'vinylResidue', value: solids ? 'solids' : 'liquid-only' });
   }
-  if (['yes', 'no'].every(value => entries.some(entry => entry.field === 'separable' && entry.value === value))) {
+  const solidParts = new Set(entries.filter(entry => entry.field === 'vinylResidue' && entry.value === 'solids').map(partIdentity));
+  const consistent = entries.filter(entry => entry.field !== 'vinylResidue' || entry.value !== 'liquid-only' || !solidParts.has(partIdentity(entry)));
+  if (['yes', 'no'].every(value => consistent.some(entry => entry.field === 'separable' && entry.value === value))) {
     return cleanItemObservations([
-      ...entries.filter(entry => entry.field !== 'separable'),
+      ...consistent.filter(entry => entry.field !== 'separable'),
       { part: 'body', field: 'separable', value: 'unknown' },
     ], { allowTargetLabels: true });
   }
-  return cleanItemObservations(entries, { allowTargetLabels: true });
+  return cleanItemObservations(consistent, { allowTargetLabels: true });
 }
 
 export function mergeItemObservations(ai, description) {
