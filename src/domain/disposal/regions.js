@@ -163,6 +163,8 @@ function daejeonRecycleNote(guide, { material, type }) {
 export function applyRegionalRules(input, base, asOf = dateFormat.format(new Date())) {
   const region = normalizeRegion(input.region);
   const result = structuredClone(base);
+  delete result.disposalSchedule;
+  delete result.confirmedCollection;
   const yuseong = isYuseong(region);
   result.region = region;
   result.regional = { coverage: 'unverified', label: regionLabel(region), checkedAt: '2026-10-27', sources: [], notes: [], comparisonKey: `basic:${base.status}:${base.method}` };
@@ -223,7 +225,10 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     result.regional.checkedAt = medicine.checkedAt || '2026-11-11';
     result.sourceUrls = result.sourceUrls.filter(url => url !== MEDICINE_SOURCES.seoul);
     result.steps = [...MEDICINE_SAFETY_STEPS, medicine.preparation];
-    if (yuseong) result.steps.push(medicine.collection);
+    if (yuseong) {
+      result.steps.push(medicine.collection);
+      result.confirmedCollection = true;
+    }
     result.parts[0].steps = yuseong ? [...result.steps] : [...result.steps, medicine.collection];
     set(medicine.source, medicine.collection, medicine.key);
   }
@@ -289,6 +294,7 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       source: REGIONAL_SOURCES.gyeonggiGwangjuIcePack, note: '광주시청 안내에 행정복지센터 등 전용 수거함 위치가 있어요.',
       key: reusable ? 'ice-pack:gyeonggi-gwangju-reuse' : 'ice-pack:gyeonggi-gwangju-check',
     });
+    if (reusable) result.confirmedCollection = true;
   }
   if (region?.province === '서울특별시' && single && result.parts.length === 1 && result.parts[0].label === '본체' && !geumcheonFood) {
     const city = (url, note, key) => {
@@ -471,7 +477,6 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
   // 부속품마다 다른 지역 문장을 섞으면 헷갈리므로 본체 재질의 문장 하나만 더합니다.
   const separated = input.combined === 'yes' && input.separable === 'yes' && input.components?.length
     && result.parts[0]?.label === '본체' && result.parts[0].status === 'recycle';
-  const regionalBody = separated && (result.status !== 'recycle' || Boolean(detachedCarton && localCarton));
   if (separated && result.regional.coverage !== 'verified') {
     if (region?.province === '서울특별시') {
       const key = seoulRecycleKey(input);
@@ -515,8 +520,9 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
   if (result.regional.coverage === 'verified') {
     const scopeNotes = [SEOUL_SCOPE_NOTE, result.regional.scopeNote].filter(Boolean);
     const notes = result.regional.notes.filter(note => !scopeNotes.includes(note) && !(note === SEOUL_VINYL_NOTE && input.contaminated === 'yes'));
-    const target = regionalBody ? result.parts[0] : result;
+    const target = separated ? result.parts[0] : result;
     target.steps = [...new Set([...target.steps, ...notes])];
+    if (separated && result.status === 'recycle' && !(detachedCarton && localCarton)) result.steps = [...new Set([...result.steps, ...notes])];
     result.reasons.push(result.regional.scope === 'city' ? `${cityGuidanceLabel(result)}를 적용했어요. 해당 구·군의 수거 기준도 확인해 주세요.` : `${regionLabel(region)} 공식 자료로 확인한 해당 품목의 지역 기준을 적용했어요.`);
     result.notice = medicine ? '수거함 위치와 접수 가능 여부는 방문 전에 확인해 주세요.' : result.regional.scope === 'city' ? result.regional.scopeNote || SEOUL_SCOPE_NOTE : '표시된 품목의 지역 기준을 적용했어요. 배출일·시간·장소는 동별·주택 유형·관리사무소 안내를 확인해 주세요.';
   }

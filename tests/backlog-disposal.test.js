@@ -182,7 +182,9 @@ test('시행일 전에 종료 안내를 적용하지 않고 주소가 일치한 
   const damaged = judgeDisposal({ ...gwangjuInput, handlingCondition: 'unusable' });
   assert.equal(damaged.status, 'general');
   assert.equal(verifiedCollectionPoints(damaged), null);
-  const { points } = verifiedCollectionPoints(judgeDisposal({ ...gwangjuInput, handlingCondition: 'reusable' }));
+  const reusable = judgeDisposal({ ...gwangjuInput, handlingCondition: 'reusable' });
+  assert.equal(reusable.confirmedCollection, true);
+  const { points } = verifiedCollectionPoints(reusable);
   assert.equal(points.length, 13);
   assert.ok(points.every(point => !/신현동|송정동|광남1동/.test(point.name)));
   const ranked = rankCollectionPoints(points, { latitude: 37.410872, longitude: 127.257281 });
@@ -247,6 +249,9 @@ test('유성구 약 수거함 시설만 지도 목록에 표시하고 위치를 
   assert.ok(points.every(point => !/관평도서관|구암도서관/.test(point.name)));
   assert.equal(rankCollectionPoints(points, { latitude: 36.381493, longitude: 127.320654 })[0].name, '노은도서관');
   assert.match(resultMarkup(input, result), /유성구 폐의약품 공공 수거함[\s\S]*박산로 177[\s\S]*유성구보건소 위치/);
+  assert.match(resultMarkup(input, result), /result-badge">전용 수거/);
+  assert.match(resultToText(input, result), /이렇게 배출하세요/);
+  assert.equal(batchGroups([{ input, result }]).find(group => group.id === 'other').entries.length, 1);
   assert.equal(verifiedCollectionPoints(judgeDisposal({ ...input, itemName: '건전지' })), null);
 });
 

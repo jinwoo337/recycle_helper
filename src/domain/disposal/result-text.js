@@ -15,14 +15,15 @@ export function resultToText(input, result, { neighborhood } = {}) {
   result = displayed;
   const prefix = updated ? '현재 기준으로 다시 확인한 안내\n' : '';
   const { parts, steps } = resultStepsForDisplay(result);
-  const preparation = steps.length ? `\n\n${parts.length ? '먼저 할 일' : result.status === 'check' ? '배출 전에 확인하세요' : '이렇게 배출하세요'}\n${numbered(steps)}` : '';
+  const requiresCheck = result.status === 'check' && !result.confirmedCollection;
+  const preparation = steps.length ? `\n\n${parts.length ? '먼저 할 일' : requiresCheck ? '배출 전에 확인하세요' : '이렇게 배출하세요'}\n${numbered(steps)}` : '';
   const partInstructions = parts.length ? `\n\n본체와 부속품 배출 방법\n${parts.map(part => `${part.label} (${part.material}) · ${part.method}\n${numbered(part.steps)}`).join('\n\n')}` : '';
   const schedule = result.disposalSchedule;
   const timing = schedule ? `\n\n${schedule.district} 배출 시간과 장소\n${disposalScheduleRows(schedule, neighborhood).map(({ label, appliesTo, when, where }) => [
     appliesTo ? `${label} · ${appliesTo}` : label, when, ...where.map(([housing, site]) => `${housing} · ${site}`),
   ].join('\n')).join('\n\n')}` : '';
   const reasons = disposalReasons(result);
-  const explanation = reasons.length ? `\n\n${result.status === 'check' ? '왜 확인이 필요한가요?' : '왜 이렇게 버리나요?'}\n${reasons.join('\n')}` : '';
+  const explanation = reasons.length ? `\n\n${requiresCheck ? '왜 확인이 필요한가요?' : '왜 이렇게 버리나요?'}\n${reasons.join('\n')}` : '';
   const regionNotes = (result.regional?.notes || []).filter(note => !result.steps.includes(note) && note !== result.notice);
   const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category, result.region)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const details = part => conditionDetails(part).map(([title, value]) => `${title} · ${value}`).join('\n');

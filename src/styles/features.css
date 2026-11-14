@@ -139,6 +139,8 @@
 .item-summary .result-verdict h3 { font-size: 22px; line-height: 1.45; }
 .item-summary .result-region { margin-top: 12px; }
 .result-parts > article { background: #fafcfb; border-color: var(--line); }
+.result-parts > .result-part-needs-check { background: #fffbf2; border-left: 3px solid #a76b16; }
+.result-parts > .result-part-needs-check .part-method { color: #775216; }
 .icon-steps > li { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 14px 0; background: transparent; }
 .icon-steps > li + li { margin-top: 0; }
 .icon-steps > li:last-child { border-bottom: 0; }

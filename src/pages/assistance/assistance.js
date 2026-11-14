@@ -175,7 +175,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
   </form>` : '';
   return `<p class="eyebrow">${guide?.inferred ? '이름으로 알아본 종류의 안내' : guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide?.regional ? resultRegionLabel(guide) : regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
-    <div class="assist-method"><p class="eyebrow">어디에 버리나요?</p><h3>${escapeHtml(method)}</h3></div>
+    <div class="assist-method"><p class="eyebrow">어디에 버리나요?</p>${!confirmIdentity && guide?.confirmedCollection ? '<span class="result-badge">전용 수거</span>' : ''}<h3>${escapeHtml(method)}</h3></div>
     ${guide && !fromInput ? '<p class="assist-identification">사진이나 설명에서 추정한 이름이에요. 실제 물건과 같은지 확인해 주세요.</p>' : !guide && answer.identification ? `<p class="assist-identification">${escapeHtml(answer.identification)}</p>` : ''}
     ${answer.evidence === 'markings' ? '<p class="input-hint">표시는 읽었지만 실제 물건은 확인하지 못했어요. 물건 전체 사진이나 용도 설명을 더해 주세요.</p>' : ''}
     ${answer.markings.length ? `<p class="assist-markings"><strong>AI가 읽은 표시</strong> ${answer.markings.map(escapeHtml).join(' · ')}</p>` : ''}
