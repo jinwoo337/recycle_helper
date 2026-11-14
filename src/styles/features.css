@@ -160,6 +160,10 @@
 .disposal-schedule-route dl { margin: 0; display: grid; gap: 5px; font-size: 14px; }
 .disposal-schedule-route dl > div { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 10px; }
 .disposal-schedule-route dd { margin: 0; }
+.disposal-schedule-selects { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.disposal-schedule-selects label:not([hidden]) { display: grid; gap: 4px; flex: 1 1 145px; font-size: 13px; }
+.disposal-schedule-selects select { min-height: 44px; width: 100%; padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: white; color: inherit; font: inherit; }
+.disposal-schedule-route [data-yuseong-days-help] { color: var(--muted); font-weight: 400; }
 .disposal-schedule > a { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; color: var(--green); text-decoration: underline; }
 @media (max-width: 480px) {
   .disposal-schedule { padding: 13px; }

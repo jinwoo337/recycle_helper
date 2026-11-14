@@ -5,9 +5,10 @@ import { handlingConditionQuestion } from './special-guides.js';
 import { lookupItem } from './item-suggestions.js';
 import { largeWasteHelp } from './large-waste.js';
 import { collectionAction } from './collection-action.js';
+import { disposalScheduleRows } from './yuseong-recycling-days.js';
 const numbered = steps => steps.map((step, index) => `${index + 1}. ${step}`).join('\n');
 
-export function resultToText(input, result) {
+export function resultToText(input, result, { neighborhood } = {}) {
   input = inputForDisplay(input, result);
   const displayed = resultForDisplay(input, result);
   const updated = displayed !== result;
@@ -17,7 +18,7 @@ export function resultToText(input, result) {
   const preparation = steps.length ? `\n\n${parts.length ? '먼저 할 일' : result.status === 'check' ? '배출 전에 확인하세요' : '이렇게 배출하세요'}\n${numbered(steps)}` : '';
   const partInstructions = parts.length ? `\n\n본체와 부속품 배출 방법\n${parts.map(part => `${part.label} (${part.material}) · ${part.method}\n${numbered(part.steps)}`).join('\n\n')}` : '';
   const schedule = result.disposalSchedule;
-  const timing = schedule ? `\n\n${schedule.district} 배출 시간과 장소\n${schedule.rows.map(({ label, appliesTo, when, where }) => [
+  const timing = schedule ? `\n\n${schedule.district} 배출 시간과 장소\n${disposalScheduleRows(schedule, neighborhood).map(({ label, appliesTo, when, where }) => [
     appliesTo ? `${label} · ${appliesTo}` : label, when, ...where.map(([housing, site]) => `${housing} · ${site}`),
   ].join('\n')).join('\n\n')}` : '';
   const reasons = disposalReasons(result);

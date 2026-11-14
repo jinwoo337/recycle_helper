@@ -8,6 +8,7 @@ import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { lookupItem, searchItemNames } from '../src/domain/disposal/item-suggestions.js';
 import { applyRegionalRules } from '../src/domain/disposal/regions.js';
 import { GEL_ICE_PACK_SOURCE } from '../src/domain/disposal/catalog-sources.js';
+import { yuseongRecyclingDays } from '../src/domain/disposal/yuseong-recycling-days.js';
 import { rankCollectionPoints, verifiedCollectionPoints } from '../src/domain/disposal/verified-collection-points.js';
 import { resultMarkup } from '../src/pages/item-input/item-input.js';
 import { resultToText } from '../src/domain/disposal/result-text.js';
@@ -247,6 +248,19 @@ test('유성구 약 수거함 시설만 지도 목록에 표시하고 위치를 
   assert.equal(rankCollectionPoints(points, { latitude: 36.381493, longitude: 127.320654 })[0].name, '노은도서관');
   assert.match(resultMarkup(input, result), /유성구 폐의약품 공공 수거함[\s\S]*박산로 177[\s\S]*유성구보건소 위치/);
   assert.equal(verifiedCollectionPoints(judgeDisposal({ ...input, itemName: '건전지' })), null);
+});
+
+test('유성구 재활용품 일정은 법정동을 적용하고 요일이 나뉘면 행정동을 요구한다', () => {
+  assert.deepEqual(yuseongRecyclingDays('지족동'), { days: '일·수', areas: [] });
+  assert.deepEqual(yuseongRecyclingDays('하기동'), { days: '', areas: ['노은2동', '신성동'] });
+  assert.equal(yuseongRecyclingDays('하기동', '노은2동').days, '화·금');
+  assert.equal(yuseongRecyclingDays('하기동', '신성동').days, '수');
+  assert.equal(yuseongRecyclingDays('방현동').days, '수');
+  assert.equal(yuseongRecyclingDays('둔곡동').days, '금');
+  const input = { ...itemPresetInput('맥주캔'), itemName: '맥주캔', contaminated: 'no', combined: 'no', region: { province: '대전광역시', district: '유성구' } };
+  const result = judgeDisposal(input);
+  assert.match(resultMarkup(input, result), /법정동[\s\S]*하기동/);
+  assert.match(resultToText(input, result, { neighborhood: { neighborhood: '하기동', area: '신성동' } }), /하기동 \(신성동\) 수요일 저녁/);
 });
 
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {

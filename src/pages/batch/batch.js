@@ -9,9 +9,11 @@ import { bindResultCopy, copyResultFallback } from '../../components/result-copy
 import { escapeHtml } from '../../utils/html.js';
 import { readJudgementRegion } from '../../services/judgement-region.js';
 import { getCurrentMember } from '../../services/auth.js';
+import { readYuseongNeighborhood } from '../../services/yuseong-neighborhood.js';
 
 export function batchPage() {
   const { items, region } = readDisposalBatch();
+  const neighborhood = readYuseongNeighborhood(getCurrentMember());
   const count = items.filter(item => item.result).length;
   const duplicates = duplicateBatchPartIds(items);
   return `<section class="container batch-page" id="disposal-batch"><header class="item-heading"><h1 tabindex="-1">함께 버릴 물건</h1><p class="input-hint">${escapeHtml(regionLabel(region))}${items.length ? ` · ${count}/${items.length}개 판별함` : ''}</p></header>
@@ -20,7 +22,7 @@ export function batchPage() {
       <div><strong>${escapeHtml(input.itemName)}</strong><p>${escapeHtml(displayed?.method || '확인 필요 · 아직 판별하지 않았어요')}</p>${displayed ? `<small>${escapeHtml(resultRegionLabel(displayed))}</small>` : ''}
       ${duplicates.has(id) ? '<p class="input-hint">배달 용기의 부속품에도 있어요. 같은 물건이면 이 항목을 빼 주세요.</p>' : ''}</div>
       <div class="batch-actions"><button type="button" class="history-action" data-batch-item="${id}" aria-label="${escapeHtml(input.itemName)} ${result ? '조건 다시 확인' : '판별하기'}">${result ? '조건 다시 확인' : '판별하기'}</button><button type="button" class="history-action" data-batch-remove="${id}" aria-label="${escapeHtml(input.itemName)} 목록에서 빼기">빼기</button></div>
-      ${result ? `<details><summary>단계·조건·출처 보기</summary><p class="batch-entry-detail">${escapeHtml(resultToText(input, result))}</p></details>` : ''}
+      ${result ? `<details><summary>단계·조건·출처 보기</summary><p class="batch-entry-detail">${escapeHtml(resultToText(input, result, { neighborhood }))}</p></details>` : ''}
     </li>`).join('')}</ul></section>` : '').join('')}
     <div class="form-actions"><button type="button" class="button primary" data-copy-result>목록 한 번에 복사</button><a class="button secondary" href="#/item-input">물건 찾기로 돌아가기</a></div>
     <p class="input-hint">이 브라우저에서 다시 열어도 목록과 확인 상태가 유지돼요.</p><p class="input-hint" data-result-tools-status role="status"></p>${copyResultFallback}`
@@ -38,7 +40,7 @@ export function bindBatch() {
     root.querySelector(focus)?.focus();
   }
   function bind() {
-    disposeCopy = bindResultCopy(root, () => batchToText(readDisposalBatch().items), { message: '함께 버릴 물건 목록을 복사했어요.' });
+    disposeCopy = bindResultCopy(root, () => batchToText(readDisposalBatch().items, { neighborhood: readYuseongNeighborhood(getCurrentMember()) }), { message: '함께 버릴 물건 목록을 복사했어요.' });
     root.querySelector('[data-batch-add]').addEventListener('submit', event => {
       event.preventDefault();
       const form = event.currentTarget, input = form.elements.namedItem('itemName'), itemName = input.value.trim();

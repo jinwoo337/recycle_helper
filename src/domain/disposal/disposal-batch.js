@@ -20,9 +20,9 @@ export function batchGroups(items) {
   return groups.map(([id, label]) => ({ id, label, entries: displayed.filter(item => groupFor(item.input, item.displayed) === id) }));
 }
 
-export function batchToText(items) {
+export function batchToText(items, context) {
   return batchGroups(items).filter(group => group.entries.length).map(group => [
     `[${group.label}]`,
-    ...group.entries.map(({ input, result }) => result ? resultToText(input, result) : `${input.itemName} · 확인 필요 (아직 판별하지 않았어요)`),
+    ...group.entries.map(({ input, result }) => result ? resultToText(input, result, context) : `${input.itemName} · 확인 필요 (아직 판별하지 않았어요)`),
   ].join('\n\n')).join('\n\n');
 }

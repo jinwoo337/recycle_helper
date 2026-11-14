@@ -9,6 +9,7 @@ import { bindVerifiedCollection } from './collection-help.js';
 import { bindResultCopy, copyResultButton, copyResultFallback } from './result-copy.js';
 import { escapeHtml } from '../utils/html.js';
 import { addDisposalBatchItem, addMealToBatch } from '../services/disposal-batch.js';
+import { bindDisposalSchedule } from './disposal-schedule.js';
 
 const feedbackIssues = {
   destination: '수거처·배출 장소',
@@ -44,7 +45,9 @@ export function resultToolsMarkup(input, result) {
 export function bindResultTools(root, input, result, { onNewItem, onRelatedItem, tools = memberTools } = {}) {
   const disposeChecklist = bindDisposalChecklist(root);
   if (root.querySelector('[data-verified-collection]')) bindVerifiedCollection(root, resultForDisplay(input, result));
-  const disposeCopy = bindResultCopy(root, () => resultToText(input, result));
+  const scheduleChoice = bindDisposalSchedule(root, resultForDisplay(input, result));
+  const resultText = () => resultToText(input, result, { neighborhood: scheduleChoice() });
+  const disposeCopy = bindResultCopy(root, resultText);
   const status = root.querySelector('[data-result-tools-status]');
   const favorite = root.querySelector('[data-favorite]');
   let selected = false, disposed = false, loaded = false, busy = false, refreshVersion = 0;
@@ -78,7 +81,7 @@ export function bindResultTools(root, input, result, { onNewItem, onRelatedItem,
   if (typeof navigator.share === 'function') {
     share.hidden = false;
     share.addEventListener('click', async () => {
-      try { await navigator.share({ title: `${input.itemName} 분리배출 방법`, text: resultToText(input, result), url: location.origin + location.pathname }); if (alive()) status.textContent = '공유했어요.'; }
+      try { await navigator.share({ title: `${input.itemName} 분리배출 방법`, text: resultText(), url: location.origin + location.pathname }); if (alive()) status.textContent = '공유했어요.'; }
       catch (error) { if (alive() && error?.name !== 'AbortError') status.textContent = '공유하지 못했어요. 결과 복사를 이용해 주세요.'; }
     });
   }

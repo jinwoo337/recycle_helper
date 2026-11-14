@@ -11,7 +11,7 @@ import { bindVerifiedCollection, collectionPointMarkup } from '../../components/
 import { collectionActionMarkup } from '../../components/collection-action.js';
 import { disposalReasonMarkup } from '../../components/disposal-reason.js';
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
-import { disposalScheduleMarkup } from '../../components/disposal-schedule.js';
+import { bindDisposalSchedule, disposalScheduleMarkup } from '../../components/disposal-schedule.js';
 import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNAMED_ITEM } from '../../services/input-draft.js';
 import { confirmedPhotoMark, photoMarkMaterial, photoMarkNeedsShape, photoMarkPart, photoMarkPartLabel } from '../../domain/disposal/recycle-marks.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
@@ -420,7 +420,8 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     });
     bindVerifiedCollection(result, view.guide);
     const disposeChecklist = bindDisposalChecklist(result);
-    const disposeCopy = bindResultCopy(result, () => resultToText(resultInput(view), view.guide));
+    const scheduleChoice = bindDisposalSchedule(result, view.guide);
+    const disposeCopy = bindResultCopy(result, () => resultToText(resultInput(view), view.guide, { neighborhood: scheduleChoice() }));
     const save = result.querySelector('[data-assist-save]');
     if (save && view.saveState?.saved) { save.disabled = true; save.textContent = '기록에 저장했어요'; }
     else if (save && view.saveState?.pending) { save.disabled = true; save.textContent = '기록에 저장 중'; }

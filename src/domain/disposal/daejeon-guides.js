@@ -16,7 +16,7 @@ export function yuseongDisposalSchedule(result) {
   });
   const knownRecycling = result.parts.filter(ordinaryRecycling);
   if (knownRecycling.length) rows.push({
-    label: '일반 재활용품', appliesTo: appliesTo(knownRecycling),
+    label: '일반 재활용품', appliesTo: appliesTo(knownRecycling), recycling: true,
     when: '동별 배출 요일 저녁 · 공동주택은 단지 수거 일정',
     where: [['일반 주택·도안 크린넷 사용 지역', '투명봉투에 모아 집 앞'], ['공동주택', '단지 지정 장소']],
   });
