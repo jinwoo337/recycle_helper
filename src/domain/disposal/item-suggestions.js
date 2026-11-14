@@ -1,7 +1,7 @@
 import { expandedItemEntries } from './expanded-catalog.js';
 import { ITEM_VARIANTS } from './item-variants.js';
 import { BATTERY_PACKAGING_NAMES, detectItemCategory, splitItemList } from './category-keywords.js';
-import { ALUMINUM_CAPSULE_SOURCE, GEL_ICE_PACK_SOURCE, LAMP_DISPOSAL_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, PAPER_NOODLE_CUP_SOURCE, WATER_ICE_PACK_SOURCE, WET_WIPE_SOURCE } from './catalog-sources.js';
+import { ALUMINUM_CAPSULE_SOURCE, GEL_ICE_PACK_SOURCE, LAMP_DISPOSAL_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, PAPER_NOODLE_CUP_SOURCE, RECYCLING_APPENDIX_SOURCE, WATER_ICE_PACK_SOURCE, WET_WIPE_SOURCE } from './catalog-sources.js';
 // 정확한 품목명만 일치시킵니다. 대표 구성은 별도 메타데이터로 관리합니다.
 export const bundledItemEntries = [
   [['우유팩', '두유팩', '주스팩', '쥬스팩', '멸균우유팩', '멸균팩', '종이팩'], '종이', 'carton'],
@@ -60,6 +60,12 @@ const spellingSuggestions = {
 };
 // These names require a choice even if a server catalog has an old entry.
 const requiredVariants = [
+  { names: ['장난감', '완구', '플라스틱장난감', '플라스틱완구', '인형'],
+    variants: ['비전동플라스틱장난감', '전동장난감', '봉제인형', '대형장난감'],
+    title: '장난감의 작동 방식과 재질 확인', question: '어떤 장난감을 버리나요?',
+    hint: '전기·전지로 작동하는지, 천이나 솜으로 만든 인형인지, 일반 수거함에 들어갈 크기인지 확인해 주세요.',
+    unknown: '분리되지 않는 다른 재질이 붙거나 종류가 불분명하면 관할 지역에 수거 여부를 확인해 주세요.',
+    reason: '작은 비전동 플라스틱 완구, 전동 완구, 봉제인형과 큰 완구는 수거 경로가 달라요.', sources: [RECYCLING_APPENDIX_SOURCE] },
   { names: ['컵라면', '컵라면용기', '컵라면컵', '라면컵'],
     variants: ['종이컵라면용기', '스티로폼컵라면용기', '단단한플라스틱컵라면용기'],
     title: '컵라면 용기의 재질 확인', question: '용기 본체는 어떤 재질인가요?',
@@ -164,6 +170,10 @@ export function itemMatchLabel(query, name) {
 }
 
 const candidateHints = {
+  비전동플라스틱장난감: '전지·전기를 쓰지 않는 작은 플라스틱 완구',
+  전동장난감: '건전지·충전·전원으로 작동하는 완구',
+  봉제인형: '천과 솜으로 만든 인형',
+  대형장난감: '플라스틱 수거함에 함께 넣기 어려운 크기',
   비닐포장필름: '떼어낸 라벨·덮개에 비닐류 표시가 있을 때',
   플라스틱즉석밥용기: '덮개를 떼고 남은 그릇',
   즉석밥용기: '그릇과 떼어내는 덮개',
@@ -198,6 +208,7 @@ const candidateHints = {
   복사용지: '코팅 없는 일반 인쇄용지',
 };
 const candidateTitles = {
+  비전동플라스틱장난감: '비전동 플라스틱 장난감',
   비닐포장필름: '떼어낸 비닐 라벨·필름',
   플라스틱즉석밥용기: '플라스틱 즉석밥 그릇',
   즉석밥용기: '즉석밥 용기 전체',

@@ -626,7 +626,7 @@ export function bindItemInput() {
     }
     typeQuick.hidden = !showTypes;
     typeQuick.querySelectorAll('button').forEach(button => {
-      button.hidden = !prefix && category.value === 'packaging' && material === '플라스틱' && button.dataset.typeChoice === 'utensil';
+      button.hidden = !prefix && category.value === 'packaging' && material === '플라스틱' && ['utensil', 'toy'].includes(button.dataset.typeChoice);
       button.setAttribute('aria-pressed', String(button.dataset.typeChoice === select.value));
     });
     toggle(node.querySelector('[data-condition="type"]'), showTypes);

@@ -17,6 +17,7 @@ export const COMPARISON_REGIONS = [
   { province: '경기도', district: '김포시' },
   { province: '경기도', district: '구리시' },
   { province: '경기도', district: '광주시' },
+  { province: '경기도', district: '성남시' },
   { province: '경기도', district: '용인시' },
   { province: '인천광역시', district: '부평구' },
   ...Object.entries(METRO_GUIDES).flatMap(([province, guide]) => guide.city
@@ -64,6 +65,7 @@ export const REGIONAL_SOURCES = {
   gyeonggiGwangjuIcePack: 'https://www.gjcity.go.kr/depart/contents.do?mId=0901070200',
   gyeonggiGwangjuRecycle: 'https://www.gjcity.go.kr/depart/contents.do?mId=0901050000',
   gimpoRecycle: 'https://gimpo.go.kr/portal/contents.do?key=1435',
+  seongnamCarton: 'https://snvision.seongnam.go.kr/data/snvision/pdf/202604/2026043022123157.pdf',
   geumcheonFood: 'https://geumcheon.go.kr/portal/contents.do?key=818',
   yuseongLargeFees: 'https://www.yuseong.go.kr/clean/html/sub02/02.html',
   ...Object.fromEntries(Object.entries(MEDICINE_SOURCES).map(([key, url]) => [`medicine-${key}`, url])),
@@ -80,6 +82,7 @@ const sourceDetails = {
   [REGIONAL_SOURCES.gangdongWaste]: { scope: '서울특별시 강동구' },
   [REGIONAL_SOURCES.nowonCarton]: { scope: '서울특별시 노원구', effective: '2026-04-16' },
   [REGIONAL_SOURCES.gimpoRecycle]: { scope: '경기도 김포시', updated: '2026-10-20' },
+  [REGIONAL_SOURCES.seongnamCarton]: { scope: '경기도 성남시 공동주택', published: '2026-05' },
   [REGIONAL_SOURCES.gyeonggiGwangjuIcePack]: { scope: '경기도 광주시' },
   [REGIONAL_SOURCES.gyeonggiGwangjuRecycle]: { scope: '경기도 광주시' },
   [MEDICINE_SOURCES.guri]: { scope: '경기도 구리시', published: '2026-02-19' },
@@ -103,6 +106,7 @@ export function regionalSourceLabel(url) {
   if (url === REGIONAL_SOURCES.yonginIcePack) return '용인시 · 아이스팩 수거 종료 안내';
   if (url === REGIONAL_SOURCES.gyeonggiGwangjuIcePack) return '경기 광주시 · 아이스팩 수거함 위치';
   if (url === REGIONAL_SOURCES.gyeonggiGwangjuRecycle) return '경기 광주시 · 재활용품 배출 안내';
+  if (url === REGIONAL_SOURCES.seongnamCarton) return '성남시 · 공동주택 종이팩 전용 수거함';
   if (url === MEDICINE_SOURCES.seoul) return '서울시 폐의약품 수거 안내';
   if (url === MEDICINE_SOURCES.daejeon) return '대전시 가정 내 폐의약품 안내';
   if (url === MEDICINE_SOURCES.donggu) return '대전 동구 폐의약품 배출 안내';
@@ -123,7 +127,7 @@ export function regionalSourceLabel(url) {
 }
 // 재활용 품목의 재질·세부 종류에 맞는 서울시 공통 안내 문장 이름(SEOUL_RECYCLE_NOTES의 키)입니다.
 function seoulRecycleKey({ material, type }) {
-  if (type === 'utensil') return null;
+  if (['utensil', 'toy'].includes(type)) return null;
   if (material === '종이') return ({ paper: 'paper', carton: 'carton', cup: 'cup' })[type] || null;
   if (material === '페트병' && type === 'clear-drink') return 'pet';
   if (material === '스티로폼') return 'foam';
@@ -131,7 +135,7 @@ function seoulRecycleKey({ material, type }) {
 }
 // 광역시(대구·광주·울산) 시청 공통 안내에서 재질에 맞는 문장 이름을 고릅니다.
 function metroRecycleKey({ material, type }) {
-  if (type === 'utensil') return null;
+  if (['utensil', 'toy'].includes(type)) return null;
   if (material === '종이') return ({ paper: 'paper', carton: 'carton' })[type] || null;
   if (material === '페트병') return type === 'clear-drink' ? 'pet' : 'container';
   if (material === '플라스틱') return 'container';
@@ -142,7 +146,7 @@ function metroRecycleKey({ material, type }) {
 }
 // 대전 구청 자료에서 재질에 맞는 안내 문장을 고릅니다. 자료가 없으면 null입니다.
 function daejeonRecycleNote(guide, { material, type }) {
-  if (type === 'utensil') return null;
+  if (['utensil', 'toy'].includes(type)) return null;
   const key = material === '종이' ? (type === 'carton' ? 'carton' : type === 'paper' ? 'paper' : null)
     : material === '비닐' ? 'vinyl' : ['플라스틱', '페트병', '유리', '금속·캔', '스티로폼'].includes(material) ? 'container' : null;
   if (!key) return null;
@@ -178,6 +182,11 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       source: REGIONAL_SOURCES.gimpoRecycle, key: 'carton:separate-pack-types',
       reason: '김포시는 일반팩과 멸균팩을 구분해서 모아요.',
       route: '일반팩과 멸균팩을 구분해 전용 수거함에 넣거나, 종류별로 묶어 종이류 수거함에 넣어 주세요.',
+    },
+    '경기도 성남시': {
+      source: REGIONAL_SOURCES.seongnamCarton, key: 'carton:apartment-dedicated-separated',
+      reason: '성남시 공동주택에서는 종이팩을 일반팩과 멸균팩으로 구분해 모아요.',
+      route: '공동주택은 단지 내 종이팩 전용 수거함에 일반팩과 멸균팩을 구분해 넣어 주세요. 일반주택은 거주지의 수거 장소를 확인해 주세요.',
     },
     '서울특별시 노원구': {
       source: REGIONAL_SOURCES.nowonCarton, key: 'carton:separate-clear-bag-fallback',

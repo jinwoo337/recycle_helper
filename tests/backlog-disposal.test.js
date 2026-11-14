@@ -115,6 +115,18 @@ test('짧은 포장 검색은 해당 부위의 후보부터 보여 주고 확인
   assert.equal(lookupItem('투명생수패트병'), null);
 });
 
+test('장난감은 작동 방식과 크기를 확인한 뒤 플라스틱 완구와 다른 배출 경로를 구분한다', () => {
+  const unknown = judgeDisposal({ itemName: '플라스틱 장난감' });
+  assert.equal(unknown.status, 'check');
+  assert.deepEqual(unknown.itemCandidates, ['비전동플라스틱장난감', '전동장난감', '봉제인형', '대형장난감']);
+  const cleanToy = { ...itemPresetInput('비전동 플라스틱 장난감'), combined: 'no', contaminated: 'no' };
+  assert.equal(judgeDisposal(cleanToy).status, 'recycle');
+  assert.equal(judgeDisposal({ ...cleanToy, combined: 'yes', separable: 'no' }).status, 'check');
+  assert.equal(judgeDisposal({ ...cleanToy, itemName: '전동장난감' }).handling, 'electronic');
+  assert.equal(judgeDisposal({ ...cleanToy, itemName: '봉제인형' }).handling, 'stuffed-toy');
+  assert.equal(judgeDisposal({ ...cleanToy, itemName: '대형장난감' }).handling, 'large');
+});
+
 test('같은 설명의 무색페트, PP, 비닐 표기는 해당 부위에만 적용된다', () => {
   const evidence = observationsFromDescription('본체 무색페트 뚜껑 PP 라벨 비닐');
   assert.deepEqual(evidence, [

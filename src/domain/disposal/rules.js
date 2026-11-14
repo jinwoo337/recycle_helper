@@ -9,12 +9,12 @@ import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-14.v25';
+export const RULE_VERSION = '2026-11-14.v26';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
   '음식물류': [['soft', '확인된 음식물·부드러운 껍질 (뼈·포장 등 제외)'], ['excluded', '단단한 뼈·껍데기·씨앗 등 수거 제외 품목'], ['fibrous', '질긴 뿌리·대·겉껍질 등 수거 제외 부산물'], ['residue', '커피·차·약재 찌꺼기·장류 등 수거 제외 품목'], ['unknown', '종류를 모르겠어요']],
-  '플라스틱': [['container', '일반 용기·트레이'], ['utensil', '단일 플라스틱 숟가락'], ['other', '그 밖의 플라스틱 제품'], ['unknown', '모르겠어요']],
+  '플라스틱': [['container', '일반 용기·트레이'], ['utensil', '단일 플라스틱 숟가락'], ['toy', '작은 비전동 플라스틱 완구'], ['other', '그 밖의 플라스틱 제품'], ['unknown', '모르겠어요']],
   '페트병': [['clear-drink', '무색 투명한 생수·음료 페트병'], ['other-pet', '유색 페트병 / 식용유·세제 등 다른 용도'], ['unknown', '모르겠어요']],
   '종이': [['paper', '일반 종이·상자·책'], ['carton', '종이팩 (우유팩·두유팩 등)'], ['cup', '일반 종이컵 (양면 코팅 제외)'], ['food-container', '수거 가능한 종이 식품 용기 (표시·지역 확인)'], ['excluded', '감열 영수증·사진·종이호일·사용한 휴지'], ['coated', '분리되지 않는 코팅 종이·양면 코팅 종이컵'], ['unknown', '모르겠어요']],
   '유리': [['bottle', '깨지지 않은 일반 음료·식품 유리병'], ['broken', '깨진 유리'], ['special', '내열유리·거울·판유리·크리스탈 등'], ['unknown', '모르겠어요']],
@@ -24,7 +24,7 @@ export const TYPES = {
 };
 
 const stateTypes = {
-  '플라스틱': ['container', 'utensil'], '페트병': ['clear-drink', 'other-pet'],
+  '플라스틱': ['container', 'utensil', 'toy'], '페트병': ['clear-drink', 'other-pet'],
   '종이': ['paper', 'carton', 'cup', 'food-container'], '유리': ['bottle'], '금속·캔': ['food-can'],
   '비닐': ['packaging'], '스티로폼': ['packaging'],
 };
@@ -69,7 +69,9 @@ function judgePart(raw, itemName = '') {
   // 이름은 예외를 놓치지 않기 위한 보조 신호로만 사용합니다.
   const electronic = /전자제품|전기제품|휴대폰|충전기/.test(itemName)
     && !(p.material === '스티로폼' && p.type === 'packaging' && /완충재/.test(itemName));
-  if (electronic || /배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이/.test(itemName) || (p.material === '금속·캔' && p.type === 'hazard')) {
+  if (electronic || /배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이/.test(itemName)
+      || (p.type === 'toy' && /(?<!비)전동|전기|전자|충전|전지/.test(itemName))
+      || (p.material === '금속·캔' && p.type === 'hazard')) {
     return outcome('check', '추가 확인 필요', '별도 수거 또는 안전한 처리가 필요한 물품일 수 있어요.', ['내용물을 임의로 붓거나 용기에 구멍을 내지 말고 지자체의 품목별 안내를 확인해 주세요.']);
   }
   const compactName = itemName.replace(/\s+/g, '');
@@ -126,7 +128,8 @@ function judgePart(raw, itemName = '') {
   const routes = {
     '플라스틱': p.type === 'utensil'
       ? ['플라스틱류로 분리배출 · 지역 수거 확인', '단일 플라스틱 숟가락은 이물질을 제거하면 플라스틱류로 안내해요.', '음식물을 헹궈 제거하고 지역에서 작은 플라스틱을 받는지 확인해 주세요.']
-      : ['플라스틱류로 분리배출', '일반 플라스틱 용기·트레이예요.', '내용물을 비우고 물기를 제거해 주세요.'],
+      : p.type === 'toy' ? ['플라스틱류로 분리배출 · 비전동 완구', '전기·전지를 쓰지 않는 작은 플라스틱 완구는 합성수지 용기·트레이와 함께 수거해요.', '쉽게 떼어낼 수 있는 다른 재질과 이물질을 제거하고 플라스틱류로 배출해 주세요.']
+        : ['플라스틱류로 분리배출', '일반 플라스틱 용기·트레이예요.', '내용물을 비우고 물기를 제거해 주세요.'],
     '페트병': p.type === 'clear-drink'
       ? ['투명 페트병으로 별도 분리배출', '무색 투명한 생수·음료 페트병은 별도 수거 대상이에요.', '라벨을 제거하고 가능한 압착한 뒤 뚜껑을 닫아 주세요.']
       : ['플라스틱류로 분리배출', '유색 또는 다른 용도의 페트병은 투명 생수·음료 페트병 수거 대상이 아니에요.', '내용물을 비우고 라벨·부속품을 확인해 주세요.'],
@@ -212,7 +215,7 @@ function judgeBaseDisposal(input = {}) {
     '목록에서 물건을 하나씩 골라 확인해 주세요.',
   ]), pendingCondition: 'category', itemCandidates: itemList });
   const batteryPackaging = isBatteryPackaging(name);
-  const dangerous = !batteryPackaging && /전자제품|전기제품|휴대폰|충전기|배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이|전자담배|이어폰|멀티탭|전기완구|전동/.test(name)
+  const dangerous = !batteryPackaging && /전자제품|전기제품|휴대폰|충전기|배터리|건전지|형광등|약품|농약|부탄|살충제|페인트|락카|스프레이|전자담배|이어폰|멀티탭|전기완구|(?<!비)전동/.test(name)
     && !(name === '전자제품포장완충재' && input.material === '스티로폼' && input.type === 'packaging');
   // 종류를 직접 고르지 않았으면 이름 속 낱말로 종류를 알아봅니다. 사용자가 '다른 물건이에요'를 고르면(keywordCategory: false) 건너뜁니다.
   const { category, detected, origin } = resolveInputCategory(input);
@@ -260,6 +263,10 @@ function judgeBaseDisposal(input = {}) {
   }
   if (category === 'packaging' && ['기타', '모르겠어요'].includes(input.material)) {
     return finish({ ...outcome('check', '포장재의 재질·분리배출 표시 확인 필요', '포장재 종류는 확인했지만 재질별 수거 대상을 정할 정보가 부족해요.', ['포장에 적힌 재질·분리배출 표시와 실제 용도를 확인해 주세요.', '표시가 없거나 여러 재질을 구분하기 어려우면 제조사 또는 거주지 폐기물 담당 부서에 수거 방법을 확인해 주세요.']), pendingCondition: 'material' });
+  }
+  if (category === 'packaging' && input.material === '플라스틱' && input.type === 'toy') {
+    return finish({ ...outcome('check', '포장재의 용도 확인', '비전동 완구와 포장 용기는 별도의 수거 조건이 적용돼요.',
+      ['포장 용기라면 용기 종류를 골라 주세요. 장난감이라면 이름을 장난감으로 바꿔 확인해 주세요.']), pendingCondition: 'type' });
   }
   const manualMaterial = ['packaging', 'food'].includes(category) && categoryAllowsMaterial(category, input.material);
   const ai = known || category ? null : validateAiGuess(input.aiGuess, input.itemName);

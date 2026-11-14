@@ -1,7 +1,7 @@
 // 품목명은 정확히 일치할 때만 사용합니다. 제품 상태(오염·세척)는 기본값에 넣지 않습니다.
 // 포장 구성은 대표적인 예시이며, 사용자가 실제 제품에 맞춰 수정해야 합니다.
 import { FOOD_SOURCE } from './food.js';
-import { ALUMINUM_CAPSULE_SOURCE, FOAM_NOODLE_CUP_SOURCE, FOOD_PAD_SOURCE, GEL_ICE_PACK_SOURCE, LAMP_DISPOSAL_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, PAPER_NOODLE_CUP_SOURCE, RICE_CONTAINER_SOURCE, WATER_ICE_PACK_SOURCE, WET_WIPE_SOURCE } from './catalog-sources.js';
+import { ALUMINUM_CAPSULE_SOURCE, FOAM_NOODLE_CUP_SOURCE, FOOD_PAD_SOURCE, GEL_ICE_PACK_SOURCE, LAMP_DISPOSAL_SOURCE, MIXED_CAPSULE_SOURCE, PAPER_DISPOSAL_SOURCE, PAPER_NOODLE_CUP_SOURCE, RECYCLING_APPENDIX_SOURCE, RICE_CONTAINER_SOURCE, WATER_ICE_PACK_SOURCE, WET_WIPE_SOURCE } from './catalog-sources.js';
 export const CATALOG_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const CATALOG_CHECKED_AT = '2026-10-27';
 const plastic = { material:'플라스틱', type:'container', label:'플라스틱 덮개·마개' };
@@ -292,7 +292,7 @@ export const expandedItemEntries = [
   row('PVC장판|비닐바닥재', '비닐', 'other', '포장용 비닐과 구분되는 바닥재예요. 공사장 생활폐기물·대형폐기물 기준을 확인해 주세요.'),
   row('비닐현수막|PVC현수막', '비닐', 'other', '포장재가 아닌 현수막 기준이에요. 지역의 별도 회수·종량제·대형폐기물 기준을 확인해 주세요.'),
   row('비닐천막|PVC천막', '비닐', 'other', '포장용 비닐이 아닌 천막 기준이에요. 크기와 소재에 따른 지역 처리 기준을 확인해 주세요.'),
-  row('봉제인형|솜인형', '기타', '', '천과 충전재가 포함된 제품이에요. 일반 의류 수거함과 구분하고 크기에 따른 지역 기준을 확인해 주세요.', undefined, 'bedding'),
+  row('봉제인형|솜인형|천인형', '기타', '', '봉제인형은 플라스틱 완구 수거 대상에서 제외돼요. 재질과 크기에 맞는 지역 배출 기준을 확인해 주세요.', undefined, 'stuffed-toy', RECYCLING_APPENDIX_SOURCE, '2026-11-14'),
   row('골프가방|골프백', '기타', '', '일반 의류·잡화 수거함의 제외 품목이에요. 지역 대형폐기물 등 처리 기준을 확인해 주세요.', undefined, 'mixed-product'),
   row('캐리어|여행용트렁크|바퀴달린가방', '기타', '', '바퀴·프레임·겉감이 결합된 가방 기준이에요. 일반 의류 수거함에 넣지 말고 지역 기준을 확인해 주세요.', undefined, 'mixed-product'),
   row('인라인스케이트|롤러스케이트', '기타', '', '바퀴·프레임·신발 부분이 결합된 제품이에요. 의류 수거함 접수 대상과 구분해 주세요.', undefined, 'mixed-product'),
@@ -445,6 +445,9 @@ export const expandedItemEntries = [
   row('유선이어폰|줄이어폰','기타','','전선·회로·이어피스가 포함된 전자제품이에요. 지역 소형 전자제품 회수 조건을 확인해 주세요.',undefined,'electronic'),
   row('공책|수학공책|줄노트|노트내지','종이','paper','일반 종이 내지 기준이에요. 스프링·비닐 표지·부록 등 다른 재질은 실제 구성에 맞춰 확인해 주세요.'),
   row('약|폐의약품|의약품|남은약|먹다남은약|안먹는약|유통기한지난약|알약|가루약|물약|시럽약|캡슐약|연고|안약|감기약|진통제|처방약', '기타', '', '약 자체는 재질을 고르지 않고 폐의약품으로 안내해요. 건강기능식품·빈 약 포장재는 구분해 주세요.', undefined, 'medicine', 'https://news.seoul.go.kr/env/archives/564807'),
+  row('비전동플라스틱장난감|비전동플라스틱완구|플라스틱블록', '플라스틱', 'toy', '전기나 전지를 쓰지 않는 작은 플라스틱 완구 기준이에요. 분리되지 않는 다른 재질이 붙었는지 확인해 주세요.', undefined, undefined, RECYCLING_APPENDIX_SOURCE, '2026-11-14'),
+  row('전동장난감|전기장난감|전자장난감|전지장난감|전기전자완구', '기타', '', '전기·전지로 작동하는 완구는 소형 폐가전으로 안내해요.', undefined, 'electronic', RECYCLING_APPENDIX_SOURCE, '2026-11-14'),
+  row('대형장난감|대형완구|큰장난감', '기타', '', '합성수지 용기와 함께 내놓기 어려운 큰 완구는 지역 대형폐기물 접수 기준을 확인해 주세요.', undefined, 'large-toy', RECYCLING_APPENDIX_SOURCE, '2026-11-14'),
   row('나무젓가락|일회용나무젓가락|목재젓가락|대나무젓가락', '기타', '', '나무젓가락 본체 기준이에요. 겉포장은 분리해서 확인해 주세요.', undefined, 'wood-chopsticks', 'https://clean.yongsan.go.kr/resources/images/user/recycleExhaust.pdf', '2026-11-12'),
   row('플라스틱포크|플라스틱나이프', '플라스틱', 'other', '일반 용기·트레이가 아닌 일회용 식기예요. 재질 표시와 지역 기준을 확인해 주세요.'),
   row('나무숟가락|일회용나무숟가락|목재숟가락|나무스푼', '기타', '', '나무로 된 숟가락 본체 기준이에요. 겉포장은 따로 확인해 주세요.', undefined, 'wood-spoon', 'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=775', '2026-11-12'),
