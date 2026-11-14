@@ -20,7 +20,9 @@ import { disposalItemList, explicitDescriptionItemName, itemTypeClarification, i
 import { itemPresetInput } from '../../domain/disposal/input-presets.js';
 import { judgeDisposal, RULE_SOURCE, supportsState } from '../../domain/disposal/rules.js';
 import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js';
+import { resultHandlingQuestion } from '../../domain/disposal/result-display.js';
 import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
+import { yuseongDeskTypeFromName } from '../../domain/disposal/daejeon-guides.js';
 import { isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { categoryLabel } from '../../domain/disposal/item-categories.js';
 import { mergeItemObservations, observationKey, observationLabel } from '../../domain/disposal/item-observations.js';
@@ -79,8 +81,10 @@ function registeredGuide(name, region, { infer = true, condition } = {}) {
   const detected = !registered && infer ? resolveInputCategory({ itemName: name }).category : '';
   if (!registered && (!detected || detected === 'packaging')) return null;
   const input = registered ? itemPresetInput(name) : { itemName: name };
-  const prompt = handlingConditionQuestion(item?.handling || detected, region);
+  const handling = item?.handling || detected;
+  const prompt = handling === 'large' ? resultHandlingQuestion(input, region, handling) : handlingConditionQuestion(handling, region);
   if (prompt) {
+    if (!condition && handling === 'large') condition = yuseongDeskTypeFromName(normalizeItemName(name));
     if (!prompt.options.some(([value]) => value === condition)) return { needsConditions: true, prompt, inferred: !registered };
     return { ...judgeDisposal({ ...input, region, handlingCondition: condition }), prompt, condition, inferred: !registered };
   }

@@ -8,6 +8,17 @@ export const yuseongFoamQuestion = (region, material, type) => isYuseong(region)
   : null;
 export const foamColorFromName = name => /^(?:흰색|백색)스티로폼/.test(name) ? 'foam-white'
   : /^(?:유색|색깔있는)스티로폼/.test(name) ? 'foam-colored' : '';
+export const yuseongDeskTypes = [
+  ['desk-double', '양쪽에 서랍이 있는 책상', '양수', '6,000원'],
+  ['desk-single', '한쪽에 서랍이 있는 책상', '편수', '5,000원'],
+  ['desk-computer', '컴퓨터용 책상', '컴퓨터용', '3,000원'],
+  ['desk-set', '상판·책장·서랍장 세트', '세트', '10,000원'],
+];
+export const yuseongDeskTypeFromName = name => /책상세트|세트책상/.test(name) ? 'desk-set' : /컴퓨터용?책상/.test(name) ? 'desk-computer'
+  : /양수책상|양쪽서랍책상/.test(name) ? 'desk-double' : /편수책상|한쪽서랍책상/.test(name) ? 'desk-single' : '';
+export const yuseongDeskQuestion = (region, name) => isYuseong(region) && /책상/.test(name)
+  ? { title: '유성구 품목표에서 어떤 책상인가요?', options: yuseongDeskTypes.map(([id, label, , fee]) => [id, `${label} · ${fee}`]) }
+  : null;
 
 export function yuseongFoodInGeneralBag(type, name) {
   if (type === 'excluded') return true;

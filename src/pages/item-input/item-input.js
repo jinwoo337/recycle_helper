@@ -25,7 +25,7 @@ import { judgementRegionMarkup, bindJudgementRegion } from '../../components/jud
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
 import { disposalReasons, resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultHandlingQuestion, resultPendingQuestions } from '../../domain/disposal/result-display.js';
 import { disposalScheduleMarkup } from '../../components/disposal-schedule.js';
-import { foamColorFromName, isYuseong } from '../../domain/disposal/daejeon-guides.js';
+import { foamColorFromName, isYuseong, yuseongDeskTypeFromName } from '../../domain/disposal/daejeon-guides.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
@@ -307,7 +307,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
   const badge = result.confirmedCollection ? '전용 수거' : input.material === '음식물류' && result.status === 'recycle' ? '음식물류'
     : result.status === 'general' && /특수규격봉투|특수종량제|불연성/.test(result.method) ? '특수 배출'
       : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
-  const handlingAnswer = resultHandlingQuestion(input, result.region, lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
+  const handlingAnswer = resultHandlingQuestion(input, result.region, result.handling)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const regionToggle = inlineRegion ? ' aria-controls="result-region-form" aria-expanded="false"' : '';
   const details = part => conditionDetails(part).map(([title, value]) =>
     `<div><dt>${title}</dt><dd>${escapeHtml(value)}</dd></div>`
@@ -682,14 +682,18 @@ export function bindItemInput() {
     const handling = known?.handling || category.value || '';
     const needsFoamColor = value('combined') === 'no' && (value('contaminated') === 'no' || value('removable') === 'yes');
     const region = judgementRegion.get();
-    const prompt = handlingConditionQuestion(handling, region)
-      || (needsFoamColor ? resultHandlingQuestion(partValue(''), region, handling) : null);
+    const prompt = handling === 'large' || needsFoamColor
+      ? resultHandlingQuestion({ ...partValue(''), itemName: nameInput.value }, region, handling)
+      : handlingConditionQuestion(handling, region);
     const promptKey = prompt?.title || '';
     if (handlingCondition.dataset.handling !== promptKey) {
       handlingCondition.dataset.handling = promptKey;
       handlingCondition.hidden = !prompt;
       handlingCondition.innerHTML = prompt ? question('handlingCondition', prompt.title, prompt.options.some(([option]) => option === 'unknown') ? prompt.options : [...prompt.options, ['unknown', '모르겠어요']]) : '';
-      if (prompt) writeValues({ handlingCondition: selectedHandlingCondition || foamColorFromName(normalizeItemName(nameInput.value)) });
+      if (prompt) {
+        const name = normalizeItemName(nameInput.value);
+        writeValues({ handlingCondition: selectedHandlingCondition || (handling === 'large' ? yuseongDeskTypeFromName(name) : foamColorFromName(name)) });
+      }
     }
     categorySection.hidden = !unregistered;
     const choosingSpoon = unregistered && !category.value && isAmbiguousSpoonName(nameInput.value);

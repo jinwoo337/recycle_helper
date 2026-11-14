@@ -49,9 +49,10 @@ export function collectionAction(input, result) {
       note: '깨끗하고 터지지 않은 젤 아이스팩을 받는 곳을 확인해 주세요.' };
   }
   if (['glass:yuseong-sack', 'ceramic:yuseong-sack'].includes(regional?.comparisonKey)) {
-    return { url: REGIONAL_SOURCES.yuseongCenters, scope, label: '특수규격봉투를 파는 동 행정복지센터',
+    return { url: REGIONAL_SOURCES.yuseongSackSellers, scope, label: '유성구 특수규격봉투 판매처',
       extraUrl: YUSEONG_COLLECTION_GUIDE, extraLabel: '특수규격봉투 배출·신고 안내',
-      office: '유성구청 불연성폐기물 문의', phone: '042-611-2344', note: '봉투에 적힌 수거업체에 배출을 신고해 주세요.' };
+      office: '유성구청 불연성폐기물 문의', phone: '042-611-2344',
+      note: '구청 판매처 목록은 2026년 8월 기준이에요. 특수규격봉투에 담은 뒤 봉투에 적힌 수거업체에 배출을 신고하세요.' };
   }
   if (regional?.comparisonKey?.startsWith('carton:yuseong-drop-off')) {
     return { url: REGIONAL_SOURCES.yuseongCenters, scope, label: '동 행정복지센터 위치 보기',

@@ -1,7 +1,7 @@
 export const PROVINCES = ['서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시', '경기도', '강원특별자치도', '충청북도', '충청남도', '전북특별자치도', '전라남도', '경상북도', '경상남도', '제주특별자치도'];
 export const SEOUL_DISTRICTS = '종로구 중구 용산구 성동구 광진구 동대문구 중랑구 성북구 강북구 도봉구 노원구 은평구 서대문구 마포구 양천구 강서구 구로구 금천구 영등포구 동작구 관악구 서초구 강남구 송파구 강동구'.split(' ');
 export { DAEJEON_DISTRICTS } from './daejeon-guides.js';
-import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES, YUSEONG_WASTE_GUIDE, foamColorFromName, isYuseong, yuseongDisposalSchedule, yuseongFoodInGeneralBag } from './daejeon-guides.js';
+import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES, YUSEONG_WASTE_GUIDE, foamColorFromName, isYuseong, yuseongDeskTypes, yuseongDeskTypeFromName, yuseongDisposalSchedule, yuseongFoodInGeneralBag } from './daejeon-guides.js';
 import { SEOUL_SOURCES, SEOUL_RECYCLE_NOTES, SEOUL_SCOPE_NOTE, SEOUL_VINYL_NOTE } from './seoul-guides.js';
 import { MEDICINE_SAFETY_STEPS, MEDICINE_SOURCES, medicineRegionalGuidance } from './medicine-guide.js';
 import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } from './metro-guides.js';
@@ -72,6 +72,7 @@ export const REGIONAL_SOURCES = {
   geumcheonFood: 'https://geumcheon.go.kr/portal/contents.do?key=818',
   yuseongWaste: YUSEONG_WASTE_GUIDE,
   yuseongCenters: 'https://www.yuseong.go.kr/kor/sub06_04.do',
+  yuseongSackSellers: 'https://www.yuseong.go.kr/clean/html/sub05/0501.html?mode=V&no=f2438ea2834bd63ab8671429d82bbfae',
   yuseongLed: 'https://www.yuseong.go.kr/bbs/BBSMSTR_000000000138/view.do?nttId=B000000142652Oo6eB7',
   yuseongBattery: 'https://www.yuseong.go.kr/bbs/BBSMSTR_000000000138/view.do?nttId=B000000142344Wo1nO5',
   daejeonClearPet: 'https://www.daejeon.go.kr/drh/administration/board/boardGalleryView.do?boardId=gallery_0033&menuSeq=7795&ntatcSeq=1485905443&pageIndex=1',
@@ -94,6 +95,7 @@ const sourceDetails = {
   [REGIONAL_SOURCES.gyeonggiGwangjuIcePack]: { scope: '경기도 광주시' },
   [REGIONAL_SOURCES.gyeonggiGwangjuRecycle]: { scope: '경기도 광주시' },
   [REGIONAL_SOURCES.yuseongWaste]: { scope: '대전광역시 유성구' },
+  [REGIONAL_SOURCES.yuseongSackSellers]: { scope: '대전광역시 유성구', published: '2026-08-21' },
   [REGIONAL_SOURCES.yuseongLed]: { scope: '대전광역시 유성구', published: '2026-06-22' },
   [REGIONAL_SOURCES.yuseongBattery]: { scope: '대전광역시 유성구', published: '2026-06-05' },
   [REGIONAL_SOURCES.daejeonClearPet]: { scope: '대전광역시', published: '2025-06-25' },
@@ -127,6 +129,7 @@ export function regionalSourceLabel(url) {
   if (url === MEDICINE_SOURCES.seongnam) return '성남시 폐의약품 수거함 설치 안내';
   if (url === REGIONAL_SOURCES.yuseongWaste) return '유성구 · 생활쓰레기 배출 시간과 장소';
   if (url === REGIONAL_SOURCES.yuseongCenters) return '유성구 · 동 행정복지센터 위치';
+  if (url === REGIONAL_SOURCES.yuseongSackSellers) return '유성구 · 특수규격봉투 판매처';
   if (url === REGIONAL_SOURCES.yuseongLed) return '유성구 · 폐LED 조명 수거';
   if (url === REGIONAL_SOURCES.yuseongBattery) return '유성구 · 폐건전지 수거 안내';
   if (url === REGIONAL_SOURCES.daejeonClearPet) return '대전시 · 투명 페트병 별도 배출';
@@ -491,12 +494,18 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     result.confirmedCollection = true;
   }
   if (daejeon && single) {
-    if (result.handling === 'large' && region.district === '유성구' && /책상/.test(input.itemName || '')) {
-      result.method = '책상 · 유성구 대형폐기물 품목 확인 후 신청';
-      result.steps = ['서랍이 한쪽인지 양쪽인지, 컴퓨터용인지, 책장·서랍장이 포함된 세트인지 확인해 주세요.', '유성구 품목표에서 맞는 책상 항목과 수수료를 확인해 배출 신청하세요.', '신청 후 안내받은 필증·배출일·지정 장소를 따라 주세요.'];
-      result.parts[0] = { ...result.parts[0], method: result.method, steps: [...result.steps] };
-      result.regional.checkedAt = '2026-11-11';
-      set(REGIONAL_SOURCES.yuseongLargeFees, '유성구 품목표는 책상을 양수, 편수, 컴퓨터용, 세트로 구분해요.', 'desk:yuseong-types');
+    if (result.handling === 'large' && yuseong && /책상/.test(input.itemName || '')) {
+      const selected = input.handlingCondition || yuseongDeskTypeFromName(normalizeItemName(input.itemName));
+      const type = yuseongDeskTypes.find(([id]) => id === selected);
+      applyLocalMethod({
+        method: type ? `${type[2]} 책상 · 유성구 대형폐기물 배출 신청 (${type[3]})` : '책상 · 유성구 대형폐기물 품목 확인 후 신청',
+        reason: '유성구는 책상에 딸린 서랍과 책장, 책상의 용도에 따라 신고 품목과 수수료를 구분해요.',
+        steps: [type ? `공식 배출 신청에서 책상 ${type[2]} 항목을 선택하고 결제 단계의 수수료를 확인해 주세요.`
+          : '서랍이 한쪽인지 양쪽인지, 컴퓨터용인지, 책장·서랍장이 포함된 세트인지 확인해 주세요.',
+        '신청 후 발급된 신고필증이나 번호를 물건에 표시하고 지정된 날짜와 장소에 내놓으세요.'],
+        source: REGIONAL_SOURCES.yuseongLargeFees, note: '유성구 대형폐기물 품목표와 신청 안내를 적용했어요.', key: 'desk:yuseong-types',
+        pendingCondition: type ? undefined : 'handling',
+      });
     } else if (yuseong && (knownGlass || result.handling === 'ceramic')) {
       const name = knownGlass ? '깨진 유리' : '도자기류';
       applyLocalMethod({

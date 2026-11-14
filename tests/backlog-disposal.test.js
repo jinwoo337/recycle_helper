@@ -17,6 +17,24 @@ import { batchGroups, batchToText } from '../src/domain/disposal/disposal-batch.
 import { addDisposalBatchItems, addMealToBatch, changeDisposalBatchRegion, readDisposalBatch, removeBatchItem, updateBatchItem } from '../src/services/disposal-batch.js';
 
 const seoul = { province: '서울특별시', district: '강남구' };
+test('유성구 책상의 종류에 따라 수수료가 다르고 신청서와 품목표로 연결한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  const input = { itemName: '책상', region };
+  const pending = judgeDisposal(input);
+  assert.equal(pending.pendingCondition, 'handling');
+  assert.match(resultMarkup(input, pending), /책상 종류 선택하기/);
+  for (const [handlingCondition, fee] of [['desk-double', '6,000원'], ['desk-single', '5,000원'], ['desk-computer', '3,000원'], ['desk-set', '10,000원']]) {
+    const answered = { ...input, handlingCondition };
+    const result = judgeDisposal(answered);
+    assert.ok(result.method.includes(fee));
+    assert.equal(result.pendingCondition, undefined);
+    assert.match(resultMarkup(answered, result), /유성구 대형폐기물 배출 신청[\s\S]*유성구 품목·수수료표/);
+    assert.ok(resultToText(answered, result).includes(fee));
+  }
+  assert.match(judgeDisposal({ ...input, itemName: '컴퓨터용 책상' }).method, /3,000원/);
+  assert.doesNotMatch(judgeDisposal({ ...input, region: seoul, handlingCondition: 'desk-double' }).method, /6,000원/);
+});
+
 const response = {
   itemName: '삼각 소스통', identification: '소스 포장 용기', evidence: 'object', confidence: 'high',
   markings: [], method: '종량제에 바로 버리세요', steps: ['종량제에 바로 버리세요'], questions: [], cautions: [], category: 'packaging',
@@ -236,7 +254,7 @@ test('유성구 배출 일정은 일반 종량제봉투나 일반 재활용품�
     assert.equal(local.disposalSchedule, undefined);
     assert.match(local.method, /특수규격봉투\(마대\)/);
     assert.match(local.steps.join(' '), /수거업체에 신고/);
-    assert.match(resultMarkup({ itemName, region }, local), /특수규격봉투를 파는 동 행정복지센터[\s\S]*042-611-2344/);
+    assert.match(resultMarkup({ itemName, region }, local), /유성구 특수규격봉투 판매처[\s\S]*042-611-2344/);
   }
   assert.equal(judgeDisposal({ itemName: '알약', region }).disposalSchedule, undefined);
   assert.equal(judgeDisposal({ itemName: '물티슈낱장' }).disposalSchedule, undefined);

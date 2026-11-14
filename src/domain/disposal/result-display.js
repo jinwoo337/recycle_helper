@@ -1,6 +1,6 @@
 import { judgeDisposal, RULE_VERSION, TYPES } from './rules.js';
 import { handlingConditionQuestion } from './special-guides.js';
-import { yuseongFoamQuestion } from './daejeon-guides.js';
+import { yuseongDeskQuestion, yuseongFoamQuestion } from './daejeon-guides.js';
 
 const conditionTitles = {
   material: '주요 재질',
@@ -32,7 +32,7 @@ export function conditionDetails(part) {
 }
 
 export function resultHandlingQuestion(input, region, handling) {
-  return handlingConditionQuestion(handling, region) || yuseongFoamQuestion(region, input.material, input.type);
+  return handlingConditionQuestion(handling, region) || (handling === 'large' ? yuseongDeskQuestion(region, input.itemName) : yuseongFoamQuestion(region, input.material, input.type));
 }
 
 // 저장된 스냅샷은 유지하고, 오래된 처리 지침은 화면·복사에서 재사용하지 않습니다.
@@ -70,9 +70,11 @@ export function resultPendingQuestions(input, result) {
     if (!Object.hasOwn(pendingQuestionLabels, condition)) return;
     const part = partIndex > 0 ? parts[partIndex] : null;
     const prefix = part ? `part${partIndex - 1}-` : '';
+    const label = condition === 'handling' && result.regional?.comparisonKey === 'desk:yuseong-types'
+      ? '책상 종류 선택하기' : pendingQuestionLabels[condition];
     questions.set(`${prefix}${condition}`, {
       condition, prefix,
-      label: part ? `${part.label} · ${pendingQuestionLabels[condition]}` : pendingQuestionLabels[condition],
+      label: part ? `${part.label} · ${label}` : label,
     });
   }
   add(result.pendingCondition);
