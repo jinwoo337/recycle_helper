@@ -19,6 +19,9 @@ const batterySources = {
 };
 const seoulMedicineMap = 'https://map.seoul.go.kr/smgis2/short/6OiGm';
 export const YUSEONG_COLLECTION_GUIDE = 'https://www.yuseong.go.kr/kor/sub07_11_03_09.do';
+const districtRecyclePage = region => METRO_GUIDES[region.province]?.districts[region.district]?.recycle
+  || (region.province === '대전광역시' ? DAEJEON_GUIDES[region.district]?.recycle : null)
+  || cityGuide(region)?.recycle;
 
 export function collectionAction(input, result) {
   const { handling, region, regional } = result;
@@ -35,6 +38,12 @@ export function collectionAction(input, result) {
   };
   const isBattery = batteries.includes(handling);
   const brokenGlass = input.material === '유리' && input.type === 'broken';
+  if (region && result.parts?.[0]?.label === '본체와 결합 재질' && input.separable === 'no') {
+    const official = districtRecyclePage(region);
+    const home = DISTRICT_HOMEPAGES[region.province]?.[region.district];
+    return { url: official || home, scope, label: official ? '지역 재활용 공식 안내' : '관할 지자체 공식 누리집',
+      note: '제품의 분리배출 표시와 붙은 재질을 알려 관할 폐기물 담당 부서에 배출 방법을 확인해 주세요.' };
+  }
   if (handling === 'gel-ice-pack' && regional?.comparisonKey === 'ice-pack:gyeonggi-gwangju-reuse') {
     return { url: REGIONAL_SOURCES.gyeonggiGwangjuIcePack, scope, label: '경기 광주시 젤 아이스팩 수거함 위치',
       note: '깨끗하고 터지지 않은 젤 아이스팩을 받는 곳을 확인해 주세요.' };
@@ -53,8 +62,7 @@ export function collectionAction(input, result) {
   if (region && result.status === 'check' && ['unknown', 'material-only'].includes(input.category)) {
     const metro = METRO_GUIDES[region.province]?.districts[region.district];
     const city = cityGuide(region);
-    const official = (region.province === '대전광역시' ? DAEJEON_GUIDES[region.district]?.recycle : null)
-      || metro?.recycle || city?.recycle;
+    const official = districtRecyclePage(region);
     const home = metro?.home || city?.home || DISTRICT_HOMEPAGES[region.province]?.[region.district];
     if (official || home) return { url: official || home, scope,
       label: official ? '지역 폐기물 공식 안내' : '관할 지자체 공식 누리집',
@@ -89,9 +97,7 @@ export function collectionAction(input, result) {
   }
   const district = region && METRO_GUIDES[region.province]?.districts[region.district];
   const city = region && cityGuide(region);
-  const url = brokenGlass
-    ? (region?.province === '대전광역시' ? DAEJEON_GUIDES[region.district]?.recycle : null) || district?.recycle || city?.recycle
-    : null;
+  const url = brokenGlass && region ? districtRecyclePage(region) : null;
   return { url: url || district?.home || city?.home || (region && DISTRICT_HOMEPAGES[region.province]?.[region.district]),
     scope, label: url ? '지역 폐기물 공식 안내' : '관할 지자체 공식 누리집',
     note: handling === 'medicine' ? '보건소나 폐기물 담당 부서에 폐의약품 접수 장소, 포장 처리 방법과 이용 시간을 확인해 주세요.'

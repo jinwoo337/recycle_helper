@@ -88,7 +88,8 @@ export function disposalReasons(result) {
   const reasons = result.reasons || [];
   const parts = result.parts || [];
   if (parts.length < 2) {
-    const needsComposition = result.status === 'check' && ['combined', 'separable', 'components'].includes(result.pendingCondition);
+    const needsComposition = result.status === 'check' && (parts[0]?.label === '본체와 결합 재질' && !result.pendingCondition
+      || ['combined', 'separable', 'components'].includes(result.pendingCondition));
     if (needsComposition) return [reasons.at(-1) || reasons[0]].filter(Boolean);
     const hasRemovableContamination = result.status === 'recycle' && result.method.startsWith('오염 제거 후');
     return (hasRemovableContamination ? reasons.slice(0, 2) : reasons.slice(0, 1)).filter(Boolean);

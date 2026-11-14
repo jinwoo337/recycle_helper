@@ -214,6 +214,16 @@ test('비닐에 기름 자국만 남았다는 명시적 설명을 같은 지역 
   assert.deepEqual(unsure, []);
 });
 
+test('붙은 재질이 분리되지 않는다고 답하면 같은 질문 대신 복합재질 안내가 나온다', () => {
+  const input = { ...itemPresetInput('투명생수병'), region: seoul,
+    contaminated: 'no', combined: 'yes', separable: 'no', components: [] };
+  const result = judgeDisposal(input);
+  assert.equal(result.pendingCondition, undefined);
+  assert.match(result.method, /복합재질/);
+  assert.match(resultMarkup(input, result), /붙은 재질을 떼기 어려워 복합재질 배출 기준/);
+  assert.doesNotMatch(resultMarkup(input, result), /재질 분리 여부 확인하기/);
+});
+
 test('포장 랩의 사진 표시를 기존 부속품에 반영하고 붙은 재질에 관한 모순은 다시 묻는다', () => {
   const input = itemPresetInput('랩포장스티로폼정육트레이');
   const film = { part: 'film', field: 'material', value: '비닐', type: 'packaging' };

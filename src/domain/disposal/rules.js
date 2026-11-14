@@ -9,7 +9,7 @@ import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-14.v29';
+export const RULE_VERSION = '2026-11-14.v30';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -302,9 +302,13 @@ function judgeBaseDisposal(input = {}) {
     } else if (input.combined === 'yes' && input.separable !== 'yes') {
       if (result.status !== 'check') result.steps = [];
       result.status = 'check'; result.method = '추가 확인 필요';
-      result.reasons.push('분리되지 않거나 분리 가능 여부가 불확실한 복합재질이에요.');
+      result.reasons.push(input.separable === 'no' ? '붙은 재질을 떼기 어려워 복합재질 배출 기준을 확인해야 해요.'
+        : '붙은 재질을 떼어낼 수 있는지 확인해야 본체와 부속품의 배출 방법을 정할 수 있어요.');
       result.steps.push('분리배출 표시와 지역의 복합재질 수거 기준을 확인해 주세요.');
-      if (result.pendingCondition !== 'state') result.pendingCondition = 'separable';
+      if (input.separable === 'no') {
+        delete result.pendingCondition;
+        result.method = '분리하기 어려운 복합재질 · 지역 기준 확인';
+      } else if (result.pendingCondition !== 'state') result.pendingCondition = 'separable';
     } else if (input.combined === 'yes') {
       if (result.status !== 'check') result.steps.unshift('다른 재질의 부속품을 본체에서 분리해 주세요.');
       const components = Array.isArray(input.components) ? input.components : [];
