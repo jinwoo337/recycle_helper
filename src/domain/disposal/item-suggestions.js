@@ -57,6 +57,7 @@ const spellingSuggestions = {
   패트병: ['페트병'], 투명생수패트병: ['투명생수병'], 생수패트병: ['생수병'],
   패트병뚜껑: ['플라스틱용기뚜껑', '생수병'], 패트병라벨: ['비닐포장필름', '종이포장지', '생수병'],
   컵라면두껑: ['금속박종이포장지', '비닐포장필름', '플라스틱용기뚜껑'],
+  페트병뚜겅: ['플라스틱용기뚜껑', '생수병'], 컵라면뚜겅: ['금속박종이포장지', '비닐포장필름', '플라스틱용기뚜껑'],
 };
 // These names require a choice even if a server catalog has an old entry.
 const requiredVariants = [
@@ -72,7 +73,7 @@ const requiredVariants = [
     hint: '국물을 비운 뒤 용기 바닥이나 겉면에 적힌 분리배출 표시를 보세요.',
     unknown: '겉포장과 뚜껑은 각각 확인해 주세요. 본체 재질을 모르면 관할 지역의 컵라면 용기 안내를 확인해 주세요.',
     reason: '종이·스티로폼·단단한 플라스틱은 수거 경로가 다르고, 씻어도 국물이나 기름이 남으면 재활용이 어려워요.', sources: [PAPER_NOODLE_CUP_SOURCE] },
-  { names: ['컵라면뚜껑', '컵라면덮개', '라면컵뚜껑', '컵라면은박뚜껑'],
+  { names: ['컵라면뚜껑', '컵라면덮개', '라면컵뚜껑', '컵라면은박뚜껑', '은박라면뚜껑', '은박컵라면뚜껑'],
     variants: ['금속박종이포장지', '비닐포장필름', '플라스틱용기뚜껑'],
     title: '컵라면 포장에서 버릴 부분 확인', question: '컵에서 떼어낸 부분은 어떤 재질인가요?',
     hint: '종이에 붙은 은색 코팅인지, 비닐 표시가 있는 필름인지, 단단한 플라스틱 뚜껑인지 살펴보세요.',
@@ -137,7 +138,7 @@ const requiredVariants = [
 // Other vague names get helpful choices before ordinary catalog matches.
 const variantNames = [
   { names: ['햇반그릇', '햇반통', '즉석밥그릇'], variants: ['플라스틱즉석밥용기', '즉석밥용기'] },
-  { names: ['샴푸펌프', '세제펌프', '로션펌프'], variants: ['스프링이든복합재질펌프', '펌프형플라스틱샴푸통'] },
+  { names: ['샴푸펌프', '샴푸통펌프', '세제펌프', '세제통펌프', '로션펌프', '로션통펌프'], variants: ['스프링이든복합재질펌프', '펌프형플라스틱샴푸통'] },
   { names: ['흡수패드', '고기받침', '고기밑종이', '고기밑패드'], variants: ['식품포장흡수패드', '랩포장스티로폼정육트레이'] },
   { names: ['컵'], variants: ['종이컵', '플라스틱컵', '유리컵', '도자기컵'] },
   { names: ['병'], variants: ['생수병', '유리병', '유색페트병'] },
@@ -309,8 +310,12 @@ export function disposalQueryName(query) {
   if (typeof query !== 'string') return '';
   const name = query.normalize('NFKC').trim();
   if (name.length > 80) return name;
-  return name.replace(/[?!.,。？！]+$/u, '')
-    .replace(/\s*(?:은|는|을|를)?\s*(?:(?:어디\s*에?|어떻게)\s*(?:버리나요|버릴까요|버려(?:요|야\s*해(?:요)?)?|버리면\s*돼(?:요)?)|분리\s*배출\s*방법|분리\s*수거\s*방법|버리는\s*법|버리려면|배출\s*방법)$/u, '').trim();
+  const item = name.replace(/[?!.,。？！]+$/u, '')
+    .replace(/\s*(?:은|는|을|를)?\s*(?:(?:어디\s*에?|어떻게)\s*(?:버리나요|버릴까요|버려(?:요|야\s*해(?:요)?)?|버리면\s*돼(?:요)?)|분리\s*(?:배출|수거)(?:은|는|을|를)?\s*(?:방법|어떻게\s*(?:하나요|해(?:요|야\s*해(?:요)?)?|하면\s*돼(?:요)?))|버리는\s*법|버리려면|배출\s*방법)$/u, '').trim();
+  if (items.get(normalizeItemName(item))?.material) return item;
+  return item.replace(/^(?:떼어\s*낸|분리한)\s+(?=.+(?:뚜껑|마개|캡|라벨|상표|필름|펌프))/u, '')
+    .replace(/(?:에서\s*(?:떼어\s*낸|분리한)|에\s*붙(?:어\s*있던|어\s*있는|은))\s*(?=(?:뚜껑|마개|캡|라벨|상표|필름|펌프))/u, ' ')
+    .replace(/(?<=(?:뚜껑|뚜겅|마개|캡|라벨|상표|필름|펌프))\s*만$/u, '');
 }
 
 function searchableName(query) {
@@ -377,7 +382,7 @@ function candidatesFor(query, limit, { confirmedOnly = false } = {}) {
   const capacity = Math.min(limit, 10);
   const variants = Object.hasOwn(spellingSuggestions, search) ? spellingSuggestions[search] : nearbyItemNames(search);
   // Variants present meaningfully different possibilities before repeated aliases.
-  if (itemTypeClarification(search)) return variants.slice(0, capacity);
+  if (itemTypeClarification(search) || Object.hasOwn(spellingSuggestions, search)) return variants.slice(0, capacity);
   const eligible = entry => !confirmedOnly || items.get(entry.key)?.material;
   const partSuffix = /(?:뚜껑|라벨|마개|덮개|필름|펌프|캡|상표)$/;
   const requestedPart = partSuffix.exec(search)?.[0];
@@ -427,11 +432,11 @@ export function explicitDescriptionItemName(description) {
   const receipt = describedReceiptName(description);
   if (receipt) return receipt;
   const text = description.trim();
-  if (text.length <= 80 && (items.get(normalizeItemName(text))?.material || itemTypeClarification(text))) return text;
+  if (text.length <= 80 && items.get(normalizeItemName(text))?.material) return text;
   const shortName = text.replace(/[.!?。？！]+$/u, '');
   if (shortName.length <= 80 && items.get(normalizeItemName(shortName))?.material) return shortName;
   const questionName = disposalQueryName(text);
-  if (questionName.length <= 80 && items.get(normalizeItemName(questionName))?.material) return questionName;
+  if (questionName.length <= 80 && (items.get(normalizeItemName(questionName))?.material || itemTypeClarification(questionName))) return questionName;
   const clauses = text.split(/[.!?。？！;\n]/u);
   const first = clauses[0];
   if (/[\s,](?:아니|다른 물건|모르|같아)|(?:아니고|모르겠|같기도)/u.test(text)) return '';

@@ -58,6 +58,16 @@ test('재질을 모르는 흔한 이름에서 물건 자체를 장식이 붙은 
   assert.equal(relatedItemCandidates('샴푸 펌프')[0], '스프링이든복합재질펌프');
 });
 
+test('생활어 질문과 포장 부위 표현은 같은 후보로 연결하고 오타는 사용자 선택을 요구한다', () => {
+  assert.equal(disposalQueryName('과자봉지 분리배출 어떻게 해요?'), '과자봉지');
+  assert.equal(explicitDescriptionItemName('컵라면 뚜껑만 버리려면?'), '컵라면 뚜껑');
+  assert.deepEqual(relatedItemCandidates('은박라면뚜껑'), relatedItemCandidates('컵라면 뚜껑만'));
+  assert.deepEqual(relatedItemCandidates('떼어낸 생수병 라벨'), relatedItemCandidates('생수병에 붙은 라벨'));
+  assert.equal(searchItemNames('샴푸통 펌프만')[0], '스프링이든복합재질펌프');
+  assert.deepEqual(searchItemNames('페트병 뚜겅'), ['플라스틱용기뚜껑', '생수병']);
+  assert.equal(lookupItem('페트병 뚜겅'), null);
+});
+
 test('설명 첫 문장에 물건을 명시하면 확인한 이름만 조건 선택으로 넘긴다', () => {
   assert.equal(explicitDescriptionItemName('우유팩이에요. 안에 내용물이 남았어요.'), '우유팩');
   assert.equal(explicitDescriptionItemName('우유팩 안에 내용물이 남았어요.'), '우유팩');

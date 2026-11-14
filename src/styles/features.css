@@ -126,7 +126,11 @@
 .home-search .example-items button, .input-examples .history-action { min-height: 44px; padding-inline: 12px; }
 .item-name-options button { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; }
 .item-name-options button > span { min-width: 0; overflow-wrap: anywhere; }
-.item-match-label { flex: none; color: var(--muted); font-size: 12px; }
+.item-match-label { color: var(--muted); font-size: 12px; text-align: end; }
+@media (max-width: 480px) {
+  .item-name-options button { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .item-match-label { text-align: start; }
+}
 .home-shortcut { transition: border-color .15s, background-color .15s; }
 .item-heading { padding-inline: 2px; }
 .item-summary { padding: 26px; }

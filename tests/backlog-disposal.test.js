@@ -20,6 +20,16 @@ const response = {
   markings: [], method: '종량제에 바로 버리세요', steps: ['종량제에 바로 버리세요'], questions: [], cautions: [], category: 'packaging',
 };
 
+test('설명에서 본체, 용기 뚜껑, 겉 라벨을 구분해 상태와 재질을 적용한다', () => {
+  const text = '본체는 PP이고, 안쪽 뚜껑은 PE이며 겉 라벨은 비닐류입니다.';
+  const entries = observationsFromDescription(text);
+  assert.deepEqual(entries.map(({ part, targetLabel, value }) => [part, targetLabel, value]), [
+    ['body', undefined, '플라스틱'], ['lid', '안쪽 뚜껑', '플라스틱'], ['label', '겉 라벨', '비닐'],
+  ]);
+  const states = observationsFromDescription('용기는 깨끗하지만 용기 뚜껑은 음식물이 남았어요.').filter(entry => entry.field === 'state');
+  assert.deepEqual(states.map(({ part, value }) => [part, value]), [['body', 'clean'], ['lid', 'dirty']]);
+});
+
 test('설명의 명시적 조건은 사진 추정보다 우선하고, 선택하지 않은 상태나 분리 가능 여부는 입력하지 않는다', () => {
   const observations = mergeItemObservations([
     { part: 'body', field: 'material', value: '유리', type: 'bottle' },

@@ -21,9 +21,9 @@ const stateNames = { clean: '깨끗함', dirty: '오염 있음 · 세척 전', '
 const residueNames = { 'liquid-only': '내용물·고형물 없이 기름·물 자국만 남음', solids: '음식물·부스러기 등 고형물 남음' };
 const handlingNames = { undamaged: '전지 · 손상 없음', damaged: '전지 · 팽창·누액 또는 파손 있음', reusable: '의류·잡화 · 다시 쓸 수 있음', unusable: '의류·잡화 · 심한 오염 또는 훼손 있음' };
 const descriptionSource = 'description';
-const partPrefix = /^(본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:에는|이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
-const explicitParts = { 본체: 'body', 몸체: 'body', 뚜껑: 'lid', 마개: 'lid', 캡: 'lid', 라벨: 'label', 필름: 'film' };
-const namedPartPrefix = /^((?:안쪽|바깥(?:쪽)?|내부|외부|겉|속|왼쪽|오른쪽|위쪽|아래쪽)\s*(뚜껑|마개|캡|라벨|필름))(?:에는|이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
+const partPrefix = /^(?:(?:용기|병|통|컵)\s+)?(본체|몸체|뚜껑|마개|캡|덮개|라벨|상표|(?:포장\s*)?필름)(?:에는|이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
+const explicitParts = { 본체: 'body', 몸체: 'body', 뚜껑: 'lid', 마개: 'lid', 캡: 'lid', 덮개: 'lid', 라벨: 'label', 상표: 'label', 필름: 'film' };
+const namedPartPrefix = /^((?:안쪽|바깥(?:쪽)?|내부|외부|겉|속|왼쪽|오른쪽|위쪽|아래쪽)\s*(뚜껑|마개|캡|덮개|라벨|상표|필름))(?:에는|이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
 const partIdentity = entry => entry.targetLabel ? `attachment:${normalizeItemName(entry.targetLabel)}` : entry.part;
 export const observationKey = entry => `${partIdentity(entry)}:${entry.field}`;
 
@@ -58,7 +58,10 @@ export function observationsFromDescription(value) {
   let part = 'body';
   let targetLabel;
   const clauses = source
-    .replace(/고\s+(?=(?:(?:안쪽|바깥(?:쪽)?|내부|외부|겉|속|왼쪽|오른쪽|위쪽|아래쪽)\s*)?(?:본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:에는|이|가|은|는|에)?[:\s])/gu, '고, ')
+    .replace(/(?:고|며|지만|는데)\s+/gu, (connector, index) => {
+      const following = source.slice(index + connector.length);
+      return (namedPartPrefix.test(following) || partPrefix.test(following)) ? `${connector.trim()}, ` : connector;
+    })
     .replace(/(?<=[A-Z가-힣])\s+(?=(?:본체|몸체|뚜껑|마개|캡|라벨|필름)\s+(?:PP|PE|HDPE|LDPE|PS|PET|무색|비닐))/gu, ', ')
     .split(/[,.!?;·\n]|그리고/);
   for (const chunk of clauses) {
@@ -92,7 +95,7 @@ export function observationsFromDescription(value) {
         if (mark) entries.push({ part, targetLabel, field: 'material', value: mark.material, type: mark.type });
       }
     }
-    const clean = /(?:오염(?:이|은)?\s*(?:없어요|없습니다)|깨끗(?:해요|합니다|하네요|한\s*상태(?:예요|입니다)?))\s*$/.test(clause)
+    const clean = /(?:오염(?:이|은)?\s*(?:없어요|없습니다|없지만|없고|없는데)|깨끗(?:해요|합니다|하네요|하지만|하고|한데|한\s*상태(?:예요|입니다)?))\s*$/.test(clause)
       && !/깨끗.{0,8}(?:않|못)|않(?:아|습)|못(?:했|해)/.test(clause);
     const dirty = /(?:음식물|내용물|기름기|오염|얼룩)(?:이|가|은)?\s*(?:조금\s*)?(?:남았어요|남았습니다|남아\s*있어요|남아\s*있습니다|묻었어요|묻어\s*있어요|있어요|있습니다)|오염된\s*상태/.test(clause)
       && !/남아\s*있지\s*않|남아\s*있진\s*않|남[은아].{0,9}없/.test(clause);
