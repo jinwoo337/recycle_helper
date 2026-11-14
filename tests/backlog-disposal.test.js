@@ -152,6 +152,9 @@ test('두 뚜껑의 이름이 확인됐으면 재질과 상태를 각각 적용�
   const applied = applyItemObservations(input, observations);
   assert.deepEqual(applied.components[0], input.components[0]);
   assert.deepEqual(applied.components[1], { label: '바깥 뚜껑', material: '비닐', type: 'packaging', contaminated: 'no' });
+  const separation = observationsFromDescription('뚜껑은 분리할 수 있어요. 라벨은 분리할 수 없어요.');
+  assert.deepEqual(separation, [{ part: 'body', field: 'separable', value: 'unknown' }]);
+  assert.equal(applyItemObservations(input, separation).separable, 'unknown');
 });
 
 test('시행일 전에 종료 안내를 적용하지 않고 주소가 일치한 수거함만 거리순으로 정렬한다', () => {
@@ -178,6 +181,11 @@ test('시행일 전에 종료 안내를 적용하지 않고 주소가 일치한 
   const localMedicine = judgeDisposal(medicine);
   assert.equal(verifiedCollectionPoints(localMedicine).points.length, 3);
   assert.match(resultMarkup(medicine, localMedicine), /구리시 폐의약품 공공 수거함[\s\S]*031-550-8987/);
+  const seongnam = { ...medicine, region: { province: '경기도', district: '성남시' } };
+  const seongnamMedicine = judgeDisposal(seongnam);
+  assert.equal(verifiedCollectionPoints(seongnamMedicine).points.length, 4);
+  assert.match(seongnamMedicine.steps.join(' '), /속포장지를 그대로/);
+  assert.match(judgeDisposal({ ...seongnam, itemName: '물약' }).steps.join(' '), /마개를 잠그고/);
 });
 
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {

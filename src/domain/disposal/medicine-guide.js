@@ -5,6 +5,7 @@ export const MEDICINE_SOURCES = {
   daejeon: 'https://www.daejeon.go.kr/drh/depart/board/boardNormalView.do?boardId=normal_0096&menuSeq=1631&ntatcSeq=1438964404',
   donggu: 'https://www.donggu.go.kr/dg/kor/article/noticeDong13/142796',
   guri: 'https://www.guri.go.kr/health/selectBbsNttView.do?bbsNo=121&key=1327&nttNo=139147',
+  seongnam: 'https://snvision.seongnam.go.kr/23216',
 };
 
 export const MEDICINE_SAFETY_STEPS = [
@@ -40,6 +41,14 @@ export function medicineRegionalGuidance(region, itemName) {
       scope: 'district', source: MEDICINE_SOURCES.guri, key: 'medicine:guri', checkedAt: '2026-11-14',
       preparation: checkPackaging,
       collection: '구리시보건소나 지정 건강생활지원센터·거점약국의 폐의약품 수거함으로 가져가 주세요.',
+    };
+  }
+  if (region.province === '경기도' && region.district === '성남시') {
+    return {
+      scope: 'district', source: MEDICINE_SOURCES.seongnam, key: 'medicine:seongnam', checkedAt: '2026-11-14',
+      preparation: ['알약', '가루약'].includes(name) ? '알약과 가루약은 약이 든 속포장지를 그대로 두고 준비해 주세요.'
+        : liquid ? '물약과 연고는 마개를 잠그고 용기째 준비해 주세요.' : checkPackaging,
+      collection: '성남시 지정 동 행정복지센터의 폐의약품 수거함으로 가져가 주세요. 방문할 센터가 2026년 8월 설치 대상에 포함됐는지 확인해 주세요.',
     };
   }
   return null;

@@ -86,6 +86,7 @@ const sourceDetails = {
   [REGIONAL_SOURCES.gyeonggiGwangjuIcePack]: { scope: '경기도 광주시' },
   [REGIONAL_SOURCES.gyeonggiGwangjuRecycle]: { scope: '경기도 광주시' },
   [MEDICINE_SOURCES.guri]: { scope: '경기도 구리시', published: '2026-02-19' },
+  [MEDICINE_SOURCES.seongnam]: { scope: '경기도 성남시', published: '2026-08-25' },
 };
 const dateFormat = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
 export function regionalSourceDetail(url) {
@@ -111,6 +112,7 @@ export function regionalSourceLabel(url) {
   if (url === MEDICINE_SOURCES.daejeon) return '대전시 가정 내 폐의약품 안내';
   if (url === MEDICINE_SOURCES.donggu) return '대전 동구 폐의약품 배출 안내';
   if (url === MEDICINE_SOURCES.guri) return '구리시보건소 폐의약품 수거 안내';
+  if (url === MEDICINE_SOURCES.seongnam) return '성남시 폐의약품 수거함 설치 안내';
   if (url === REGIONAL_SOURCES.yuseongLargeFees) return '유성구 대형폐기물 품목·수수료표';
   const seoulLabels = { recycle: '서울시 분리배출 안내', vinyl: '서울시 폐비닐 안내', scope: '서울시 자치구 적용 범위', food: '서울시 음식물 RFID 안내' };
   for (const [key, source] of Object.entries(SEOUL_SOURCES)) if (url === source) return seoulLabels[key];

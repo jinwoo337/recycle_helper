@@ -50,10 +50,31 @@ const guriMedicine = {
   })),
 };
 
+const seongnamMedicine = {
+  title: '성남시 폐의약품 수거함',
+  accepts: '가정에서 나온 폐의약품',
+  hours: '행정복지센터 민원실 입구 등의 수거함을 이용해 주세요. 방문 전 센터 이용 시간을 확인해 주세요.',
+  source: MEDICINE_SOURCES.seongnam,
+  directory: 'https://www.seongnam.go.kr/ct-pm080303',
+  directoryLabel: '성남시 시설 주소',
+  checkedAt: '2026-11-14',
+  dataDate: '2026-08-25',
+  note: '공식 설치 대상 중 시설 주소와 좌표를 대조한 곳이에요. 상대원2동·이매1동·야탑3동·금곡동은 해당 설치 사업에서 제외됐어요.',
+  points: [
+    ['수내1동', '내정로173번길 21', 37.375439, 127.118087],
+    ['수내3동', '돌마로356번길 43', 37.366816, 127.123939],
+    ['야탑1동', '장미로86번길 18', 37.412005, 127.128048],
+    ['판교동', '서판교로32번길 9', 37.389838, 127.098599],
+  ].map(([name, address, latitude, longitude]) => ({
+    name: `${name} 행정복지센터`, address: `경기도 성남시 분당구 ${address}`, latitude, longitude,
+  })),
+};
+
 export function verifiedCollectionPoints(result) {
   const key = result?.regional?.comparisonKey;
   if (key === 'ice-pack:gyeonggi-gwangju-reuse') return gwangjuIcePacks;
   if (key === 'medicine:guri') return guriMedicine;
+  if (key === 'medicine:seongnam') return seongnamMedicine;
   return null;
 }
 

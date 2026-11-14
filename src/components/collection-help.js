@@ -20,6 +20,7 @@ function verifiedCollectionMarkup(dataset) {
   return `<section class="collection-help verified-collection" data-verified-collection aria-labelledby="verified-collection-title">
     <h3 id="verified-collection-title">${escapeHtml(dataset.title)}</h3>
     <p class="input-hint">접수 품목 · ${escapeHtml(dataset.accepts)}. ${escapeHtml(dataset.hours)}</p>
+    ${dataset.note ? `<p class="input-hint">${escapeHtml(dataset.note)}</p>` : ''}
     <details><summary>확인된 수거함 ${dataset.points.length}곳 보기</summary>
       <button type="button" class="button secondary" data-collection-nearby>내 위치에서 가까운 순으로 보기</button>
       <p class="input-hint" data-collection-status role="status">판별 지역의 수거함 목록이에요.</p>

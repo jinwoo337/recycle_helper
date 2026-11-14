@@ -7,7 +7,7 @@ const fields = {
   material: MATERIALS.filter(value => value !== '모르겠어요'),
   state: ['clean', 'dirty', 'washed-dirty'],
   combined: ['yes', 'no'],
-  separable: ['yes', 'no'],
+  separable: ['yes', 'no', 'unknown'],
   handlingCondition: ['undamaged', 'damaged', 'reusable', 'unusable'],
 };
 const partNames = { body: '본체', lid: '뚜껑', label: '라벨', film: '포장 필름' };
@@ -97,6 +97,12 @@ export function observationsFromDescription(value) {
     if (clean) entries.push({ part, targetLabel, field: 'state', value: 'clean' });
     if (dirty) entries.push({ part, targetLabel, field: 'state', value: /씻(?:었는데|어도)|세척(?:했지만|해도)/.test(clause) ? 'washed-dirty' : 'dirty' });
   }
+  if (['yes', 'no'].every(value => entries.some(entry => entry.field === 'separable' && entry.value === value))) {
+    return cleanItemObservations([
+      ...entries.filter(entry => entry.field !== 'separable'),
+      { part: 'body', field: 'separable', value: 'unknown' },
+    ], { allowTargetLabels: true });
+  }
   return cleanItemObservations(entries, { allowTargetLabels: true });
 }
 
@@ -121,6 +127,7 @@ export function observationLabel(entry) {
   if (entry.field === 'state') return `${label} · ${stateNames[entry.value]}`;
   if (entry.field === 'combined') return entry.value === 'yes' ? '다른 재질이 붙어 있어요' : '다른 재질이 없어요';
   if (entry.field === 'handlingCondition') return handlingNames[entry.value];
+  if (entry.value === 'unknown') return '붙은 재질의 분리 가능 여부를 다시 확인해요';
   return entry.value === 'yes' ? '붙은 재질을 분리할 수 있어요' : '붙은 재질을 분리할 수 없어요';
 }
 

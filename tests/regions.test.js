@@ -26,7 +26,7 @@ test('폐의약품은 서울과 대전의 수거 경로를 비교하고 대전 �
   assert.match(donggu.steps.join(' '), /약이 든 포장 그대로/);
   assert.match(resultToText({ itemName: '알약', region: daejeon }, result), /대전시 공통 안내/);
   const comparison = compareRegionalDisposal({ itemName: '알약', region: daejeon }, result);
-  assert.deepEqual(comparison.groups.map(group => group.regions.length), [25, 1, 1]);
+  assert.deepEqual(comparison.groups.map(group => group.regions.length), [25, 1, 1, 1]);
   assert.ok(comparison.groups.some(group => group.key === 'medicine:guri'));
   assert.doesNotMatch(judgeDisposal({ itemName: '물약', region: geumcheon }).steps.join(' '), /우체통/);
 });
