@@ -285,6 +285,20 @@ test('유성구는 음식물 제외 품목과 수박 껍질에 구청 안내를 
   assert.equal(judge('고기비계', { ...region, district: '서구' }).status, 'recycle');
 });
 
+test('유성구 포장용 스티로폼은 색상을 고르면 재활용과 종량제봉투를 구분한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  const input = { ...itemPresetInput('스티로폼완충재'), itemName: '스티로폼완충재', contaminated: 'no', combined: 'no', region };
+  assert.equal(judgeDisposal(input).pendingCondition, 'handling');
+  const white = judgeDisposal({ ...input, handlingCondition: 'foam-white' });
+  assert.equal(white.status, 'recycle');
+  assert.equal(white.disposalSchedule.rows[0].label, '일반 재활용품');
+  const color = judgeDisposal({ ...input, handlingCondition: 'foam-colored' });
+  assert.equal(color.status, 'general');
+  assert.match(color.method, /유성구 일반 종량제봉투/);
+  const other = judgeDisposal({ ...input, region: { ...region, district: '서구' }, handlingCondition: 'foam-colored' });
+  assert.equal(other.status, 'recycle');
+});
+
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {
   const input = { ...itemPresetInput('투명생수병'), contaminated: 'no', region: seoul,
     components: [{ label: '비닐 라벨', material: '비닐', type: 'packaging', contaminated: 'yes',

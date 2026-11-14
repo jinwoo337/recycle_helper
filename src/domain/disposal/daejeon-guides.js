@@ -3,6 +3,9 @@ export const DAEJEON_DISTRICTS = ['동구', '중구', '서구', '유성구', '�
 export const YUSEONG_WASTE_GUIDE = 'https://www.yuseong.go.kr/kor/sub07_11_03_09.do';
 export const YUSEONG_FOOD_GUIDE = 'https://www.yuseong.go.kr/kor/sub07_11_03_04.do';
 export const isYuseong = region => region?.province === '대전광역시' && region.district === '유성구';
+export const yuseongFoamQuestion = (region, material, type) => isYuseong(region) && material === '스티로폼' && type === 'packaging'
+  ? { title: '포장용 스티로폼 바탕색이 흰색인가요?', options: [['foam-white', '흰색이에요'], ['foam-colored', '색이 있어요']] }
+  : null;
 
 export function yuseongFoodInGeneralBag(type, name) {
   if (type === 'excluded') return true;
@@ -23,7 +26,7 @@ export function yuseongDisposalSchedule(result) {
     when: '일~목요일 저녁 6시~자정 · 가급적 저녁 8시 이전',
     where: [['일반 주택', '집 앞'], ['공동주택', '단지 지정 장소'], ['도안 크린넷 사용 지역', '크린넷 투입구']],
   });
-  const knownRecycling = result.parts.filter(ordinaryRecycling);
+  const knownRecycling = result.parts.filter(part => ordinaryRecycling(part) || result.regional.comparisonKey === 'foam:yuseong-white');
   if (knownRecycling.length) rows.push({
     label: '일반 재활용품', appliesTo: appliesTo(knownRecycling), recycling: true,
     when: '동별 배출 요일 저녁 · 공동주택은 단지 수거 일정',

@@ -460,12 +460,19 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
         result.parts[0].method = result.method;
       }
       result.parts[0].steps = [...result.steps, daejeon.foodNote];
-    } else if (result.status === 'recycle' && input.combined === 'no' && region.district === '유성구' && input.material === '스티로폼') {
-      result.status = 'check'; result.method = '스티로폼 색상·이물질 추가 확인 필요';
-      result.reasons = ['유성구는 색이 있거나 이물질이 남은 스티로폼을 일반 재활용품으로 수거하지 않아요.'];
-      result.steps = ['테이프·운송장을 제거하고 이물질이 남아 있지 않은지 확인해 주세요.', '유성구 안내에서 유색 스티로폼은 수거 제외 대상이므로 색상과 실제 수거 여부를 확인해 주세요.'];
-      result.parts[0] = { ...result.parts[0], status: result.status, method: result.method, steps: [...result.steps], reasons: [...result.reasons] };
-      set(daejeon.recycle, '유성구는 색이 있거나 이물질이 남은 스티로폼을 일반 재활용 수거 대상에서 제외해요.', 'foam:yuseong-color');
+    } else if (yuseong && result.status === 'recycle' && input.combined === 'no' && input.material === '스티로폼') {
+      const note = '유성구는 색이 있거나 이물질이 남은 스티로폼을 일반 재활용 수거 대상에서 제외해요.';
+      if (input.handlingCondition === 'foam-white') {
+        set(daejeon.recycle, '하얀 포장용 스티로폼은 테이프와 이물질을 떼어내고 재활용품으로 배출해 주세요.', 'foam:yuseong-white');
+      } else if (input.handlingCondition === 'foam-colored') {
+        applyLocalMethod({ method: '유색 스티로폼 · 유성구 일반 종량제봉투', reason: note,
+          steps: ['가정에서 나온 소량의 유색 포장용 스티로폼은 유성구 일반 종량제봉투에 넣어 주세요.', '제품 포장재를 구입처에서 회수하는 경우 해당 회수 경로를 이용할 수 있어요.'],
+          status: 'general', source: daejeon.recycle, note: '봉투에 담기 어려운 양이나 크기는 유성구청 자원순환과에 문의해 주세요.', key: 'foam:yuseong-colored' });
+      } else {
+        applyLocalMethod({ method: '스티로폼 색상 확인', reason: note,
+          steps: ['테이프·운송장을 떼고 스티로폼 바탕색을 확인해 주세요.'], pendingCondition: 'handling',
+          source: daejeon.recycle, note, key: 'foam:yuseong-color' });
+      }
     } else if ((result.status === 'general' || result.pendingCondition === 'removable') && input.material === '비닐' && input.type === 'packaging' && input.combined === 'no' && region.district === '유성구') {
       set(daejeon.recycle, daejeon.vinyl);
     } else if (result.status === 'recycle' && input.combined === 'no') {

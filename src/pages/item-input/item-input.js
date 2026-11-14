@@ -23,7 +23,7 @@ import { linkedComponentState, stateAnswers, selectedState } from '../../domain/
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
-import { disposalReasons, resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultPendingQuestions } from '../../domain/disposal/result-display.js';
+import { disposalReasons, resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultHandlingQuestion, resultPendingQuestions } from '../../domain/disposal/result-display.js';
 import { disposalScheduleMarkup } from '../../components/disposal-schedule.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
@@ -306,7 +306,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
   const badge = result.confirmedCollection ? '전용 수거' : input.material === '음식물류' && result.status === 'recycle' ? '음식물류'
     : result.status === 'general' && /특수규격봉투|특수종량제|불연성/.test(result.method) ? '특수 배출'
       : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
-  const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category, result.region)?.options.find(([key]) => key === input.handlingCondition)?.[1];
+  const handlingAnswer = resultHandlingQuestion(input, result.region, lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const regionToggle = inlineRegion ? ' aria-controls="result-region-form" aria-expanded="false"' : '';
   const details = part => conditionDetails(part).map(([title, value]) =>
     `<div><dt>${title}</dt><dd>${escapeHtml(value)}</dd></div>`
@@ -679,7 +679,9 @@ export function bindItemInput() {
     if (unregistered) missingName.textContent = `‘${nameInput.value.trim()}’`;
     const dedicated = Boolean(known?.handling && known.material === '기타');
     const handling = known?.handling || category.value || '';
-    const prompt = handlingConditionQuestion(handling, judgementRegion.get());
+    const needsFoamColor = value('combined') === 'no' && (value('contaminated') === 'no' || value('removable') === 'yes');
+    const prompt = handlingConditionQuestion(handling, judgementRegion.get())
+      || (needsFoamColor ? resultHandlingQuestion(partValue(''), judgementRegion.get(), handling) : null);
     const promptKey = prompt?.title || '';
     if (handlingCondition.dataset.handling !== promptKey) {
       handlingCondition.dataset.handling = promptKey;
@@ -1465,7 +1467,10 @@ export function bindItemInput() {
     const labelled = cleanLabelledBottleInput(input);
     const next = withoutLabel ? labelled && cleanSingleMaterialInput(input) : labelled || cleanSingleMaterialInput(input);
     if (!next) return;
-    restore(next); form.requestSubmit();
+    restore(next);
+    const invalid = firstInvalidField();
+    if (invalid?.name === 'handlingCondition') focusQuestion(invalid);
+    else form.requestSubmit();
   }
   cleanShortcut.addEventListener('click', () => submitCleanShortcut());
   cleanWithoutLabel.addEventListener('click', () => submitCleanShortcut(true));

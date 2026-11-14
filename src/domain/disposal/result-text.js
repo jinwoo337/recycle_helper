@@ -1,7 +1,6 @@
 import { categoryLabel } from './item-categories.js';
-import { conditionDetails, disposalReasons, inputForDisplay, resultForDisplay, resultStepsForDisplay } from './result-display.js';
+import { conditionDetails, disposalReasons, inputForDisplay, resultForDisplay, resultHandlingQuestion, resultStepsForDisplay } from './result-display.js';
 import { resultRegionLabel } from './regions.js';
-import { handlingConditionQuestion } from './special-guides.js';
 import { lookupItem } from './item-suggestions.js';
 import { largeWasteHelp } from './large-waste.js';
 import { collectionAction } from './collection-action.js';
@@ -25,7 +24,7 @@ export function resultToText(input, result, { neighborhood } = {}) {
   const reasons = disposalReasons(result);
   const explanation = reasons.length ? `\n\n${requiresCheck ? '왜 확인이 필요한가요?' : '왜 이렇게 버리나요?'}\n${reasons.join('\n')}` : '';
   const regionNotes = (result.regional?.notes || []).filter(note => !result.steps.includes(note) && note !== result.notice);
-  const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category, result.region)?.options.find(([key]) => key === input.handlingCondition)?.[1];
+  const handlingAnswer = resultHandlingQuestion(input, result.region, lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const details = part => conditionDetails(part).map(([title, value]) => `${title} · ${value}`).join('\n');
   const conditions = [
     details(input),

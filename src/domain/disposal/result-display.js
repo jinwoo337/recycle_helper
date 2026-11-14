@@ -1,5 +1,6 @@
 import { judgeDisposal, RULE_VERSION, TYPES } from './rules.js';
 import { handlingConditionQuestion } from './special-guides.js';
+import { yuseongFoamQuestion } from './daejeon-guides.js';
 
 const conditionTitles = {
   material: '주요 재질',
@@ -28,6 +29,10 @@ export function conditionDetails(part) {
       : Object.hasOwn(conditionLabels, answer) ? conditionLabels[answer] : undefined;
     return [title, label || answer];
   });
+}
+
+export function resultHandlingQuestion(input, region, handling) {
+  return handlingConditionQuestion(handling, region) || yuseongFoamQuestion(region, input.material, input.type);
 }
 
 // 저장된 스냅샷은 유지하고, 오래된 처리 지침은 화면·복사에서 재사용하지 않습니다.
