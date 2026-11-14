@@ -10,6 +10,7 @@ import { collectionDaysMarkup, bindCollectionDays } from '../../components/colle
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
 import { bindJudgementRegion, judgementRegionMarkup } from '../../components/judgement-region.js';
 import { regionLabel } from '../../domain/disposal/regions.js';
+import { isYuseong } from '../../domain/disposal/daejeon-guides.js';
 import { inputModesMarkup, bindInputModes } from '../../components/input-modes.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { memberTools } from '../../services/member-tools.js';
@@ -25,6 +26,12 @@ function favoriteOrder(owner) {
   } catch { return []; }
 }
 
+function exampleItemsMarkup(region) {
+  const local = isYuseong(region);
+  const items = local ? ['젤 아이스팩', '폐의약품', '깨진 강화유리'] : ['나무젓가락', '투명생수병', '과자봉지'];
+  return `<span>${local ? '유성구에서 찾아보기' : '자주 찾는 물건'}</span>${items.map(name => `<button class="history-action" type="button" data-example="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join('')}`;
+}
+
 export function mainPage(member) {
   const region = readJudgementRegion(member);
   return `<section class="container home-page">
@@ -35,7 +42,7 @@ export function mainPage(member) {
       <p id="quick-name-error" class="field-error" role="alert"></p><p id="quick-item-status" class="input-hint" role="status" aria-live="polite"></p>
       <div class="home-search-alternatives">${inputModesMarkup('name')}
       <div class="home-direct-choices"><button class="history-action" type="button" data-home-unnamed>이름 없이 종류 고르기</button><button class="history-action" type="button" data-home-mark>분리배출 표시로 찾기</button></div></div>
-      <div class="example-items" aria-label="자주 찾는 물건"><span>자주 찾아요</span>${['나무젓가락', '투명생수병', '과자봉지'].map(name => `<button class="history-action" type="button" data-example="${name}">${name}</button>`).join('')}</div><details class="search-options"><summary>검색 설정</summary><div class="ai-mode-controls">${aiToggleMarkup('home-ai-enabled', { compact: true })}</div></details>${member ? '' : '<p class="input-hint">로그인 없이 찾을 수 있어요.</p>'}</form>
+      <div class="example-items" role="group" aria-label="검색 예시" data-home-examples>${exampleItemsMarkup(region)}</div><details class="search-options"><summary>검색 설정</summary><div class="ai-mode-controls">${aiToggleMarkup('home-ai-enabled', { compact: true })}</div></details>${member ? '' : '<p class="input-hint">로그인 없이 찾을 수 있어요.</p>'}</form>
     ${readDisposalBatch().items.length ? '<p><a class="history-action" href="#/batch">함께 버릴 물건 목록 보기 →</a></p>' : ''}
     <div data-home-collection-days>${collectionDaysMarkup(region)}</div>
     <nav class="home-shortcuts" aria-label="주요 기능 바로가기">
@@ -93,9 +100,12 @@ export function bindMain() {
     const name = lookupItem(itemName)?.material ? itemName : disposalQueryName(itemName) || itemName;
     clearNameError(); openInput({ itemName: name, quickLookup: true });
   });
-  document.querySelectorAll('.home-page [data-example]').forEach(button => button.addEventListener('click', () => {
+  const examples = form.querySelector('[data-home-examples]');
+  root.addEventListener('click', event => {
+    const button = event.target.closest('[data-example]');
+    if (!button) return;
     input.value = button.dataset.example; form.requestSubmit();
-  }));
+  });
   const aiSwitch = bindAiToggle(document.getElementById('home-ai-enabled'));
   const disposeModes = bindInputModes(form, path => {
     const name = input.value.trim();
@@ -132,6 +142,7 @@ export function bindMain() {
     rememberJudgementRegion(region, member);
     regionLabelNode.textContent = `판별 지역 · ${regionLabel(region)}`;
     regionToggle.textContent = region ? '지역 변경' : '지역 선택';
+    examples.innerHTML = exampleItemsMarkup(region);
     disposeCollection();
     collectionDays.innerHTML = collectionDaysMarkup(region);
     disposeCollection = bindCollectionDays(collectionDays);

@@ -180,6 +180,7 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .home-search .input-modes > [aria-current] { display:none; }
 .home-search-alternatives .input-modes > a, .home-search-alternatives .history-action { min-height:36px; padding:6px 9px; font-size:12px; font-weight:600; white-space:normal; word-break:keep-all; }
 .home-page .home-search .example-items { margin-top:6px; }
+.home-page .home-search .example-items button { min-height:44px; font-size:12px; }
 .home-page .home-search .search-options { margin-top:2px; }
 .home-page .home-search .search-options > summary { min-height:34px; }
 .home-page .home-search > .input-hint { margin-top:4px; }
