@@ -67,6 +67,7 @@ export const REGIONAL_SOURCES = {
   gimpoRecycle: 'https://gimpo.go.kr/portal/contents.do?key=1435',
   seongnamCarton: 'https://snvision.seongnam.go.kr/data/snvision/pdf/202604/2026043022123157.pdf',
   geumcheonFood: 'https://geumcheon.go.kr/portal/contents.do?key=818',
+  yuseongWaste: 'https://www.yuseong.go.kr/kor/sub07_11_03_09.do',
   yuseongLargeFees: 'https://www.yuseong.go.kr/clean/html/sub02/02.html',
   ...Object.fromEntries(Object.entries(MEDICINE_SOURCES).map(([key, url]) => [`medicine-${key}`, url])),
 };
@@ -85,6 +86,7 @@ const sourceDetails = {
   [REGIONAL_SOURCES.seongnamCarton]: { scope: '경기도 성남시 공동주택', published: '2026-05' },
   [REGIONAL_SOURCES.gyeonggiGwangjuIcePack]: { scope: '경기도 광주시' },
   [REGIONAL_SOURCES.gyeonggiGwangjuRecycle]: { scope: '경기도 광주시' },
+  [REGIONAL_SOURCES.yuseongWaste]: { scope: '대전광역시 유성구' },
   [MEDICINE_SOURCES.guri]: { scope: '경기도 구리시', published: '2026-02-19' },
   [MEDICINE_SOURCES.seongnam]: { scope: '경기도 성남시', published: '2026-08-25' },
 };
@@ -113,6 +115,7 @@ export function regionalSourceLabel(url) {
   if (url === MEDICINE_SOURCES.donggu) return '대전 동구 폐의약품 배출 안내';
   if (url === MEDICINE_SOURCES.guri) return '구리시보건소 폐의약품 수거 안내';
   if (url === MEDICINE_SOURCES.seongnam) return '성남시 폐의약품 수거함 설치 안내';
+  if (url === REGIONAL_SOURCES.yuseongWaste) return '유성구 · 생활쓰레기 배출 시간과 장소';
   if (url === REGIONAL_SOURCES.yuseongLargeFees) return '유성구 대형폐기물 품목·수수료표';
   const seoulLabels = { recycle: '서울시 분리배출 안내', vinyl: '서울시 폐비닐 안내', scope: '서울시 자치구 적용 범위', food: '서울시 음식물 RFID 안내' };
   for (const [key, source] of Object.entries(SEOUL_SOURCES)) if (url === source) return seoulLabels[key];
@@ -242,6 +245,19 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       reason: `${region.district}는 아이스팩 전용 수거를 종료해 젤 아이스팩을 종량제봉투로 안내해요.`,
       steps: ['팩을 뜯거나 내용물을 하수구에 붓지 마세요.', '팩을 통째로 지역 종량제봉투에 넣어 주세요.'],
       status: 'general', source: baggedGel.source, note: '아이스팩 전용 수거함 운영이 종료됐어요.', key: 'ice-pack:volume-bag',
+    });
+  }
+  if (result.handling === 'gel-ice-pack' && region?.province === '대전광역시' && region.district === '유성구') {
+    applyLocalMethod({
+      method: '젤 아이스팩 · 통째로 유성구 일반 종량제봉투',
+      reason: '젤 아이스팩은 통째로 전용 수거함이나 일반 종량제봉투에 배출할 수 있어요. 종량제봉투로 버릴 때는 유성구 생활쓰레기 배출 기준을 따라요.',
+      steps: [
+        '팩을 뜯지 말고 통째로 유성구 일반 종량제봉투에 넣어 주세요. 내용물을 하수구에 붓지 마세요.',
+        '일~목요일 저녁 6시~자정에 배출해요. 일반 주택은 집 앞, 공동주택은 단지 지정 장소, 도안 크린넷 사용 지역은 크린넷 투입구에 배출해 주세요.',
+        '이용할 수 있는 아이스팩 전용 수거함이 있다면 깨끗하고 터지지 않은 팩은 통째로 넣어 재사용할 수 있어요.',
+      ],
+      status: 'general', source: REGIONAL_SOURCES.yuseongWaste,
+      note: '유성구청의 일반쓰레기 시간·장소와 분리배출 품목사전의 젤 아이스팩 배출 방법을 적용했어요.', key: 'ice-pack:reuse-or-volume-bag',
     });
   }
   if (region?.province === '서울특별시' && region.district === '도봉구' && result.handling === 'gel-ice-pack'

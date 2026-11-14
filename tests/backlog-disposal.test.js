@@ -7,6 +7,7 @@ import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { lookupItem, searchItemNames } from '../src/domain/disposal/item-suggestions.js';
 import { applyRegionalRules } from '../src/domain/disposal/regions.js';
+import { GEL_ICE_PACK_SOURCE } from '../src/domain/disposal/catalog-sources.js';
 import { rankCollectionPoints, verifiedCollectionPoints } from '../src/domain/disposal/verified-collection-points.js';
 import { resultMarkup } from '../src/pages/item-input/item-input.js';
 import { resultToText } from '../src/domain/disposal/result-text.js';
@@ -186,6 +187,26 @@ test('시행일 전에 종료 안내를 적용하지 않고 주소가 일치한 
   assert.equal(verifiedCollectionPoints(seongnamMedicine).points.length, 4);
   assert.match(seongnamMedicine.steps.join(' '), /속포장지를 그대로/);
   assert.match(judgeDisposal({ ...seongnam, itemName: '물약' }).steps.join(' '), /마개를 잠그고/);
+});
+
+test('유성구 젤 아이스팩은 배출 방법, 요일과 장소를 바로 안내한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  const input = { itemName: '젤아이스팩', region };
+  const local = judgeDisposal(input);
+  assert.equal(local.status, 'general');
+  assert.equal(local.regional.coverage, 'verified');
+  assert.equal(local.pendingCondition, undefined);
+  assert.match(local.method, /통째로 유성구 일반 종량제봉투/);
+  assert.match(local.steps[0], /팩을 뜯지 말고/);
+  assert.match(local.steps[1], /일~목요일.*집 앞.*단지 지정 장소.*크린넷 투입구/);
+  assert.match(local.steps[2], /전용 수거함이 있다면 깨끗하고 터지지 않은 팩/);
+  assert.ok(local.sourceUrls.includes(GEL_ICE_PACK_SOURCE));
+  assert.ok(local.sourceUrls.includes('https://www.yuseong.go.kr/kor/sub07_11_03_09.do'));
+  const markup = resultMarkup(input, local);
+  assert.match(markup, /대전광역시 유성구 · 지역 기준 적용/);
+  assert.doesNotMatch(markup, /지역 기준 확인 필요/);
+  assert.notEqual(judgeDisposal({ ...input, itemName: '물아이스팩' }).method, local.method);
+  assert.equal(judgeDisposal({ ...input, region: { ...region, district: '서구' } }).regional.coverage, 'unverified');
 });
 
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {

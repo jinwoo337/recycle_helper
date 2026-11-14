@@ -93,12 +93,12 @@ test('방법이 같은 종이는 확인된 지역의 공통 안내를 보여 주
   assert.equal(judgeDisposal({ ...oily, region: { province: '서울특별시', district: '도봉구' } }).status, 'general');
 });
 
-test('젤 아이스팩은 서울 두 자치구와 경기 광주시의 실제 배출 경로를 따로 비교한다', () => {
+test('젤 아이스팩은 지역마다 종량제봉투, 마대, 재사용 수거 경로를 비교한다', () => {
   const input = { itemName: '젤아이스팩', region: { province: '서울특별시', district: '서초구' } };
   const result = judgeDisposal(input);
   assert.match(result.method, /젤 아이스팩 · 종량제봉투/);
   const comparison = compareRegionalDisposal(input, result);
-  assert.deepEqual(comparison.groups.map(group => group.regions[0].district), ['도봉구', '광주시']);
+  assert.deepEqual(comparison.groups.map(group => group.regions[0].district), ['도봉구', '유성구', '광주시']);
   assert.equal(comparison.sameCount, 3, '부평구와 용인시의 같은 봉투 배출 방식은 반복하지 않음');
   assert.match(comparisonPanelMarkup(comparison), /도봉구 특수종량제 마대/);
   assert.match(comparisonPanelMarkup(comparison), /경기 광주시 전용 수거함/);
