@@ -28,9 +28,11 @@ test('유성구 책상의 종류에 따라 수수료가 다르고 신청서와 �
     const result = judgeDisposal(answered);
     assert.ok(result.method.includes(fee));
     assert.equal(result.pendingCondition, undefined);
-    assert.match(resultMarkup(answered, result), /유성구 대형폐기물 배출 신청[\s\S]*유성구 품목·수수료표/);
-    assert.ok(resultToText(answered, result).includes(fee));
+    assert.match(resultMarkup(answered, result), /class="result-badge">대형폐기물[\s\S]*유성구 대형폐기물 배출 신청[\s\S]*유성구 품목·수수료표/);
+    assert.match(resultToText(answered, result), /이렇게 배출하세요/);
+    assert.equal(batchGroups([{ input: answered, result }]).find(group => group.id === 'other').entries.length, 1);
   }
+  assert.equal(batchGroups([{ input, result: pending }]).find(group => group.id === 'check').entries.length, 1);
   assert.match(judgeDisposal({ ...input, itemName: '컴퓨터용 책상' }).method, /3,000원/);
   assert.doesNotMatch(judgeDisposal({ ...input, region: seoul, handlingCondition: 'desk-double' }).method, /6,000원/);
 });

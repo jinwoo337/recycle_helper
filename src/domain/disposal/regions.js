@@ -180,6 +180,7 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
   const result = structuredClone(base);
   delete result.disposalSchedule;
   delete result.confirmedCollection;
+  delete result.confirmedReport;
   const yuseong = isYuseong(region);
   result.region = region;
   result.regional = { coverage: 'unverified', label: regionLabel(region), checkedAt: '2026-10-27', sources: [], notes: [], comparisonKey: `basic:${base.status}:${base.method}` };
@@ -510,6 +511,7 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
         source: REGIONAL_SOURCES.yuseongLargeFees, note: '유성구 대형폐기물 품목표를 적용했어요.', key: `large:yuseong-${item}`,
       });
       result.handling = 'large';
+      result.confirmedReport = true;
     } else if (result.handling === 'large' && /책상/.test(name)) {
       const selected = input.handlingCondition || yuseongDeskTypeFromName(name);
       const type = yuseongDeskTypes.find(([id]) => id === selected);
@@ -522,6 +524,7 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
         source: REGIONAL_SOURCES.yuseongLargeFees, note: '유성구 대형폐기물 품목표와 신청 안내를 적용했어요.', key: 'desk:yuseong-types',
         pendingCondition: type ? undefined : 'handling',
       });
+      if (type) result.confirmedReport = true;
     } else if (yuseong && (knownGlass || result.handling === 'ceramic')) {
       const label = knownGlass ? '깨진 유리' : '도자기류';
       applyLocalMethod({

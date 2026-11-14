@@ -4,12 +4,12 @@ import { resultToText } from './result-text.js';
 const groups = [
   ['general', '종량제봉투'],
   ['recycle', '재활용'],
-  ['other', '전용 수거·재질별 배출'],
+  ['other', '전용 수거·별도 배출'],
   ['check', '추가 확인'],
 ];
 
 function groupFor(input, result) {
-  if (result?.confirmedCollection) return 'other';
+  if (result?.confirmedCollection || result?.confirmedReport) return 'other';
   if (!result || result.status === 'check') return 'check';
   if (result.status === 'mixed' || (result.status === 'recycle' && (result.handling || input.material === '음식물류'))) return 'other';
   if (result.status === 'general' && (!/종량제|일반규격봉투/.test(result.method) || /특수|불연성|마대/.test(result.method))) return 'other';

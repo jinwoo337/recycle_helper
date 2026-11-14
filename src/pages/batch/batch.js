@@ -11,6 +11,12 @@ import { readJudgementRegion } from '../../services/judgement-region.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { readYuseongNeighborhood } from '../../services/yuseong-neighborhood.js';
 import { bindJudgementRegion, judgementRegionMarkup } from '../../components/judgement-region.js';
+import { collectionAction } from '../../domain/disposal/collection-action.js';
+
+function batchReportLink(input, result) {
+  const action = result?.confirmedReport && collectionAction(input, result);
+  return action?.url ? `<a class="history-action" href="${escapeHtml(action.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(action.label)} ↗</a>` : '';
+}
 
 export function batchPage() {
   const { items, region } = readDisposalBatch();
@@ -25,7 +31,7 @@ export function batchPage() {
     ${items.length ? `${groups.filter(group => group.entries.length).map(group => `<section class="item-card batch-group"><h2>${group.label} <small>${group.entries.length}개</small></h2><ul>${group.entries.map(({ id, input, result, displayed }) => `<li>
       <div><strong>${escapeHtml(input.itemName)}</strong><p>${escapeHtml(displayed?.method || '확인 필요 · 아직 판별하지 않았어요')}</p>${displayed ? `<small>${escapeHtml(resultRegionLabel(displayed))}</small>` : ''}
       ${duplicates.has(id) ? '<p class="input-hint">배달 용기의 부속품에도 있어요. 같은 물건이면 이 항목을 빼 주세요.</p>' : ''}</div>
-      <div class="batch-actions"><button type="button" class="history-action" data-batch-item="${id}" aria-label="${escapeHtml(input.itemName)} ${result ? '조건 다시 확인' : '판별하기'}">${result ? '조건 다시 확인' : '판별하기'}</button><button type="button" class="history-action" data-batch-remove="${id}" aria-label="${escapeHtml(input.itemName)} 목록에서 빼기">빼기</button></div>
+      <div class="batch-actions">${batchReportLink(input, displayed)}<button type="button" class="history-action" data-batch-item="${id}" aria-label="${escapeHtml(input.itemName)} ${result ? '조건 다시 확인' : '판별하기'}">${result ? '조건 다시 확인' : '판별하기'}</button><button type="button" class="history-action" data-batch-remove="${id}" aria-label="${escapeHtml(input.itemName)} 목록에서 빼기">빼기</button></div>
       ${result ? `<details><summary>단계·조건·출처 보기</summary><p class="batch-entry-detail">${escapeHtml(resultToText(input, result, { neighborhood }))}</p></details>` : ''}
     </li>`).join('')}</ul></section>`).join('')}
     <div class="form-actions"><button type="button" class="button primary" data-copy-result>목록 한 번에 복사</button><a class="button secondary" href="#/item-input">물건 찾기로 돌아가기</a></div>

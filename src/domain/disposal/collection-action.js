@@ -29,8 +29,10 @@ export function collectionAction(input, result) {
   const scope = region ? regionLabel(region) : '';
   if (large?.reportUrl && !large.maybe) return {
     url: large.reportUrl, scope: large.place,
+    primary: result.confirmedReport,
     label: `${large.office} 대형폐기물 ${large.directReport ? '배출 신청' : '공식 안내'}`,
-    note: '품목·크기에 맞는 수수료, 배출일과 장소는 신청 페이지에서 확인해 주세요.',
+    note: result.confirmedReport ? '신청에서 위 품목을 선택한 뒤 수수료와 배출일·장소를 확인하세요.'
+      : '품목·크기에 맞는 수수료, 배출일과 장소는 신청 페이지에서 확인해 주세요.',
   };
   if (large && !large.maybe) return {
     url: large.homepage, scope, label: `${large.office} 공식 누리집`,

@@ -1,5 +1,5 @@
 import { categoryLabel } from './item-categories.js';
-import { conditionDetails, disposalReasons, inputForDisplay, resultForDisplay, resultHandlingQuestion, resultStepsForDisplay } from './result-display.js';
+import { conditionDetails, disposalReasons, inputForDisplay, resultForDisplay, resultHandlingQuestion, resultNeedsCheck, resultStepsForDisplay } from './result-display.js';
 import { resultRegionLabel } from './regions.js';
 import { largeWasteHelp } from './large-waste.js';
 import { collectionAction } from './collection-action.js';
@@ -13,7 +13,7 @@ export function resultToText(input, result, { neighborhood } = {}) {
   result = displayed;
   const prefix = updated ? '현재 기준으로 다시 확인한 안내\n' : '';
   const { parts, steps } = resultStepsForDisplay(result);
-  const requiresCheck = result.status === 'check' && !result.confirmedCollection;
+  const requiresCheck = resultNeedsCheck(result);
   const preparation = steps.length ? `\n\n${parts.length ? '먼저 할 일' : requiresCheck ? '배출 전에 확인하세요' : '이렇게 배출하세요'}\n${numbered(steps)}` : '';
   const partInstructions = parts.length ? `\n\n본체와 부속품 배출 방법\n${parts.map(part => `${part.label} (${part.material}) · ${part.method}\n${numbered(part.steps)}`).join('\n\n')}` : '';
   const schedule = result.disposalSchedule;

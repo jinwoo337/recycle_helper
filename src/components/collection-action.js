@@ -5,7 +5,7 @@ export function collectionActionMarkup(input, result, action = collectionAction(
   if (!action) return '';
   const checkedAt = action.checkedAt || (result.regional?.coverage === 'verified' && result.regional.sources?.includes(action.url) ? result.regional.checkedAt : '');
   return `<div class="result-collection-action">
-    ${action.url ? `<a class="button secondary" href="${escapeHtml(action.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(action.label)} ↗</a>` : ''}
+    ${action.url ? `<a class="button ${action.primary ? 'primary' : 'secondary'}" href="${escapeHtml(action.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(action.label)} ↗</a>` : ''}
     ${action.extraUrl ? `<a class="button secondary" href="${escapeHtml(action.extraUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(action.extraLabel)} ↗</a>` : ''}
     ${action.phone ? `<a class="button secondary" href="tel:${escapeHtml(action.phone)}">${escapeHtml(action.office)} ${escapeHtml(action.phone)}</a>` : ''}
     <p class="input-hint">${action.scope ? `<strong>${escapeHtml(action.scope)}</strong> · ` : ''}${escapeHtml(action.note)}</p>

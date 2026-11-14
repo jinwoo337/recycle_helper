@@ -23,7 +23,7 @@ import { linkedComponentState, stateAnswers, selectedState } from '../../domain/
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
-import { disposalReasons, resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultHandlingQuestion, resultPendingQuestions } from '../../domain/disposal/result-display.js';
+import { disposalReasons, resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultHandlingQuestion, resultNeedsCheck, resultPendingQuestions } from '../../domain/disposal/result-display.js';
 import { disposalScheduleMarkup } from '../../components/disposal-schedule.js';
 import { foamColorFromName, isYuseong, yuseongDeskTypeFromName } from '../../domain/disposal/daejeon-guides.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
@@ -304,7 +304,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
   const collection = collectionAction(input, result);
   const canCheckMark = !itemTypeClarification(input.itemName) && (['unknown', 'material-only'].includes(input.category)
     || (input.category === 'packaging' && pendingQuestion?.condition === 'material'));
-  const badge = result.confirmedCollection ? '전용 수거' : input.material === '음식물류' && result.status === 'recycle' ? '음식물류'
+  const badge = result.confirmedReport ? '대형폐기물' : result.confirmedCollection ? '전용 수거' : input.material === '음식물류' && result.status === 'recycle' ? '음식물류'
     : result.status === 'general' && /특수규격봉투|특수종량제|불연성/.test(result.method) ? '특수 배출'
       : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
   const handlingAnswer = resultHandlingQuestion(input, result.region, result.handling)?.options.find(([key]) => key === input.handlingCondition)?.[1];
@@ -322,7 +322,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
   return `<p class="eyebrow">${createdAt ? '저장된 결과' : '분리배출 결과'}</p><h2 id="summary-title">${escapeHtml(input.itemName)}</h2>
     ${createdAt ? `<p class="input-hint">${escapeHtml(new Date(createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))} · 기록 저장일</p>` : ''}
     ${updated ? '<p class="input-hint">현재 기준으로 다시 확인한 안내예요.</p>' : ''}
-    <div class="result-verdict ${result.status === 'check' && !result.confirmedCollection ? 'needs-check' : ''}"><p class="eyebrow">어디에 버리나요?</p>${badge !== result.method ? `<span class="result-badge">${badge}</span>` : ''}<h3>${escapeHtml(result.method)}</h3>
+    <div class="result-verdict ${resultNeedsCheck(result) ? 'needs-check' : ''}"><p class="eyebrow">어디에 버리나요?</p>${badge !== result.method ? `<span class="result-badge">${badge}</span>` : ''}<h3>${escapeHtml(result.method)}</h3>
       <div class="result-region"><p class="input-hint">${escapeHtml(resultRegionLabel(result))}</p>${editRegion ? `<button type="button" class="history-action" data-edit-region${regionToggle}>지역 변경</button>` : ''}</div></div>
     ${inlineRegion ? `<form id="result-region-form" class="result-region-form" aria-label="판별 지역 변경" novalidate hidden>${judgementRegionMarkup(result.region, { onResult: true })}
       <div class="choice-row"><button type="submit" class="button primary">이 지역 기준 보기</button><button type="button" class="button secondary" data-cancel-region>취소</button></div></form>` : ''}

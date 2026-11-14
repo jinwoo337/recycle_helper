@@ -35,6 +35,10 @@ export function resultHandlingQuestion(input, region, handling) {
   return handlingConditionQuestion(handling, region) || (handling === 'large' ? yuseongDeskQuestion(region, input.itemName) : yuseongFoamQuestion(region, input.material, input.type));
 }
 
+export function resultNeedsCheck(result) {
+  return result.status === 'check' && !result.confirmedCollection && !result.confirmedReport;
+}
+
 // 저장된 스냅샷은 유지하고, 오래된 처리 지침은 화면·복사에서 재사용하지 않습니다.
 export function resultForDisplay(input, savedResult) {
   if (savedResult.ruleVersion === RULE_VERSION) return savedResult;
@@ -63,7 +67,7 @@ const pendingQuestionLabels = {
 };
 
 export function resultPendingQuestions(input, result) {
-  if (result.status !== 'check') return [];
+  if (!resultNeedsCheck(result)) return [];
   const questions = new Map();
   const parts = result.parts || [];
   function add(condition, partIndex = 0) {
