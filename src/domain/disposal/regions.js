@@ -1,12 +1,13 @@
 export const PROVINCES = ['서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시', '경기도', '강원특별자치도', '충청북도', '충청남도', '전북특별자치도', '전라남도', '경상북도', '경상남도', '제주특별자치도'];
 export const SEOUL_DISTRICTS = '종로구 중구 용산구 성동구 광진구 동대문구 중랑구 성북구 강북구 도봉구 노원구 은평구 서대문구 마포구 양천구 강서구 구로구 금천구 영등포구 동작구 관악구 서초구 강남구 송파구 강동구'.split(' ');
 export { DAEJEON_DISTRICTS } from './daejeon-guides.js';
-import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES, YUSEONG_WASTE_GUIDE, yuseongDisposalSchedule } from './daejeon-guides.js';
+import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES, YUSEONG_WASTE_GUIDE, isYuseong, yuseongDisposalSchedule, yuseongFoodInGeneralBag } from './daejeon-guides.js';
 import { SEOUL_SOURCES, SEOUL_RECYCLE_NOTES, SEOUL_SCOPE_NOTE, SEOUL_VINYL_NOTE } from './seoul-guides.js';
 import { MEDICINE_SAFETY_STEPS, MEDICINE_SOURCES, medicineRegionalGuidance } from './medicine-guide.js';
 import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } from './metro-guides.js';
 import { CITY_GUIDES } from './city-guides.js';
 import { usesGelIcePackCondition } from './special-guides.js';
+import { normalizeItemName } from './item-suggestions.js';
 export { METRO_DISTRICTS } from './metro-guides.js';
 export const citySuggestionsFor = province => Object.keys(CITY_GUIDES[province] || {});
 export const districtsFor = province => province === '서울특별시' ? SEOUL_DISTRICTS
@@ -162,7 +163,7 @@ function daejeonRecycleNote(guide, { material, type }) {
 export function applyRegionalRules(input, base, asOf = dateFormat.format(new Date())) {
   const region = normalizeRegion(input.region);
   const result = structuredClone(base);
-  const yuseong = region?.province === '대전광역시' && region.district === '유성구';
+  const yuseong = isYuseong(region);
   result.region = region;
   result.regional = { coverage: 'unverified', label: regionLabel(region), checkedAt: '2026-10-27', sources: [], notes: [], comparisonKey: `basic:${base.status}:${base.method}` };
   const single = input.combined !== 'yes' && !input.components?.length;
@@ -435,10 +436,23 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       result.steps = ['유리 조각을 신문지 등으로 안전하게 감싸 주세요.', '종량제봉투 겉면에 위험물이라고 크게 표시해 주세요.', '봉투에 담기 어려운 크기·양은 서구에 별도 처리 방법을 확인해 주세요.'];
       result.parts[0] = { ...result.parts[0], status: result.status, method: result.method, steps: [...result.steps], reasons: [...result.reasons] };
       set(daejeon.recycle, '대전 서구는 깨진 유리를 안전하게 포장하고 종량제봉투에 위험물 표시를 하도록 안내해요.', 'glass:seogu-bag');
+    } else if (yuseong && input.material === '음식물류' && result.parts[0].label === '본체'
+        && yuseongFoodInGeneralBag(input.type, normalizeItemName(input.itemName))) {
+      applyLocalMethod({
+        method: '음식물 수거 제외 · 유성구 일반 종량제봉투',
+        reason: '유성구는 이 품목을 음식물쓰레기에서 제외해 일반 종량제봉투에 배출하도록 안내해요.',
+        steps: ['음식물과 분리하고, 날카로운 뼈나 껍데기는 다치지 않게 감싸 주세요.', '유성구 일반 종량제봉투에 넣어 주세요.'],
+        status: 'general', source: daejeon.food, note: '유성구청의 음식물쓰레기 제외 품목 안내를 적용했어요.', key: 'food:yuseong-general',
+      });
     } else if (result.status === 'recycle' && input.material === '음식물류' && input.type === 'soft') {
       const foodMethods = { 중구: 'sticker-3-or-5l', 대덕구: 'sticker-3-or-5l', 동구: 'sticker-5l', 서구: 'container', 유성구: 'cleannet' };
       set(daejeon.food, daejeon.foodNote, `food:daejeon-${foodMethods[region.district]}`);
       result.steps = result.steps.filter(step => !step.includes('전용 봉투·전용 용기·RFID'));
+      if (yuseong) {
+        result.method = '유성구 음식물쓰레기 전용 용기·투입구에 배출';
+        if (normalizeItemName(input.itemName) === '수박껍질') result.steps.push('수박 껍질은 잘게 잘라 주세요.');
+        result.parts[0].method = result.method;
+      }
       result.parts[0].steps = [...result.steps, daejeon.foodNote];
     } else if (result.status === 'recycle' && input.combined === 'no' && region.district === '유성구' && input.material === '스티로폼') {
       result.status = 'check'; result.method = '스티로폼 색상·이물질 추가 확인 필요';
@@ -547,9 +561,10 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
   if (yuseong) {
     const rows = yuseongDisposalSchedule(result);
     if (rows.length) {
-      result.disposalSchedule = { district: region.district, source: YUSEONG_WASTE_GUIDE, rows };
-      result.sourceUrls = [...new Set([...result.sourceUrls, YUSEONG_WASTE_GUIDE])];
-      if (result.status !== 'check') result.notice = '표시된 배출 일정은 유성구청 생활쓰레기 안내를 적용했어요.';
+      const source = rows.find(row => row.source)?.source || YUSEONG_WASTE_GUIDE;
+      result.disposalSchedule = { district: region.district, source, rows };
+      result.sourceUrls = [...new Set([...result.sourceUrls, source])];
+      if (result.status !== 'check') result.notice = '표시된 배출 일정은 유성구청 안내를 적용했어요.';
     }
   }
   if (result.regional.coverage !== 'verified' && !result.disposalSchedule) {

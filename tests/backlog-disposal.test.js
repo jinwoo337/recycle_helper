@@ -13,7 +13,7 @@ import { rankCollectionPoints, verifiedCollectionPoints } from '../src/domain/di
 import { resultMarkup } from '../src/pages/item-input/item-input.js';
 import { resultToText } from '../src/domain/disposal/result-text.js';
 import { batchGroups, batchToText } from '../src/domain/disposal/disposal-batch.js';
-import { addDisposalBatchItems, addMealToBatch, readDisposalBatch, removeBatchItem, updateBatchItem } from '../src/services/disposal-batch.js';
+import { addDisposalBatchItems, addMealToBatch, changeDisposalBatchRegion, readDisposalBatch, removeBatchItem, updateBatchItem } from '../src/services/disposal-batch.js';
 
 const seoul = { province: '서울특별시', district: '강남구' };
 const response = {
@@ -263,6 +263,23 @@ test('유성구 재활용품 일정은 법정동을 적용하고 요일이 나�
   assert.match(resultToText(input, result, { neighborhood: { neighborhood: '하기동', area: '신성동' } }), /하기동 \(신성동\) 수요일 저녁/);
 });
 
+test('유성구는 음식물 제외 품목과 수박 껍질에 구청 안내를 적용한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  const judge = (itemName, place = region) => judgeDisposal({ ...itemPresetInput(itemName), itemName, region: place, foodSeparated: 'yes' });
+  for (const itemName of ['달걀껍질', '닭뼈', '한약찌꺼기', '양파겉껍질', '고기비계']) {
+    const result = judge(itemName);
+    assert.equal(result.status, 'general', itemName);
+    assert.match(result.method, /유성구 일반 종량제봉투/);
+    assert.equal(result.disposalSchedule.rows[0].label, '일반 종량제봉투');
+  }
+  const watermelon = judge('수박껍질');
+  assert.equal(watermelon.status, 'recycle');
+  assert.match(watermelon.steps.join(' '), /수박 껍질은 잘게/);
+  assert.equal(watermelon.disposalSchedule.rows[0].label, '음식물쓰레기');
+  assert.equal(judge('커피찌꺼기').status, 'check');
+  assert.equal(judge('고기비계', { ...region, district: '서구' }).status, 'recycle');
+});
+
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {
   const input = { ...itemPresetInput('투명생수병'), contaminated: 'no', region: seoul,
     components: [{ label: '비닐 라벨', material: '비닐', type: 'packaging', contaminated: 'yes',
@@ -385,4 +402,23 @@ test('여러 이름을 목록에 함께 넣고 사용자가 확인한 후보만 
   assert.deepEqual(final.items.map(({ id }) => id), initial.items.slice(0, 2).map(({ id }) => id));
   assert.equal(final.items.find(({ id }) => id === receipt.id).result.status, 'general');
   assert.deepEqual(final.items[0], initial.items[0]);
+});
+
+test('목록 지역 변경은 저장한 상태와 항목을 유지하고 목적지에 맞춰 판별을 갱신한다', () => {
+  for (const { id } of readDisposalBatch().items) removeBatchItem(id);
+  assert.equal(addDisposalBatchItems(['젤아이스팩', '영수증'], seoul), true);
+  const initial = readDisposalBatch();
+  const ice = { ...initial.items[0].input, handlingCondition: 'unusable' };
+  assert.equal(updateBatchItem(initial.items[0].id, ice, judgeDisposal(ice)), true);
+  assert.equal(changeDisposalBatchRegion({ province: '대전광역시', district: '유성구' }), true);
+  const updated = readDisposalBatch();
+  assert.deepEqual(updated.items.map(({ id }) => id), initial.items.map(({ id }) => id));
+  assert.ok(updated.items.every(({ input }) => input.region.district === '유성구'));
+  assert.equal(updated.items[0].input.handlingCondition, 'unusable');
+  assert.match(updated.items[0].result.method, /유성구 일반 종량제봉투/);
+  assert.equal(updated.items[1].result, null);
+  assert.equal(changeDisposalBatchRegion({ province: '대전광역시', district: '가짜구' }), false);
+  assert.deepEqual(readDisposalBatch(), updated);
+  assert.equal(changeDisposalBatchRegion(null), true);
+  assert.equal(readDisposalBatch().items[0].result.disposalSchedule, undefined);
 });

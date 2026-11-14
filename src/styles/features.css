@@ -188,6 +188,8 @@
 .part-material-quick:not([hidden]) { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .part-material-quick [aria-pressed="true"] { border-color: var(--green); color: var(--green); background: #edf5f0; }
 .batch-page { padding-block: 24px 36px; }
+.batch-region { margin-block: 12px; }
+.batch-region-apply:not([hidden]) { display: flex; justify-content: flex-end; margin-top: 8px; }
 .batch-group { margin-block: 12px; }
 .batch-group h2 { font-size: 18px; margin-top: 0; }
 .batch-group h2 small { font-weight: 400; color: var(--muted); }

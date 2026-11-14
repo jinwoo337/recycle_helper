@@ -1,13 +1,13 @@
 import { PROVINCES, districtsFor, citySuggestionsFor, normalizeRegion, regionLabel } from '../domain/disposal/regions.js';
 import { escapeHtml } from '../utils/html.js';
 
-export function judgementRegionMarkup(region, { onResult = false } = {}) {
+export function judgementRegionMarkup(region, { onResult = false, batch = false } = {}) {
   const id = onResult ? 'result-judgement' : 'judgement';
   const fields = `<div class="judgement-region-fields"><div class="field"><label for="${id}-province">시·도</label><select id="${id}-province" name="judgementProvince"><option value="">지역 없이 기본 안내</option>${PROVINCES.map(province => `<option>${province}</option>`).join('')}</select></div>
     <div class="field" data-judgement-district-field><label for="${id}-district">시·군·구</label><div data-judgement-district></div><p class="field-error" id="${id}-region-error" data-judgement-error role="alert" hidden></p></div></div>`;
   if (onResult) return `<div class="judgement-region">${fields}</div>`;
-  return `<details class="judgement-region"><summary>판별 지역 <strong data-judgement-region-label>${escapeHtml(regionLabel(region))}</strong></summary>${fields}
-    <p class="input-hint">선택한 지역은 이 브라우저에 저장돼요. 확인된 품목별 기준이나 시·군·구 공식 안내를 보여 드려요.</p></details>`;
+  return `<details class="judgement-region"><summary>${batch ? '목록 배출 지역' : '판별 지역'} <strong data-judgement-region-label>${escapeHtml(regionLabel(region))}</strong></summary>${fields}
+    <p class="input-hint">${batch ? '목록 전체에 적용하면 입력한 조건으로 다시 판별해요.' : '선택한 지역은 이 브라우저에 저장돼요. 확인된 품목별 기준이나 시·군·구 공식 안내를 보여 드려요.'}</p></details>`;
 }
 function cityInput(cities, id) {
   const example = cities[0] || '김포시';

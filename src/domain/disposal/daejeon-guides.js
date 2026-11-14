@@ -1,6 +1,15 @@
 // 구청 공식 자료 확인일: 2026-10-26. 동별 배출일·공동주택 예외는 원문에서 확인합니다.
 export const DAEJEON_DISTRICTS = ['동구', '중구', '서구', '유성구', '대덕구'];
 export const YUSEONG_WASTE_GUIDE = 'https://www.yuseong.go.kr/kor/sub07_11_03_09.do';
+export const YUSEONG_FOOD_GUIDE = 'https://www.yuseong.go.kr/kor/sub07_11_03_04.do';
+export const isYuseong = region => region?.province === '대전광역시' && region.district === '유성구';
+
+export function yuseongFoodInGeneralBag(type, name) {
+  if (type === 'excluded') return true;
+  if (type === 'soft') return /^(?:고기비계|남은비계)$/.test(name);
+  if (type === 'fibrous') return /^(?:왕겨|쌀왕겨|(?:대파|쪽파|미나리)뿌리|(?:마른|건조)마늘대|옥수수(?:대|줄기|겉껍질|포엽)|양파겉껍질|마른양파껍질|생강껍질)$/.test(name);
+  return type === 'residue' && /^(?:차찌꺼기|녹차찌꺼기|우린찻잎|한약찌꺼기|달인약재찌꺼기)$/.test(name);
+}
 
 const ordinaryBag = part => part.status === 'general' && /종량제/.test(part.method) && !/특수|불연성|마대/.test(part.method);
 const ordinaryRecycling = part => part.status === 'recycle' && /^(?:오염 제거 후 )?(?:종이류|종이컵|플라스틱류|유리병|금속캔|비닐류)(?:으로|로) 분리배출$/.test(part.method);
@@ -20,6 +29,13 @@ export function yuseongDisposalSchedule(result) {
     when: '동별 배출 요일 저녁 · 공동주택은 단지 수거 일정',
     where: [['일반 주택·도안 크린넷 사용 지역', '투명봉투에 모아 집 앞'], ['공동주택', '단지 지정 장소']],
   });
+  if (result.parts.length === 1 && result.parts[0].status === 'recycle' && result.parts[0].material === '음식물류') {
+    rows.push({
+      label: '음식물쓰레기', appliesTo: '', when: '일~목요일 저녁 6시~자정 · 가급적 저녁 8시 이전',
+      where: [['일반 주택', '전용용기에 납부필증을 붙여 집 앞'], ['공동주택', '단지의 음식물 수거용기'], ['도안 크린넷 사용 지역', '전용봉투에 담아 크린넷 투입구']],
+      source: YUSEONG_FOOD_GUIDE,
+    });
+  }
   return rows;
 }
 export const DAEJEON_GUIDES = {
@@ -49,7 +65,7 @@ export const DAEJEON_GUIDES = {
   },
   '유성구': {
     recycle: 'https://www.yuseong.go.kr/kor/sub07_11_03_03.do',
-    food: 'https://www.yuseong.go.kr/kor/sub07_11_03_04.do',
+    food: YUSEONG_FOOD_GUIDE,
     carton: '유성구는 우유팩·두유팩·음료팩을 폐지와 반드시 분리하도록 안내해요.',
     paper: '코팅된 표지·테이프 등 다른 재질을 제거하고 젖지 않게 모아 배출해 주세요.',
     vinyl: '라면·과자 봉지는 이물질을 제거해 배출하고 오염을 제거하지 못한 포장재는 재활용품과 섞지 마세요.',

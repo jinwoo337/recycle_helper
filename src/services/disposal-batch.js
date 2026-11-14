@@ -1,6 +1,7 @@
 import { getCurrentMember } from './auth.js';
 import { itemTypeClarification, normalizeItemName, relatedItemCandidates } from '../domain/disposal/item-suggestions.js';
 import { normalizeRegion } from '../domain/disposal/regions.js';
+import { judgeDisposal } from '../domain/disposal/rules.js';
 import { validRecord } from './disposal-history.js';
 import { validFavoriteInput } from './member-tools.js';
 
@@ -41,6 +42,21 @@ function current() {
 }
 
 export function readDisposalBatch() { return structuredClone(current()); }
+
+export function changeDisposalBatchRegion(value) {
+  const region = normalizeRegion(value);
+  if (value !== null && !region) return false;
+  const target = current();
+  if (!target.items.length || batchRegionMatches(target.region, region)) return false;
+  const items = target.items.map(entry => {
+    const { aiGuess, ...input } = entry.input;
+    input.region = region;
+    return { ...entry, input, result: entry.result ? judgeDisposal(input) : null };
+  });
+  batch = { items, region };
+  saveBatch();
+  return true;
+}
 
 export function duplicateBatchPartIds(items) {
   const bundled = new Set(items.flatMap(({ input, result }) => result ? [...mealComponents(input)] : []));
