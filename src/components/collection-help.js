@@ -17,6 +17,7 @@ function pointList(points) {
 }
 
 function verifiedCollectionMarkup(dataset) {
+  const links = [['지자체 수거함·접수 안내', dataset.source], [dataset.directoryLabel, dataset.directory], ...(dataset.moreDirectories || [])];
   return `<section class="collection-help verified-collection" data-verified-collection aria-labelledby="verified-collection-title">
     <h3 id="verified-collection-title">${escapeHtml(dataset.title)}</h3>
     <p class="input-hint">접수 품목 · ${escapeHtml(dataset.accepts)}. ${escapeHtml(dataset.hours)}</p>
@@ -27,7 +28,7 @@ function verifiedCollectionMarkup(dataset) {
       <iframe class="collection-map" data-collection-map title="수거함이 있는 시설 지도" loading="lazy" hidden></iframe>
       <ul class="verified-collection-list" data-collection-list>${pointList(dataset.points)}</ul>
     </details>
-    <p class="input-hint">시설 위치 확인 ${dataset.checkedAt}${dataset.dataDate ? ` · 자료 기준일 ${dataset.dataDate}` : ''} · <a href="${escapeHtml(dataset.source)}" target="_blank" rel="noopener noreferrer">지자체 수거함·접수 안내 ↗</a> · <a href="${escapeHtml(dataset.directory)}" target="_blank" rel="noopener noreferrer">${escapeHtml(dataset.directoryLabel)} ↗</a></p>
+    <p class="input-hint">시설 위치 확인 ${dataset.checkedAt}${dataset.dataDate ? ` · 자료 기준일 ${dataset.dataDate}` : ''} · ${links.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)} ↗</a>`).join(' · ')}</p>
     </section>`;
 }
 

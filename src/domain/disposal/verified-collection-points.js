@@ -70,11 +70,38 @@ const seongnamMedicine = {
   })),
 };
 
+const yuseongMedicine = {
+  title: '유성구 폐의약품 공공 수거함',
+  accepts: '가정에서 나온 폐의약품',
+  hours: '시설별 운영시간과 수거함 위치는 방문 전에 확인해 주세요.',
+  source: MEDICINE_SOURCES.yuseong,
+  directory: 'https://lib.yuseong.go.kr/web/menu/10005/program/30002/libraryMap.do',
+  directoryLabel: '유성구 도서관 위치',
+  moreDirectories: [
+    ['유성구청 위치', 'https://www.yuseong.go.kr/apartment/sub01_03.do'],
+    ['유성구보건소 위치', 'https://www.yuseong.go.kr/health/sub01_06.do'],
+  ],
+  checkedAt: '2026-11-14',
+  note: '구청 안내 중 주소와 시설 좌표를 대조한 곳이에요. 가까운 동 행정복지센터와 구청이 안내한 보건지소의 수거함도 이용할 수 있어요.',
+  points: [
+    ['유성구청 본관 1층 민원실', '대학로 211', 36.362280, 127.356258, '042-611-2114'],
+    ['유성구보건소', '박산로 177', 36.353917, 127.328637, '042-611-5000'],
+    ['노은도서관', '노은동로234번길 34', 36.381493, 127.320654, '042-611-6610'],
+    ['유성도서관', '대덕대로 507-38', 36.378423, 127.375913, '042-611-6530'],
+    ['진잠도서관', '진잠로160번길 19', 36.303157, 127.319767, '042-611-6590'],
+    ['구즉도서관', '와룡로37번길 20', 36.429471, 127.380447, '042-611-6510'],
+    ['원신흥도서관', '원신흥남로 59', 36.337716, 127.337486, '042-611-6970'],
+  ].map(([name, address, latitude, longitude, phone]) => ({
+    name, address: `대전광역시 유성구 ${address}`, latitude, longitude, phone,
+  })),
+};
+
 export function verifiedCollectionPoints(result) {
   const key = result?.regional?.comparisonKey;
   if (key === 'ice-pack:gyeonggi-gwangju-reuse') return gwangjuIcePacks;
   if (key === 'medicine:guri') return guriMedicine;
   if (key === 'medicine:seongnam') return seongnamMedicine;
+  if (key === 'medicine:yuseong') return yuseongMedicine;
   return null;
 }
 

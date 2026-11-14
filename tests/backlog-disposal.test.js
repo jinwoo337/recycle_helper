@@ -237,6 +237,18 @@ test('유성구 배출 일정은 일반 종량제봉투나 일반 재활용품�
   assert.equal(judgeDisposal({ itemName: '물티슈낱장' }).disposalSchedule, undefined);
 });
 
+test('유성구 약 수거함 시설만 지도 목록에 표시하고 위치를 주면 가까운 순으로 안내한다', () => {
+  const input = { itemName: '알약', region: { province: '대전광역시', district: '유성구' } };
+  const result = judgeDisposal(input);
+  const { points } = verifiedCollectionPoints(result);
+  assert.equal(points.length, 7);
+  assert.ok(points.every(point => point.address.startsWith('대전광역시 유성구 ')));
+  assert.ok(points.every(point => !/관평도서관|구암도서관/.test(point.name)));
+  assert.equal(rankCollectionPoints(points, { latitude: 36.381493, longitude: 127.320654 })[0].name, '노은도서관');
+  assert.match(resultMarkup(input, result), /유성구 폐의약품 공공 수거함[\s\S]*박산로 177[\s\S]*유성구보건소 위치/);
+  assert.equal(verifiedCollectionPoints(judgeDisposal({ ...input, itemName: '건전지' })), null);
+});
+
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {
   const input = { ...itemPresetInput('투명생수병'), contaminated: 'no', region: seoul,
     components: [{ label: '비닐 라벨', material: '비닐', type: 'packaging', contaminated: 'yes',
