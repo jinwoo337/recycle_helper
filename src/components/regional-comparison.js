@@ -8,8 +8,8 @@ const list = values => `<ol>${values.map(value => `<li>${escapeHtml(value)}</li>
 const comparisonSteps = result => [...new Set([...result.steps, ...(result.parts?.length > 1 ? result.parts.flatMap(part => part.steps) : [])])];
 function commonProvince(group) {
   const province = group.regions[0]?.province;
-  return group.result.regional.scope === 'city' && group.regions.length > 1
-    && group.regions.every(region => region.province === province) ? province : '';
+  const sameProvince = group.regions.length > 1 && group.regions.every(region => region.province === province);
+  return sameProvince && (group.result.regional.scope === 'city' || group.regions.length === districtsFor(province).length) ? province : '';
 }
 function groupLabel(group) {
   const province = commonProvince(group);
@@ -19,10 +19,21 @@ function groupLabel(group) {
   }
   return group.regions.map(regionLabel).join(' · ');
 }
-export function regionalComparisonMarkup(input, result) {
+export function regionalComparisonMarkup(result) {
   if (result.ruleVersion !== RULE_VERSION) return '';
-  const comparison = compareRegionalDisposal(input, result);
-  return `<details class="regional-comparison"><summary>다른 지역은 어떨까?</summary>${comparisonPanelMarkup(comparison)}</details>`;
+  return '<details class="regional-comparison" data-regional-comparison><summary>다른 지역은 어떨까?</summary><div data-comparison-body></div></details>';
+}
+
+export function bindRegionalComparison(root, input, result) {
+  const disclosure = root.querySelector('[data-regional-comparison]');
+  if (!disclosure || !result) return;
+  function render() {
+    if (!disclosure.open) return;
+    disclosure.querySelector('[data-comparison-body]').innerHTML = comparisonPanelMarkup(compareRegionalDisposal(input, result));
+    disclosure.removeEventListener('toggle', render);
+  }
+  disclosure.addEventListener('toggle', render);
+  render();
 }
 export function comparisonHighlights(result, current) {
   const shared = new Set(comparisonSteps(current));
@@ -31,7 +42,7 @@ export function comparisonHighlights(result, current) {
 }
 export function comparisonPanelMarkup(comparison) {
   const { current, groups, sameCount, unverifiedCount } = comparison;
-  const note = unverifiedCount ? '<p class="input-hint">품목별 자료가 없는 지역은 관할 지자체 안내를 확인해 주세요.</p>' : '';
+  const note = unverifiedCount ? '<p class="input-hint">비교 가능한 지역의 품목별 자료를 사용했어요.</p>' : '';
   if (!groups.length) {
     const message = sameCount > 1 ? '확인된 모든 지역의 배출 방법이 같아요.' : '이 품목의 지역별 차이는 아직 확인되지 않았어요.';
     return `<p class="comparison-explanation">${message}</p>${note}`;

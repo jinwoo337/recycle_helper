@@ -73,7 +73,8 @@ test('비교는 같은 입력·상태의 검증된 배출 방식만 묶고 현�
   assert.ok(comparison.groups.some(group => group.regions.some(region => region.district === '도봉구')));
   assert.ok(comparison.groups.some(group => group.regions.some(region => region.district === '김포시')));
   assert.ok(comparison.groups.every(group => group.result.regional.coverage === 'verified'));
-  assert.match(regionalComparisonMarkup(input, comparison.current), /다른 지역은 어떨까\?/);
+  assert.match(regionalComparisonMarkup(comparison.current), /다른 지역은 어떨까\?/);
+  assert.doesNotMatch(regionalComparisonMarkup(comparison.current), /comparison-card/);
   assert.match(comparisonPanelMarkup(comparison), /서울특별시 공통 기준/);
   assert.match(comparisonPanelMarkup(comparison), /백색마대/);
   assert.match(comparisonPanelMarkup(comparison), /송파구 특수마대에 담아 신고/);
@@ -82,10 +83,10 @@ test('비교는 같은 입력·상태의 검증된 배출 방식만 묶고 현�
 test('방법이 같은 종이는 확인된 지역의 공통 안내를 보여 주고 미확인 품목은 구분한다', () => {
   const paper = { itemName: '신문지', material: '종이', type: 'paper', contaminated: 'no', combined: 'no' };
   assert.deepEqual(compareRegionalDisposal(paper).groups, []);
-  assert.match(regionalComparisonMarkup(paper, judgeDisposal(paper)), /확인된 모든 지역의 배출 방법이 같아요/);
+  assert.match(comparisonPanelMarkup(compareRegionalDisposal(paper)), /확인된 모든 지역의 배출 방법이 같아요/);
   const unknown = { itemName: '새이름', category: 'unknown' };
   assert.deepEqual(compareRegionalDisposal(unknown).groups, []);
-  assert.match(regionalComparisonMarkup(unknown, judgeDisposal(unknown)), /아직 확인되지 않았어요/);
+  assert.match(comparisonPanelMarkup(compareRegionalDisposal(unknown)), /아직 확인되지 않았어요/);
   const dirty = { itemName: '과자봉지', material: '비닐', type: 'packaging', contaminated: 'yes', washed: 'yes', removable: 'no', combined: 'no', region: { province: '대전광역시', district: '유성구' } };
   assert.ok(compareRegionalDisposal(dirty).groups.some(group => group.result.regional.scope === 'city'));
   assert.equal(judgeDisposal({ ...dirty, region: { province: '서울특별시', district: '강남구' } }).status, 'check', '오염 종류가 확인되지 않은 비닐을 바로 재활용으로 확정하지 않음');
@@ -136,7 +137,7 @@ test('대구의 비닐 묶음 배출을 보여 주고 현재 지역과 같은 �
   assert.ok(comparison.groups.length);
   assert.ok(comparison.groups.every(group => group.regions.every(region => region.province !== '대구광역시')));
   const elsewhere = { ...input, region: { province: '광주광역시', district: '북구' } };
-  assert.match(regionalComparisonMarkup(elsewhere, judgeDisposal(elsewhere)), /대구광역시 공통 기준[\s\S]*묶어서 배출/);
+  assert.match(comparisonPanelMarkup(compareRegionalDisposal(elsewhere)), /대구광역시 공통 기준[\s\S]*묶어서 배출/);
 });
 test('홈 바로가기는 로그인 상태와 무관하게 안내 페이지로 연결하고 재질별 안내와 종류별 진입을 제공한다', () => {
   for (const member of [null, { nickname: '테스트' }]) {

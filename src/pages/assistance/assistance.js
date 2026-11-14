@@ -10,7 +10,7 @@ import { stepListMarkup } from '../../components/step-list.js';
 import { bindVerifiedCollection, collectionPointMarkup } from '../../components/collection-help.js';
 import { collectionActionMarkup } from '../../components/collection-action.js';
 import { disposalReasonMarkup } from '../../components/disposal-reason.js';
-import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
+import { bindRegionalComparison, regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { bindDisposalSchedule, disposalScheduleMarkup } from '../../components/disposal-schedule.js';
 import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNAMED_ITEM } from '../../services/input-draft.js';
 import { confirmedPhotoMark, photoMarkMaterial, photoMarkNeedsShape, photoMarkPart, photoMarkPartLabel } from '../../domain/disposal/recycle-marks.js';
@@ -195,7 +195,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
         : disposalReasonMarkup(null, '물건의 용도나 상태에 따라 배출 방법이 달라요. 위에서 확인할 수 있는 정보를 골라 주세요.')}
     ${checklist ? checklistMarkup() : ''}
     ${guide?.handling && steps.length ? collectionPointMarkup({ ...guide, itemName: answer.itemName }, { official: false }) : ''}
-    ${guide?.ruleVersion && !confirmIdentity ? regionalComparisonMarkup(resultInput({ answer, region, guide }), guide) : ''}
+    ${guide?.ruleVersion && !confirmIdentity ? regionalComparisonMarkup(guide) : ''}
     ${sources.length ? `<details class="assist-answer-history"><summary>등록 안내의 출처</summary><ul>${sources.map(url => `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url))}</a></li>`).join('')}</ul></details>` : ''}
     ${answers.length ? `<details class="assist-answer-history"><summary>지금까지 답한 내용 ${answers.length}개</summary><dl>${answers.map(pair => `<dt>${escapeHtml(pair.question)}</dt><dd>${escapeHtml(pair.answer)}</dd>`).join('')}</dl></details>` : ''}
     ${guide?.ruleVersion && !confirmIdentity ? relatedDisposalMarkup(answer.itemName) : ''}
@@ -419,6 +419,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       syncMarkShape(row);
     });
     bindVerifiedCollection(result, view.guide);
+    if (view.guide?.ruleVersion) bindRegionalComparison(result, resultInput(view), view.guide);
     const disposeChecklist = bindDisposalChecklist(result);
     const scheduleChoice = bindDisposalSchedule(result, view.guide);
     const disposeCopy = bindResultCopy(result, () => resultToText(resultInput(view), view.guide, { neighborhood: scheduleChoice() }));

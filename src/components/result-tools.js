@@ -10,6 +10,7 @@ import { bindResultCopy, copyResultButton, copyResultFallback } from './result-c
 import { escapeHtml } from '../utils/html.js';
 import { addDisposalBatchItem, addMealToBatch } from '../services/disposal-batch.js';
 import { bindDisposalSchedule } from './disposal-schedule.js';
+import { bindRegionalComparison } from './regional-comparison.js';
 
 const feedbackIssues = {
   destination: '수거처·배출 장소',
@@ -44,8 +45,10 @@ export function resultToolsMarkup(input, result) {
 
 export function bindResultTools(root, input, result, { onNewItem, onRelatedItem, tools = memberTools } = {}) {
   const disposeChecklist = bindDisposalChecklist(root);
-  if (root.querySelector('[data-verified-collection]')) bindVerifiedCollection(root, resultForDisplay(input, result));
-  const scheduleChoice = bindDisposalSchedule(root, resultForDisplay(input, result));
+  const displayed = resultForDisplay(input, result);
+  if (root.querySelector('[data-verified-collection]')) bindVerifiedCollection(root, displayed);
+  bindRegionalComparison(root, inputForDisplay(input, result), displayed);
+  const scheduleChoice = bindDisposalSchedule(root, displayed);
   const resultText = () => resultToText(input, result, { neighborhood: scheduleChoice() });
   const disposeCopy = bindResultCopy(root, resultText);
   const status = root.querySelector('[data-result-tools-status]');
