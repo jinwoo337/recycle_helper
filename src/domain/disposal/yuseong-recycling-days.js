@@ -51,6 +51,23 @@ export function disposalScheduleRows(schedule, neighborhoodChoice = {}) {
   const { days, areas } = yuseongRecyclingDays(neighborhood, area);
   return schedule.rows.map(row => row.recycling && days ? {
     ...row,
+    days,
     when: `${neighborhood}${areas.length ? ` (${area})` : ''} ${days}요일 저녁 · 자체 수거 공동주택은 단지 일정`,
   } : row);
+}
+
+const seoulClock = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', hourCycle: 'h23' });
+const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+
+export function nextRegularDisposal(row, now = new Date()) {
+  if (!row.days) return '';
+  const date = Object.fromEntries(seoulClock.formatToParts(now).map(({ type, value }) => [type, Number(value)]));
+  const today = new Date(Date.UTC(date.year, date.month - 1, date.day));
+  const available = row.days.split('·');
+  const wait = Array.from({ length: 7 }, (_, offset) => offset).find(offset => available.includes(weekdays[(today.getUTCDay() + offset) % 7]));
+  if (wait === undefined) return '';
+  if (wait === 0 && row.startHour && date.hour >= row.startHour) return '정규 일정상 지금 배출 시간이에요.';
+  const next = new Date(today.getTime() + wait * 86_400_000);
+  const label = wait === 0 ? '오늘' : wait === 1 ? '내일' : `${next.getUTCMonth() + 1}월 ${next.getUTCDate()}일(${weekdays[next.getUTCDay()]})`;
+  return `정규 일정상 ${label} ${row.startHour ? `저녁 ${row.startHour - 12}시부터` : '저녁에'} 배출할 수 있어요.`;
 }

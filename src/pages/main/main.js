@@ -7,7 +7,9 @@ import { tipOfTheDay } from '../../domain/disposal/daily-tips.js';
 import { voiceButtonMarkup, bindVoiceInput } from '../../components/voice-input.js';
 import { getDisposalHistory } from '../../services/disposal-history.js';
 import { collectionDaysMarkup, bindCollectionDays } from '../../components/collection-days.js';
-import { readJudgementRegion } from '../../services/judgement-region.js';
+import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
+import { bindJudgementRegion, judgementRegionMarkup } from '../../components/judgement-region.js';
+import { regionLabel } from '../../domain/disposal/regions.js';
 import { inputModesMarkup, bindInputModes } from '../../components/input-modes.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { memberTools } from '../../services/member-tools.js';
@@ -24,15 +26,18 @@ function favoriteOrder(owner) {
 }
 
 export function mainPage(member) {
+  const region = readJudgementRegion(member);
   return `<section class="container home-page">
     <header class="home-heading"><p class="eyebrow">버리기 전, 한 번만 확인해요</p><h1>이건 어디에 버릴까요?</h1><p>물건 이름으로 찾고, 내 물건의 상태에 맞게 분리배출하세요.</p></header>
+    <div class="home-region"><p class="input-hint" data-home-region-label role="status">판별 지역 · ${escapeHtml(regionLabel(region))}</p><button type="button" class="history-action" data-home-region-toggle aria-expanded="false" aria-controls="home-region-form">${region ? '지역 변경' : '지역 선택'}</button></div>
+    <form id="home-region-form" class="home-region-form" novalidate hidden>${judgementRegionMarkup(region, { onResult: true })}<div class="choice-row"><button type="submit" class="button primary">이 지역으로 판별</button><button type="button" class="button secondary" data-home-region-cancel>취소</button></div></form>
     <form id="quick-search" class="quick-search home-search" novalidate><label for="quick-item">버릴 물건 이름</label><div class="quick-search-row"><div class="item-name-control home-item-control"><input id="quick-item" name="itemName" type="text" maxlength="80" required placeholder="예: 생수병" autocomplete="off" enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-controls="quick-items" aria-expanded="false" aria-describedby="quick-name-error quick-item-status">${voiceButtonMarkup('home-voice')}</div><button class="button primary" type="submit">배출 방법 찾기 <span aria-hidden="true">→</span></button></div><div id="quick-items" class="item-name-options" role="listbox" aria-label="추천 물품" hidden></div>
       <p id="quick-name-error" class="field-error" role="alert"></p><p id="quick-item-status" class="input-hint" role="status" aria-live="polite"></p>
       <div class="home-search-alternatives">${inputModesMarkup('name')}
       <div class="home-direct-choices"><button class="history-action" type="button" data-home-unnamed>이름 없이 종류 고르기</button><button class="history-action" type="button" data-home-mark>분리배출 표시로 찾기</button></div></div>
       <div class="example-items" aria-label="자주 찾는 물건"><span>자주 찾아요</span>${['나무젓가락', '투명생수병', '과자봉지'].map(name => `<button class="history-action" type="button" data-example="${name}">${name}</button>`).join('')}</div><details class="search-options"><summary>검색 설정</summary><div class="ai-mode-controls">${aiToggleMarkup('home-ai-enabled', { compact: true })}</div></details>${member ? '' : '<p class="input-hint">로그인 없이 찾을 수 있어요.</p>'}</form>
     ${readDisposalBatch().items.length ? '<p><a class="history-action" href="#/batch">함께 버릴 물건 목록 보기 →</a></p>' : ''}
-    ${collectionDaysMarkup(readJudgementRegion(member))}
+    <div data-home-collection-days>${collectionDaysMarkup(region)}</div>
     <nav class="home-shortcuts" aria-label="주요 기능 바로가기">
       <a href="#/history" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('history')}</span><div><h2>나의 기록</h2><p>찾아본 물건과 통계를 한눈에</p></div><span aria-hidden="true">↗</span></a>
       <a href="#/game" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('game')}</span><div><h2>분리배출 게임</h2><p>60초 도전으로 배우고 대결해요</p></div><span aria-hidden="true">↗</span></a>
@@ -58,9 +63,12 @@ function homeIcon(name) {
 }
 
 export function bindMain() {
+  const root = document.querySelector('.home-page');
   const form = document.getElementById('quick-search');
   const input = form.elements.itemName;
   const owner = getCurrentMember()?.id || 'guest';
+  let region = readJudgementRegion(getCurrentMember());
+  let regionChanged = false;
   if (homeDraft.owner === owner) input.value = homeDraft.itemName;
   const nameError = document.getElementById('quick-name-error');
   function clearNameError() { nameError.textContent = ''; input.removeAttribute('aria-invalid'); }
@@ -71,7 +79,9 @@ export function bindMain() {
     onCompositionEnd: clearNameError,
     noResultsMessage: '등록되지 않은 이름도 계속해서 배출 방법을 확인할 수 있어요.' });
   function openInput(draft) {
-    startInputSearch(); queueInput(draft); location.hash = '/item-input';
+    startInputSearch();
+    queueInput(regionChanged && !Object.hasOwn(draft, 'region') ? { ...draft, region } : draft);
+    location.hash = '/item-input';
   }
   form.querySelector('[data-home-unnamed]').addEventListener('click', () => openInput({ manualLookup: true }));
   form.querySelector('[data-home-mark]').addEventListener('click', () => openInput({ itemName: input.value.trim(), manualLookup: true, showMarkPicker: true }));
@@ -90,10 +100,43 @@ export function bindMain() {
   const disposeModes = bindInputModes(form, path => {
     const name = input.value.trim();
     startInputSearch();
-    queueInput({ description: name, sourceName: name, newSearch: !name }, path);
+    queueInput({ description: name, sourceName: name, newSearch: !name, ...(regionChanged ? { region } : {}) }, path);
   });
   const disposeVoice = bindVoiceInput(document.getElementById('home-voice'), input, { status: document.getElementById('quick-item-status'), onResult: () => { autocomplete.close(); form.requestSubmit(); } });
-  const disposeCollection = bindCollectionDays(document.querySelector('.home-page'));
+  const member = getCurrentMember();
+  const regionLabelNode = root.querySelector('[data-home-region-label]');
+  const regionForm = root.querySelector('#home-region-form');
+  const regionToggle = root.querySelector('[data-home-region-toggle]');
+  const collectionDays = root.querySelector('[data-home-collection-days]');
+  const regionEditor = bindJudgementRegion(regionForm, region);
+  let disposeCollection = bindCollectionDays(collectionDays);
+  function closeRegion() {
+    regionForm.hidden = true;
+    regionToggle.setAttribute('aria-expanded', 'false');
+    regionToggle.focus();
+  }
+  regionToggle.addEventListener('click', () => {
+    if (!regionForm.hidden) { closeRegion(); return; }
+    regionEditor.set(region);
+    regionForm.hidden = false;
+    regionToggle.setAttribute('aria-expanded', 'true');
+    regionEditor.focus();
+  });
+  regionForm.querySelector('[data-home-region-cancel]').addEventListener('click', closeRegion);
+  regionForm.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); closeRegion(); } });
+  regionForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!regionEditor.validate()) return;
+    region = regionEditor.get();
+    regionChanged = true;
+    rememberJudgementRegion(region, member);
+    regionLabelNode.textContent = `판별 지역 · ${regionLabel(region)}`;
+    regionToggle.textContent = region ? '지역 변경' : '지역 선택';
+    disposeCollection();
+    collectionDays.innerHTML = collectionDaysMarkup(region);
+    disposeCollection = bindCollectionDays(collectionDays);
+    closeRegion();
+  });
   let active = true;
   renderSaved('recent', () => active, openInput, owner);
   renderSaved('favorite', () => active, openInput, owner);

@@ -122,6 +122,11 @@
 /* Search, questions and results share one calm, readable surface. */
 .home-page { max-width: 900px; }
 .home-heading { max-width: 640px; }
+.home-region { display: flex; align-items: center; flex-wrap: wrap; gap: 0 10px; margin-bottom: 6px; }
+.home-region > p { margin: 0; }
+.home-region > button { color: var(--green); text-decoration: underline; }
+.home-region-form { margin-bottom: 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.home-region-form .choice-row { margin-top: 10px; }
 .home-search { border-color: #d3dfd6; padding: 28px; }
 .home-search .example-items button, .input-examples .history-action { min-height: 44px; padding-inline: 12px; }
 .item-name-options button { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; }
@@ -159,6 +164,8 @@
 .disposal-schedule-route h4 { margin: 0; font-size: 14px; }
 .disposal-schedule-route h4 small { color: var(--muted); font-size: inherit; font-weight: 500; }
 .disposal-schedule-route p { margin: 5px 0 10px; color: var(--green); font-weight: 650; }
+.disposal-schedule-route .schedule-next { color: inherit; }
+.schedule-exceptions { margin: 10px 0 0; }
 .disposal-schedule-route dl { margin: 0; display: grid; gap: 5px; font-size: 14px; }
 .disposal-schedule-route dl > div { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 10px; }
 .disposal-schedule-route dd { margin: 0; }

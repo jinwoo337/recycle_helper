@@ -22,7 +22,7 @@ export function yuseongDisposalSchedule(result) {
   const rows = [];
   const appliesTo = parts => parts.length === result.parts.length ? '' : parts.map(part => part.label).join(', ');
   if (generalParts.length) rows.push({
-    label: '일반 종량제봉투', appliesTo: appliesTo(generalParts),
+    label: '일반 종량제봉투', appliesTo: appliesTo(generalParts), days: '일·월·화·수·목', startHour: 18,
     when: '일~목요일 저녁 6시~자정 · 가급적 저녁 8시 이전',
     where: [['일반 주택', '집 앞'], ['공동주택', '단지 지정 장소'], ['도안 크린넷 사용 지역', '크린넷 투입구']],
   });
@@ -34,7 +34,7 @@ export function yuseongDisposalSchedule(result) {
   });
   if (result.parts.length === 1 && result.parts[0].status === 'recycle' && result.parts[0].material === '음식물류') {
     rows.push({
-      label: '음식물쓰레기', appliesTo: '', when: '일~목요일 저녁 6시~자정 · 가급적 저녁 8시 이전',
+      label: '음식물쓰레기', appliesTo: '', days: '일·월·화·수·목', startHour: 18, when: '일~목요일 저녁 6시~자정 · 가급적 저녁 8시 이전',
       where: [['일반 주택', '전용용기에 납부필증을 붙여 집 앞'], ['공동주택', '단지의 음식물 수거용기'], ['도안 크린넷 사용 지역', '전용봉투에 담아 크린넷 투입구']],
       source: YUSEONG_FOOD_GUIDE,
     });

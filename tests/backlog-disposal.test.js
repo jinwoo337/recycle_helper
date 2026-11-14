@@ -8,7 +8,7 @@ import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { lookupItem, searchItemNames } from '../src/domain/disposal/item-suggestions.js';
 import { applyRegionalRules } from '../src/domain/disposal/regions.js';
 import { GEL_ICE_PACK_SOURCE } from '../src/domain/disposal/catalog-sources.js';
-import { yuseongRecyclingDays } from '../src/domain/disposal/yuseong-recycling-days.js';
+import { nextRegularDisposal, yuseongRecyclingDays } from '../src/domain/disposal/yuseong-recycling-days.js';
 import { rankCollectionPoints, verifiedCollectionPoints } from '../src/domain/disposal/verified-collection-points.js';
 import { resultMarkup } from '../src/pages/item-input/item-input.js';
 import { resultToText } from '../src/domain/disposal/result-text.js';
@@ -279,6 +279,15 @@ test('유성구 재활용품 일정은 법정동을 적용하고 요일이 나�
   const result = judgeDisposal(input);
   assert.match(resultMarkup(input, result), /법정동[\s\S]*하기동/);
   assert.match(resultToText(input, result, { neighborhood: { neighborhood: '하기동', area: '신성동' } }), /하기동 \(신성동\) 수요일 저녁/);
+});
+
+test('배출 가능 시각은 한국 시간대의 날짜와 오후 6시 경계를 사용한다', () => {
+  const row = { days: '일·월·화·수·목', startHour: 18 };
+  assert.match(nextRegularDisposal(row, new Date('2026-11-14T14:59:59Z')), /내일 저녁 6시부터/);
+  assert.match(nextRegularDisposal(row, new Date('2026-11-14T15:00:00Z')), /오늘 저녁 6시부터/);
+  assert.match(nextRegularDisposal(row, new Date('2026-11-15T09:00:00Z')), /지금 배출 시간/);
+  assert.match(nextRegularDisposal({ days: '수' }, new Date('2026-11-14T15:00:00Z')), /11월 18일\(수\) 저녁에/);
+  assert.equal(nextRegularDisposal({}), '');
 });
 
 test('유성구는 음식물 제외 품목과 수박 껍질에 구청 안내를 적용한다', () => {
