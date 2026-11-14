@@ -156,7 +156,7 @@
 .collection-housing summary, .my-feedback > summary { cursor: pointer; font-weight: 650; min-height: 44px; align-content: center; }
 .assist-observations { display: grid; gap: 6px; margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
 .assist-observations label { display: flex; gap: 10px; align-items: center; min-height: 44px; cursor: pointer; }
-.assist-observations input { accent-color: var(--green); width: 20px; height: 20px; flex: none; }
+.assist-observations input[type="checkbox"] { accent-color: var(--green); width: 20px; height: 20px; flex: none; }
 .assist-observations small, .home-recent-items small { display: block; color: var(--muted); }
 .home-recent-items button { text-align: start; white-space: normal; }
 .home-unregistered { margin: 10px 0; }

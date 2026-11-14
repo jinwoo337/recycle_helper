@@ -7,7 +7,7 @@ import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel, resultRegionLabel }
 import { requestAssistance } from '../../services/ai-assistance.js';
 import { prepareAssistancePhoto, PHOTO_ACCEPT } from '../../services/assistance-photo.js';
 import { stepListMarkup } from '../../components/step-list.js';
-import { collectionPointMarkup } from '../../components/collection-help.js';
+import { bindVerifiedCollection, collectionPointMarkup } from '../../components/collection-help.js';
 import { collectionActionMarkup } from '../../components/collection-action.js';
 import { disposalReasonMarkup } from '../../components/disposal-reason.js';
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
@@ -48,12 +48,12 @@ function descriptionName(input) {
   return parts.length && parts.every(part => lookupItem(part) || itemTypeClarification(part)) ? input : '';
 }
 
-function syncMarkShape(form, answer) {
-  const marking = answer?.markings[Number(form.elements.namedItem('mark').value)];
-  const part = form.elements.namedItem('part').value;
-  const shape = form.elements.namedItem('shape');
+function syncMarkShape(row) {
+  const part = row.querySelector('[data-mark-part]').value;
+  const shape = row.querySelector('[data-mark-shape]');
+  const marking = row.dataset.marking;
   const showShape = Boolean(part && part !== 'film' && photoMarkMaterial(marking) === '플라스틱');
-  form.querySelector('[data-assist-mark-shape]').hidden = !showShape;
+  shape.closest('[data-assist-mark-shape]').hidden = !showShape;
   if (!showShape) shape.value = '';
 }
 
@@ -142,15 +142,17 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
     `<label><input type="checkbox" data-assist-observation="${index}" ${(selectedObservations ? selectedObservations.includes(index) : entry.source === 'description') ? 'checked' : ''}><span>${escapeHtml(observationLabel(entry))}<small>${entry.source === 'description' ? '입력한 설명 · 필요하면 선택 해제' : mode === 'photo' ? '사진·설명에서 AI가 추정 · 확인 필요' : '설명에서 AI가 추정 · 확인 필요'}</small></span></label>`).join('')}</fieldset>` : '';
   const guidance = steps.length ? stepListMarkup(steps, 'action-steps', { checklist, emphasizeFirst: true })
     : !guide?.prompt && !confirmIdentity ? `<p class="input-hint">${escapeHtml(hint)}</p>` : '';
-  const readableMarks = mode === 'photo' && answer.evidence === 'markings'
-    ? answer.markings.map((mark, index) => photoMarkMaterial(mark) ? { mark, index } : null).filter(Boolean) : [];
-  const markedPart = photoMarkPart(readableMarks[0]?.mark);
+  const readableMarks = mode === 'photo' && (answer.evidence === 'markings' || canContinue && !guide?.ruleVersion)
+    ? [...new Set(answer.markings)].filter(photoMarkMaterial) : [];
   const markForm = readableMarks.length ? `<form class="assist-questions assist-mark-confirm" data-assist-mark-confirm>
-    <h3>포장에 실제로 적힌 표시인가요?</h3><p class="input-hint">맞는 표시와 붙어 있는 곳을 골라 주세요.</p>
-    <div class="field"><label for="assist-confirm-mark">확인한 표시</label><select id="assist-confirm-mark" name="mark">${readableMarks.map(({ mark, index }) => `<option value="${index}">${escapeHtml(mark)}</option>`).join('')}</select></div>
-    <div class="field"><label for="assist-confirm-mark-part">표시가 있는 곳</label><select id="assist-confirm-mark-part" name="part" required><option value="">부위를 골라 주세요</option>${[['body', '본체'], ['lid', '뚜껑·마개'], ['label', '라벨'], ['film', '포장 필름']].map(([value, label]) => `<option value="${value}"${markedPart === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
-    <div class="field" data-assist-mark-shape hidden><label for="assist-confirm-mark-form">표시가 있는 부분의 형태</label><select id="assist-confirm-mark-form" name="shape"><option value="">다음 화면에서 고르기</option><option value="film">비닐 봉지·얇은 포장 필름</option><option value="container">단단한 용기·트레이</option></select></div>
-    <button type="submit" class="button primary">이 표시로 이어서 확인</button>
+    <h3>포장에 실제로 적힌 표시인가요?</h3><p class="input-hint">직접 확인한 표시를 체크하고, 표시가 적힌 부위를 골라 주세요.</p>
+    ${readableMarks.map(mark => `<fieldset class="assist-observations" data-marking="${escapeHtml(mark)}">
+      <legend>${escapeHtml(mark)}</legend><label><input type="checkbox" data-use-mark> 이 표시 적용</label>
+      <div class="field"><label>표시가 있는 곳 <select data-mark-part><option value="">부위를 골라 주세요</option>${[['body', '본체'], ['lid', '뚜껑·마개'], ['label', '라벨'], ['film', '포장 필름']].map(([value, label]) => `<option value="${value}"${photoMarkPart(mark) === value ? ' selected' : ''}>${label}</option>`).join('')}</select></label></div>
+      <div class="field" data-assist-mark-shape hidden><label>표시가 있는 부분의 형태 <select data-mark-shape><option value="">다음 화면에서 고르기</option><option value="film">비닐 봉지·얇은 포장 필름</option><option value="container">단단한 용기·트레이</option></select></label></div>
+    </fieldset>`).join('')}
+    <p class="field-error" data-mark-error role="alert"></p>
+    <button type="submit" class="button primary">선택한 표시로 이어서 확인</button>
   </form>` : '';
   return `<p class="eyebrow">${guide?.inferred ? '이름으로 알아본 종류의 안내' : guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide?.regional ? resultRegionLabel(guide) : regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
@@ -327,11 +329,12 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     const category = confirm && sameItem && !currentResult?.guide && !assistanceUncertain(answer, answered) ? answer.category : '';
     const observations = confirm && sameItem && currentResult?.observations?.length ? [...result.querySelectorAll('[data-assist-observation]:checked')]
       .map(input => currentResult.observations[Number(input.dataset.assistObservation)]).filter(Boolean) : [];
+    const confirmed = new Map([...observations, ...typedObservations].map(entry => [`${entry.part}:${entry.field}`, entry]));
     queueInput({
       ...lookupOptions, itemName, region: region.get(), fromAssistance: true,
       ...(handlingCondition ? { handlingCondition } : {}),
       ...(category && !lookupItem(itemName)?.material ? { category, categoryOrigin: 'manual', keywordCategory: false } : {}),
-      ...(observations.length || typedObservations.length ? { observations: observations.length ? observations : typedObservations } : {}),
+      ...(confirmed.size ? { observations: [...confirmed.values()] } : {}),
     });
   }
   function openNameSearch(itemName, confirm = false, options) {
@@ -379,8 +382,8 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       observations: view.observations, selectedObservations: view.selectedObservations, sourceName: assistanceDraft.sourceName,
       confirmIdentity: Boolean(view.guide?.ruleVersion && !view.fromInput && !view.guide?.condition && !view.identityConfirmed),
     });
-    const markForm = result.querySelector('[data-assist-mark-confirm]');
-    if (markForm) syncMarkShape(markForm, answer);
+    result.querySelectorAll('[data-marking]').forEach(syncMarkShape);
+    bindVerifiedCollection(result, view.guide);
     const disposeChecklist = bindDisposalChecklist(result);
     const disposeCopy = bindResultCopy(result, () => resultToText(resultInput(view), view.guide));
     const save = result.querySelector('[data-assist-save]');
@@ -461,34 +464,42 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     });
   }
   result.addEventListener('input', event => {
-    const markForm = event.target.closest('[data-assist-mark-confirm]');
-    if (markForm) syncMarkShape(markForm, answer);
     const followupForm = event.target.closest('[data-assist-followup-form]');
     if (!followupForm || busy) return;
     syncChoices(followupForm); setStatus('');
   });
   result.addEventListener('change', event => {
-    const markForm = event.target.closest('[data-assist-mark-confirm]');
-    if (!markForm) return;
-    if (event.target.name === 'mark') {
-      markForm.elements.namedItem('part').value = photoMarkPart(answer?.markings[Number(event.target.value)]);
-      markForm.elements.namedItem('shape').value = '';
-    }
-    syncMarkShape(markForm, answer);
+    const row = event.target.closest('[data-marking]');
+    if (!row) return;
+    if (event.target.matches('[data-mark-part]')) row.querySelector('[data-mark-shape]').value = '';
+    syncMarkShape(row);
+    row.closest('form').querySelector('[data-mark-error]').textContent = '';
   });
   result.addEventListener('submit', async event => {
     const markForm = event.target.closest('[data-assist-mark-confirm]');
     if (markForm) {
       event.preventDefault();
-      const marking = answer?.markings[Number(markForm.elements.namedItem('mark').value)];
-      const part = markForm.elements.namedItem('part').value;
-      const shape = markForm.elements.namedItem('shape').value;
-      const mark = confirmedPhotoMark(marking, part, shape);
-      if (!busy && answer?.evidence === 'markings' && mark && ['body', 'lid', 'label', 'film'].includes(part)) {
-        const name = assistanceDraft.sourceName || UNNAMED_ITEM;
-        openNameSearch(name, false, { category: 'packaging', categoryOrigin: 'manual', keywordCategory: false,
-          observations: [{ part, field: 'material', value: mark.material, type: mark.type }], fromConfirmedMark: true });
+      if (busy) return;
+      const rows = [...markForm.querySelectorAll('[data-use-mark]:checked')].map(control => control.closest('[data-marking]'));
+      const error = markForm.querySelector('[data-mark-error]');
+      if (!rows.length) { error.textContent = '확인한 표시를 하나 이상 선택해 주세요.'; return; }
+      const observations = new Map();
+      for (const row of rows) {
+        const partControl = row.querySelector('[data-mark-part]');
+        const part = partControl.value;
+        if (!part) { error.textContent = '선택한 표시가 적힌 부위를 골라 주세요.'; partControl.focus(); return; }
+        if (observations.has(part)) {
+          error.textContent = '같은 부위로 선택한 표시가 있어요. 부위를 수정하거나 한 표시만 적용해 주세요.';
+          partControl.focus();
+          return;
+        }
+        const mark = confirmedPhotoMark(row.dataset.marking, part, row.querySelector('[data-mark-shape]').value);
+        if (mark) observations.set(part, { part, field: 'material', value: mark.material, type: mark.type });
       }
+      const hasObject = answer?.evidence === 'object';
+      const name = hasObject ? answer.itemName : assistanceDraft.sourceName || UNNAMED_ITEM;
+      openNameSearch(name, hasObject, { category: 'packaging', categoryOrigin: 'manual', keywordCategory: false,
+        observations: [...observations.values()], fromConfirmedMark: true });
       return;
     }
     const correction = event.target.closest('[data-assist-correction]');

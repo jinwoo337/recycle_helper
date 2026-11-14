@@ -5,6 +5,7 @@ import { resultToText } from '../domain/disposal/result-text.js';
 import { resultRegionLabel } from '../domain/disposal/regions.js';
 import { inputForDisplay, resultForDisplay } from '../domain/disposal/result-display.js';
 import { bindDisposalChecklist } from './disposal-checklist.js';
+import { bindVerifiedCollection } from './collection-help.js';
 import { bindResultCopy, copyResultButton, copyResultFallback } from './result-copy.js';
 import { escapeHtml } from '../utils/html.js';
 import { addDisposalBatchItem, addMealToBatch } from '../services/disposal-batch.js';
@@ -42,6 +43,7 @@ export function resultToolsMarkup(input, result) {
 
 export function bindResultTools(root, input, result, { onNewItem, onRelatedItem, tools = memberTools } = {}) {
   const disposeChecklist = bindDisposalChecklist(root);
+  if (root.querySelector('[data-verified-collection]')) bindVerifiedCollection(root, resultForDisplay(input, result));
   const disposeCopy = bindResultCopy(root, () => resultToText(input, result));
   const status = root.querySelector('[data-result-tools-status]');
   const favorite = root.querySelector('[data-favorite]');

@@ -1,6 +1,7 @@
 import { MATERIALS, TYPES, needsWashQuestion, supportsState } from './rules.js';
-import { stateAnswers } from './input-state.js';
+import { selectedState, stateAnswers } from './input-state.js';
 import { normalizeItemName } from './item-suggestions.js';
+import { confirmedPhotoMark } from './recycle-marks.js';
 
 const fields = {
   material: MATERIALS.filter(value => value !== '모르겠어요'),
@@ -18,6 +19,8 @@ const partAliases = {
 const stateNames = { clean: '깨끗함', dirty: '오염 있음 · 세척 전', 'washed-dirty': '세척 후에도 오염 있음' };
 const handlingNames = { undamaged: '전지 · 손상 없음', damaged: '전지 · 팽창·누액 또는 파손 있음', reusable: '의류·잡화 · 다시 쓸 수 있음', unusable: '의류·잡화 · 심한 오염 또는 훼손 있음' };
 const descriptionSource = 'description';
+const partPrefix = /^(본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
+const explicitParts = { 본체: 'body', 몸체: 'body', 뚜껑: 'lid', 마개: 'lid', 캡: 'lid', 라벨: 'label', 필름: 'film' };
 
 // Gemini only proposes values from the same vocabulary used by the form.
 export function cleanItemObservations(raw) {
@@ -45,14 +48,13 @@ export function observationsFromDescription(value) {
     if (damaged || undamaged) entries.push({ part: 'body', field: 'handlingCondition', value: damaged ? 'damaged' : 'undamaged' });
   }
   let part = 'body';
-  const clauses = source.split(/[,.!?;·\n]|그리고|(?<=고)\s+(?=(?:본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:이|가|은|는|에)\s)/);
+  const clauses = source.split(/[,.!?;·\n]|그리고|\s+(?=(?:본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:이|가|은|는|에)?[:\s])/);
   for (const chunk of clauses) {
     const clause = chunk.trim();
+    const prefix = partPrefix.exec(clause);
+    if (prefix) part = explicitParts[prefix[1]] || 'film';
+    else if (/^(용기|통|안에|안에는|속에|내부)/.test(clause)) part = 'body';
     if (!clause || /아닌|아니|같아|같고|인 듯|아마|추정|불확실|모르|인가|일까|라면|라든지/.test(clause)) continue;
-    if (/^(본체|몸체|용기|통|안에|안에는|속에|내부)/.test(clause)) part = 'body';
-    else if (/^(뚜껑|마개|캡)/.test(clause)) part = 'lid';
-    else if (/^라벨/.test(clause)) part = 'label';
-    else if (/^(포장\s*)?필름/.test(clause)) part = 'film';
     if (/다른\s*재질(?:이|은)?\s*(?:전혀\s*)?(?:없어요|없습니다|붙어\s*있지\s*않아요|붙지\s*않았어요)(?=\s*$)/.test(clause)) {
       entries.push({ part: 'body', field: 'combined', value: 'no' });
     } else if (/(?:붙어\s*있|달려\s*있)(?:어요|습니다|는\s*상태|고\s|$)/.test(clause) && /라벨|뚜껑|캡|필름/.test(clause)) {
@@ -61,11 +63,13 @@ export function observationsFromDescription(value) {
     const separable = /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*없|분리되지\s*않|떼어지지\s*않/.test(clause) ? 'no'
       : /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*있|분리돼요/.test(clause) ? 'yes' : '';
     if (separable) entries.push({ part: 'body', field: 'separable', value: separable });
-    const possibleCodes = clause.match(/\b(?:PP|HDPE|LDPE|PE|PS|PET)\b/gi) || [];
-    if (/(?:재질(?:은|이)?\s*)?비닐(?:류|이에요|입니다|이고|이예요|\s|$)/.test(clause)) entries.push({ part, field: 'material', value: '비닐' });
-    else if (possibleCodes.length && !/표시.{0,9}없|표기가?\s*없|또는|[\/]\s*(?:PP|PE|PS|PET)\b/i.test(clause)) {
-      for (const code of new Set(possibleCodes.map(value => value.toUpperCase()))) {
-        entries.push({ part, field: 'material', value: code === 'PET' ? '페트병' : '플라스틱' });
+    const possibleCodes = clause.match(/\b(?:PP|HDPE|LDPE|PE|PS|PET)\b|무색\s*페트|일반팩|멸균팩|종이팩|비닐류/gi) || [];
+    const markText = prefix ? clause.slice(prefix[0].length) : '';
+    if (/^비닐(?:이에요|입니다|이고|이예요|$)/.test(markText)) entries.push({ part, field: 'material', value: '비닐', type: 'packaging' });
+    else if (!/표시.{0,9}없|표기가?\s*없|또는|[\/]\s*(?:PP|PE|PS|PET)\b/i.test(clause)) {
+      for (const code of possibleCodes) {
+        const mark = confirmedPhotoMark(code.replace(/\s+/g, ''), part);
+        if (mark) entries.push({ part, field: 'material', value: mark.material, type: mark.type });
       }
     }
     const clean = /(?:오염(?:이|은)?\s*(?:없어요|없습니다)|깨끗(?:해요|합니다|하네요|한\s*상태(?:예요|입니다)?))\s*$/.test(clause)
@@ -117,15 +121,21 @@ export function applyItemObservations(input, observations) {
     if (material) {
       const changed = part.material !== material.value || Boolean(material.type && part.type !== material.type);
       if (changed) {
+        const current = selectedState(part, needsWashQuestion(part));
         Object.assign(part, { material: material.value, type: material.type || '' });
         for (const field of ['contaminated', 'washed', 'removable', 'vinylResidue', 'foodSeparated']) delete part[field];
+        if (current && current !== 'unknown') part.observedState = current;
+        else if (current === 'unknown' && supportsState(part)) part.contaminated = 'unknown';
       }
     }
     if (state && supportsState(part)) {
-      for (const field of ['contaminated', 'washed', 'removable', 'vinylResidue']) delete part[field];
       delete part.observedState;
       const washable = needsWashQuestion(part);
-      Object.assign(part, stateAnswers(state.value === 'washed-dirty' && !washable ? 'dirty' : state.value, washable));
+      const answer = state.value === 'washed-dirty' && !washable ? 'dirty' : state.value;
+      if (answer !== selectedState(part, washable)) {
+        for (const field of ['contaminated', 'washed', 'removable', 'vinylResidue']) delete part[field];
+        Object.assign(part, stateAnswers(answer, washable));
+      }
     } else if (state) {
       // Form applies this only after a compatible subtype is chosen.
       part.observedState = state.value;

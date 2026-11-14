@@ -5,6 +5,9 @@ import { applyItemObservations, mergeItemObservations, observationsFromDescripti
 import { assistanceResultMarkup } from '../src/pages/assistance/assistance.js';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
+import { lookupItem, searchItemNames } from '../src/domain/disposal/item-suggestions.js';
+import { applyRegionalRules } from '../src/domain/disposal/regions.js';
+import { rankCollectionPoints, verifiedCollectionPoints } from '../src/domain/disposal/verified-collection-points.js';
 import { resultMarkup } from '../src/pages/item-input/item-input.js';
 import { resultToText } from '../src/domain/disposal/result-text.js';
 import { batchGroups, batchToText } from '../src/domain/disposal/disposal-batch.js';
@@ -31,7 +34,7 @@ test('설명의 명시적 조건은 사진 추정보다 우선하고, 선택하�
   assert.equal(input.observedState, 'dirty', '세부 종류가 결정되면 적용할 상태를 보존');
   assert.equal(input.combined, 'yes');
   assert.equal(input.separable, undefined);
-  assert.deepEqual(input.components, [{ label: '라벨', material: '비닐', type: '' }]);
+  assert.deepEqual(input.components, [{ label: '라벨', material: '비닐', type: 'packaging' }]);
   assert.equal(judgeDisposal(input).status, 'check');
   assert.deepEqual(observationsFromDescription('오염이 없지는 않아요. 음식물이 없어요.'), []);
 });
@@ -97,6 +100,62 @@ test('한 문장에서 부속품과 본체를 함께 설명해도 재질과 상�
     { part: 'lid', field: 'material', value: '플라스틱' },
     { part: 'body', field: 'state', value: 'clean' },
   ]);
+});
+
+test('짧은 포장 검색은 해당 부위의 후보부터 보여 주고 확인 전까지 방법을 정하지 않는다', () => {
+  for (const [name, first] of [['컵라면 뚜껑', '금속박종이포장지'], ['컵밥 껍데기', '플라스틱즉석밥용기'],
+    ['즉석밥 뚜껑', '비닐포장필름'], ['생수병 비닐', '비닐포장필름']]) {
+    assert.equal(searchItemNames(name)[0], first);
+    assert.equal(lookupItem(name), null);
+    assert.equal(judgeDisposal({ itemName: name }).status, 'check');
+  }
+  assert.ok(searchItemNames('생수뱅').includes('생수병'));
+  assert.equal(lookupItem('생수뱅'), null);
+});
+
+test('같은 설명의 무색페트, PP, 비닐 표기는 해당 부위에만 적용된다', () => {
+  const evidence = observationsFromDescription('본체 무색페트 뚜껑 PP 라벨 비닐');
+  assert.deepEqual(evidence, [
+    { part: 'body', field: 'material', value: '페트병', type: 'clear-drink' },
+    { part: 'lid', field: 'material', value: '플라스틱' },
+    { part: 'label', field: 'material', value: '비닐', type: 'packaging' },
+  ]);
+  const input = { contaminated: 'no', combined: 'yes', separable: 'yes',
+    components: [{ label: '라벨', material: '비닐', type: 'packaging', contaminated: 'yes' }] };
+  const applied = applyItemObservations(input, evidence);
+  assert.deepEqual(applied.components[0], input.components[0]);
+  assert.equal(applied.components[1].label, '뚜껑');
+  assert.equal(applied.components[1].type, '');
+});
+
+test('시행일 전에 종료 안내를 적용하지 않고 주소가 일치한 수거함만 거리순으로 정렬한다', () => {
+  const input = { itemName: '젤아이스팩', region: { province: '서울특별시', district: '서초구' } };
+  const base = judgeDisposal({ itemName: input.itemName });
+  assert.equal(applyRegionalRules(input, base, '2026-10-29').regional.coverage, 'unverified');
+  assert.equal(applyRegionalRules(input, base, '2026-10-30').status, 'general');
+  assert.equal(verifiedCollectionPoints(judgeDisposal(input)), null);
+  const gwangju = { province: '경기도', district: '광주시' };
+  const { points } = verifiedCollectionPoints(judgeDisposal({ ...input, region: gwangju }));
+  assert.equal(points.length, 13);
+  assert.ok(points.every(point => !/신현동|송정동|광남1동/.test(point.name)));
+  const ranked = rankCollectionPoints(points, { latitude: 37.410872, longitude: 127.257281 });
+  assert.equal(ranked[0].name, '경안동 행정복지센터');
+  assert.equal(ranked[0].distanceKm, 0);
+  assert.ok(ranked[1].distanceKm <= ranked[2].distanceKm);
+});
+
+test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {
+  const input = { ...itemPresetInput('투명생수병'), contaminated: 'no', region: seoul,
+    components: [{ label: '비닐 라벨', material: '비닐', type: 'packaging', contaminated: 'yes',
+      washed: 'no', vinylResidue: 'liquid-only', removable: 'no' }] };
+  assert.equal(judgeDisposal(input).status, 'recycle');
+  const local = judgeDisposal({ ...input, region: { ...seoul, district: '도봉구' } });
+  assert.equal(local.status, 'mixed');
+  assert.match(local.parts[1].reasons[0], /도봉구/);
+  const missing = judgeDisposal({ ...input, components: [{ ...input.components[0], vinylResidue: 'unknown' }] });
+  assert.equal(missing.status, 'check');
+  assert.equal(missing.parts[1].pendingCondition, 'vinyl-residue');
+  assert.match(resultMarkup(input, missing), /비닐 라벨 · 비닐에 남은 오염 확인하기/);
 });
 
 test('포장 랩의 사진 표시를 기존 부속품에 반영하고 붙은 재질에 관한 모순은 다시 묻는다', () => {

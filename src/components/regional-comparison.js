@@ -1,5 +1,5 @@
 import { compareRegionalDisposal } from '../domain/disposal/regional-comparison.js';
-import { districtsFor, REGIONAL_SOURCES, regionalSourceLabel, regionLabel } from '../domain/disposal/regions.js';
+import { districtsFor, REGIONAL_SOURCES, regionalSourceDetail, regionalSourceLabel, regionLabel } from '../domain/disposal/regions.js';
 import { RULE_VERSION } from '../domain/disposal/rules.js';
 import { escapeHtml } from '../utils/html.js';
 import { SEOUL_SCOPE_NOTE } from '../domain/disposal/seoul-guides.js';
@@ -47,7 +47,8 @@ export function comparisonPanelMarkup(comparison) {
       return `<article class="comparison-card"><h3>${escapeHtml(groupLabel(group))}</h3><p class="comparison-method">${escapeHtml(group.result.method)}</p>${highlights.length ? list(highlights) : ''}
       ${commonProvince(group) ? `<details><summary>해당 지역 ${group.regions.length}곳 보기</summary><p class="input-hint">${group.regions.map(region => escapeHtml(regionLabel(region))).join(' · ')}</p></details>` : ''}
       <details><summary>${steps.length ? '나머지 단계·공식 자료' : '공식 자료 보기'}</summary>${steps.length ? list(steps) : ''}
-      <p class="input-hint comparison-sources">확인일 ${escapeHtml(group.result.regional.checkedAt)} · ${group.sources.filter(url => Object.values(REGIONAL_SOURCES).includes(url)).map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(regionalSourceLabel(url))} ↗</a>`).join(' · ')}</p></details></article>`; }).join('')}</div>
+      <p class="input-hint">대표 안내 확인일 ${escapeHtml(group.result.regional.checkedAt)}</p>
+      <ul class="input-hint comparison-sources">${group.sources.filter(url => Object.values(REGIONAL_SOURCES).includes(url)).map(url => `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(regionalSourceLabel(url))} ↗</a>${regionalSourceDetail(url) ? `<br>${escapeHtml(regionalSourceDetail(url))}` : ''}</li>`).join('')}</ul></details></article>`; }).join('')}</div>
     ${shared.size ? `<section class="comparison-common"><h3>공통 준비</h3>${list([...shared])}</section>` : ''}
     ${note}`;
 }

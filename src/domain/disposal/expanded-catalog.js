@@ -67,6 +67,7 @@ export const expandedItemEntries = [
   row('라면봉지|봉지라면포장지', '비닐', 'packaging', filmNote),
   row('빵봉지|식빵봉지', '비닐', 'packaging', filmNote),
   row('과자비닐포장|사탕비닐포장지', '비닐', 'packaging', filmNote),
+  row('비닐포장필름|비닐라벨|비닐덮개', '비닐', 'packaging', '본체에서 떼어내고 비닐류 표시를 확인한 라벨이나 필름 기준이에요.'),
   row('비닐쌀포대|비닐쌀봉지', '비닐', 'packaging', '비닐 포대 기준이에요. 종이·직조 포대는 실제 재질에 맞춰 수정해 주세요.'),
   row('냉동식품비닐봉지|냉동만두비닐봉지', '비닐', 'packaging', filmNote),
   row('김비닐포장지|김과자봉지', '비닐', 'packaging', '비닐 포장재 기준이에요. 내부 플라스틱 트레이·방습제는 따로 확인해 주세요.'),

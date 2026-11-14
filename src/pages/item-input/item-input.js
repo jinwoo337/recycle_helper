@@ -11,7 +11,7 @@ import { getCurrentMember } from '../../services/auth.js';
 import { getCatalogMessage, initializeItemCatalog } from '../../services/item-catalog.js';
 import { resultToolsMarkup, bindResultTools, missingItemMarkup } from '../../components/result-tools.js';
 import { memberTools } from '../../services/member-tools.js';
-import { regionLabel, REGIONAL_SOURCES, regionalSourceLabel, resultRegionLabel, usesSeoulVinylQuestions } from '../../domain/disposal/regions.js';
+import { regionLabel, REGIONAL_SOURCES, regionalSourceDetail, regionalSourceLabel, resultRegionLabel, usesSeoulVinylQuestions } from '../../domain/disposal/regions.js';
 import { METRO_GUIDES } from '../../domain/disposal/metro-guides.js';
 import { cityGuide } from '../../domain/disposal/city-guides.js';
 import { DAEJEON_GUIDES } from '../../domain/disposal/daejeon-guides.js';
@@ -280,7 +280,8 @@ export function sourceLineMarkup(result, sources) {
   const primary = [...sources].sort((a, b) => regionScore(b) - regionScore(a)).find(url => regionScore(url) >= 0);
   const checkedAt = result.regional?.coverage === 'verified' ? result.regional.checkedAt : result.checkedAt;
   if (!primary && !checkedAt) return '';
-  return `<p class="result-source-line">📌 ${checkedAt ? `${escapeHtml(checkedAt)} 확인한 기준` : '참고한 기준'}${primary ? ` · <a href="${escapeHtml(primary)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel(primary))} ↗</a>` : ''}</p>`;
+  const details = regionalSourceDetail(primary);
+  return `<p class="result-source-line">📌 ${checkedAt ? `${escapeHtml(checkedAt)} 확인한 기준` : '참고한 기준'}${primary ? ` · <a href="${escapeHtml(primary)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel(primary))} ↗</a>` : ''}${details ? `<br>${escapeHtml(details)}` : ''}</p>`;
 }
 const list = values => `<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
 const candidateContent = name => `${escapeHtml(itemCandidateTitle(name))}${itemCandidateHint(name) ? `<small>${escapeHtml(itemCandidateHint(name))}</small>` : ''}`;
@@ -307,6 +308,13 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
   const details = part => conditionDetails(part).map(([title, value]) =>
     `<div><dt>${title}</dt><dd>${escapeHtml(value)}</dd></div>`
   ).join('');
+  const routeList = (title, selectedParts) => `<ul class="result-route-list" aria-label="${title}">${selectedParts.map(part => {
+    const index = parts.indexOf(part);
+    const prefix = index ? `part${index - 1}-` : '';
+    const questionIndex = pendingQuestions.findIndex(question => question.prefix === prefix);
+    return `<li><strong>${escapeHtml(part.label)}</strong><div>${escapeHtml(part.method)}
+      ${canSplit && part.status === 'check' && questionIndex > 0 ? `<button type="button" class="history-action" data-edit-pending="${questionIndex}">${escapeHtml(pendingQuestions[questionIndex].label)}</button>` : ''}</div></li>`;
+  }).join('')}</ul>`;
   return `<p class="eyebrow">${createdAt ? '저장된 결과' : '분리배출 결과'}</p><h2 id="summary-title">${escapeHtml(input.itemName)}</h2>
     ${createdAt ? `<p class="input-hint">${escapeHtml(new Date(createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))} · 기록 저장일</p>` : ''}
     ${updated ? '<p class="input-hint">현재 기준으로 다시 확인한 안내예요.</p>' : ''}
@@ -316,13 +324,11 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
       <div class="choice-row"><button type="submit" class="button primary">이 지역 기준 보기</button><button type="button" class="button secondary" data-cancel-region>취소</button></div></form>` : ''}
     ${result.aiAssisted ? '<p class="ai-badge">🤖 AI 추정 결과예요. 실제 제품의 분리배출 표시를 꼭 확인해 주세요.</p>' : ''}
     ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
-    ${parts.length ? `<ul class="result-route-list" aria-label="재질별 배출 장소">${parts.map((part, index) => {
-      const prefix = index === 0 ? '' : `part${index - 1}-`;
-      const questionIndex = pendingQuestions.findIndex(question => question.prefix === prefix);
-      return `<li><strong>${escapeHtml(part.label)}</strong><div>${escapeHtml(part.method)}
-        ${canSplit && part.status === 'check' && questionIndex > 0 ? `<button type="button" class="history-action" data-edit-pending="${questionIndex}">${escapeHtml(pendingQuestions[questionIndex].label)}</button>` : ''}</div></li>`;
-    }).join('')}</ul>` : ''}
-    ${partial ? '<p class="input-hint result-partial-note">쉽게 분리한 뒤, 배출 방법이 확인된 부분부터 버릴 수 있어요.</p>' : ''}
+    ${partial ? `<div class="result-partial-note">
+      <h3 class="result-action-title">배출 방법을 확인한 부분</h3>${routeList('배출 방법을 확인한 부분', parts.filter(part => part.status !== 'check'))}
+      <h3 class="result-action-title">추가로 확인할 부분</h3>${routeList('추가로 확인할 부분', parts.filter(part => part.status === 'check'))}
+      <p class="input-hint">쉽게 분리한 뒤, 배출 방법이 확인된 부분부터 버릴 수 있어요.</p></div>`
+      : parts.length ? routeList('재질별 배출 장소', parts) : ''}
     ${resultCandidates.length ? `<p class="input-hint">${disposalItemList(input.itemName).length ? '물건마다 배출 방법이 달라요. 먼저 확인할 물건을 골라 주세요.' : '찾으시던 물건인가요? 실제로 맞는 이름만 골라 주세요.'}</p><div class="manual-category-options item-related-candidates" role="group" aria-label="확인할 물건">${resultCandidates.map(name =>
       `<button type="button" class="history-action" data-result-candidate="${escapeHtml(name)}">${candidateContent(name)}</button>`).join('')}</div>` : ''}
     ${steps.length || parts.length || pendingQuestion || collection ? '<h3 class="result-action-title">지금 할 일</h3>' : ''}
@@ -533,12 +539,12 @@ export function bindItemInput() {
       observedStates.delete(prefix);
     }
   }
-  function toggle(node, show) {
+  function toggle(node, show, { preserve = false } = {}) {
     node.hidden = !show;
     node.querySelectorAll('input, select').forEach(control => {
       control.disabled = !show;
       control.required = show && !control.hasAttribute('data-optional');
-      if (!show) { if (control.type === 'radio') control.checked = false; else control.value = ''; }
+      if (!show && !preserve) { if (control.type === 'radio') control.checked = false; else control.value = ''; }
     });
   }
   function componentSummaryText() {
@@ -637,12 +643,12 @@ export function bindItemInput() {
       if (control.value === 'dirty') control.nextElementSibling.textContent = washable ? '남아 있어요 · 아직 안 씻었어요' : '오염이 있어요';
     });
     const dirty = supported && value(`${prefix}contaminated`) === 'yes';
-    const useSeoulVinylQuestions = !prefix && dirty && material === '비닐' && select.value === 'packaging'
+    const useSeoulVinylQuestions = dirty && material === '비닐' && select.value === 'packaging'
       && usesSeoulVinylQuestions(judgementRegion.get());
-    const seoulVinyl = useSeoulVinylQuestions && value('combined') === 'no';
-    toggle(node.querySelector('[data-condition="vinyl-residue"]'), seoulVinyl);
-    const checkAttachmentFirst = useSeoulVinylQuestions && !value('combined');
-    toggle(node.querySelector('[data-condition="removable"]'), dirty && !checkAttachmentFirst && (!seoulVinyl || value('vinylResidue') === 'solids'));
+    const seoulVinyl = useSeoulVinylQuestions && (Boolean(prefix) || value('combined') === 'no');
+    toggle(node.querySelector('[data-condition="vinyl-residue"]'), seoulVinyl, { preserve: true });
+    const checkAttachmentFirst = useSeoulVinylQuestions && !prefix && !['yes', 'no'].includes(value('combined'));
+    toggle(node.querySelector('[data-condition="removable"]'), dirty && !checkAttachmentFirst && (!seoulVinyl || value('vinylResidue') === 'solids'), { preserve: true });
     node.querySelectorAll('.state-storage input').forEach(control => { control.required = false; });
     const paper = material === '종이' && select.value === 'paper';
     node.querySelector('[data-condition="removable"] legend').textContent = paper
@@ -766,9 +772,8 @@ export function bindItemInput() {
     const statePending = supported && (!value('currentState') || (!value('attachment')
       && [...mainStateEditor.querySelectorAll('input')].some(control => control.willValidate && !control.validity.valid)));
     combinationSection.hidden = !supported || statePending;
-    // If the body state itself is unknown, the user can see that check without
-    // also answering composition, unless there is an identified attachment.
-    const askAttachment = value('contaminated') !== 'unknown' || combined;
+    // An unknown body state can be reviewed without inventing an attachment answer.
+    const askAttachment = value('contaminated') !== 'unknown';
     form.querySelectorAll('input[name="attachment"]').forEach(control => { control.required = supported && askAttachment; });
     if (!supported) compositionEditor.open = true;
     const waitingForTypeOrMaterial = needsMaterial && (!value('material') || Boolean(TYPES[value('material')]?.length && !materialOnly && !value('type')));
@@ -1544,7 +1549,7 @@ export function bindItemInput() {
     }
     if (event.target.name?.endsWith('currentState')) {
       const prefix = event.target.closest('.part-fields').dataset.prefix;
-      if (!prefix && compositionIsPreset) {
+      if (!prefix && compositionIsPreset && !value('contaminated') && event.target.value !== 'unknown') {
         unopenedParts = collect().components || [];
         pendingCombination = ''; pendingSeparation = '';
         writeValues({ combined: '', separable: '' });

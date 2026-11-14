@@ -67,8 +67,8 @@ test('서울 25개 구와 대전 5개 구는 모두 주요 재활용품 지역 �
 test('비교는 같은 입력·상태의 검증된 배출 방식만 묶고 현재 지역과 원본을 변경하지 않는다', () => {
   const input = { itemName: '깨진유리', material: '유리', type: 'broken', region: { province: '대전광역시', district: '서구' } };
   const before = structuredClone(input), comparison = compareRegionalDisposal(input);
-  assert.deepEqual(input, before); assert.equal(comparison.groups.length, 4);
-  assert.ok(comparison.groups.some(group => group.regions.length === 23));
+  assert.deepEqual(input, before); assert.equal(comparison.groups.length, 5);
+  assert.ok(comparison.groups.some(group => group.regions.length === 22));
   assert.ok(comparison.groups.some(group => group.regions.some(region => region.district === '도봉구')));
   assert.ok(comparison.groups.some(group => group.regions.some(region => region.district === '김포시')));
   assert.ok(comparison.groups.every(group => group.result.regional.coverage === 'verified'));
@@ -76,6 +76,7 @@ test('비교는 같은 입력·상태의 검증된 배출 방식만 묶고 현�
   assert.match(comparisonPanelMarkup(comparison), /서울특별시 공통 기준/);
   assert.match(comparisonPanelMarkup(comparison), /백색마대/);
   assert.match(comparisonPanelMarkup(comparison), /송파구 특수마대에 담아 신고/);
+  assert.match(comparisonPanelMarkup(comparison), /강동구 특수 종량제 마대/);
 });
 test('방법이 같은 종이는 확인된 지역의 공통 안내를 보여 주고 미확인 품목은 구분한다', () => {
   const paper = { itemName: '신문지', material: '종이', type: 'paper', contaminated: 'no', combined: 'no' };
@@ -95,9 +96,10 @@ test('방법이 같은 종이는 확인된 지역의 공통 안내를 보여 주
 test('젤 아이스팩은 서울 두 자치구와 경기 광주시의 실제 배출 경로를 따로 비교한다', () => {
   const input = { itemName: '젤아이스팩', region: { province: '서울특별시', district: '서초구' } };
   const result = judgeDisposal(input);
-  assert.match(result.method, /서초구 종량제봉투/);
+  assert.match(result.method, /젤 아이스팩 · 종량제봉투/);
   const comparison = compareRegionalDisposal(input, result);
   assert.deepEqual(comparison.groups.map(group => group.regions[0].district), ['도봉구', '광주시']);
+  assert.equal(comparison.sameCount, 3, '부평구와 용인시의 같은 봉투 배출 방식은 반복하지 않음');
   assert.match(comparisonPanelMarkup(comparison), /도봉구 특수종량제 마대/);
   assert.match(comparisonPanelMarkup(comparison), /경기 광주시 전용 수거함/);
 });
