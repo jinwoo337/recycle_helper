@@ -4,6 +4,7 @@ export const MEDICINE_SOURCES = {
   seoul: 'https://news.seoul.go.kr/env/archives/564807',
   daejeon: 'https://www.daejeon.go.kr/drh/depart/board/boardNormalView.do?boardId=normal_0096&menuSeq=1631&ntatcSeq=1438964404',
   donggu: 'https://www.donggu.go.kr/dg/kor/article/noticeDong13/142796',
+  guri: 'https://www.guri.go.kr/health/selectBbsNttView.do?bbsNo=121&key=1327&nttNo=139147',
 };
 
 export const MEDICINE_SAFETY_STEPS = [
@@ -32,6 +33,13 @@ export function medicineRegionalGuidance(region, itemName) {
       key: confirmedPackaging ? 'medicine:daejeon-donggu' : 'medicine:daejeon',
       preparation: confirmedPackaging ? '알약이나 가루약은 약이 든 포장 그대로 가져가 주세요.' : checkPackaging,
       collection: '동 행정복지센터나 보건소의 폐의약품 수거함을 이용해 주세요. 약국은 수거 여부를 먼저 확인해 주세요.',
+    };
+  }
+  if (region.province === '경기도' && region.district === '구리시') {
+    return {
+      scope: 'district', source: MEDICINE_SOURCES.guri, key: 'medicine:guri', checkedAt: '2026-11-14',
+      preparation: checkPackaging,
+      collection: '구리시보건소나 지정 건강생활지원센터·거점약국의 폐의약품 수거함으로 가져가 주세요.',
     };
   }
   return null;

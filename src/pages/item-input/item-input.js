@@ -365,7 +365,7 @@ export function bindItemInput() {
   if (queued) {
     lastVisibleResult = undefined;
     const { fromAssistance, observations, batchItemId, fromConfirmedMark, ...next } = queued;
-    for (const key of ['reviewSaved', 'requestIdentification', 'showMarkPicker', 'showMissingItem', 'quickLookup', 'manualLookup', 'savedLookup', 'editRegion']) delete next[key];
+    for (const key of ['reviewSaved', 'requestIdentification', 'showMarkPicker', 'showMissingItem', 'quickLookup', 'manualLookup', 'savedLookup', 'editRegion', 'editPendingQuestion']) delete next[key];
     const same = fromAssistance && normalizeItemName(next.itemName) === normalizeItemName(draft.itemName);
     const confirmedSame = !fromConfirmedMark && same && draft.categoryOrigin === 'manual' && !['unknown', 'material-only'].includes(draft.category);
     if (confirmedSame) {

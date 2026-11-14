@@ -14,6 +14,7 @@ export const COMPARISON_REGIONS = [
   ...SEOUL_DISTRICTS.map(district => ({ province: '서울특별시', district })),
   ...DAEJEON_DISTRICTS.map(district => ({ province: '대전광역시', district })),
   { province: '경기도', district: '김포시' },
+  { province: '경기도', district: '구리시' },
   { province: '경기도', district: '광주시' },
   { province: '경기도', district: '용인시' },
   { province: '인천광역시', district: '부평구' },
@@ -77,6 +78,7 @@ const sourceDetails = {
   [REGIONAL_SOURCES.gangdongWaste]: { scope: '서울특별시 강동구' },
   [REGIONAL_SOURCES.gyeonggiGwangjuIcePack]: { scope: '경기도 광주시' },
   [REGIONAL_SOURCES.gyeonggiGwangjuRecycle]: { scope: '경기도 광주시' },
+  [MEDICINE_SOURCES.guri]: { scope: '경기도 구리시', published: '2026-02-19' },
 };
 const dateFormat = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
 export function regionalSourceDetail(url) {
@@ -99,6 +101,7 @@ export function regionalSourceLabel(url) {
   if (url === MEDICINE_SOURCES.seoul) return '서울시 폐의약품 수거 안내';
   if (url === MEDICINE_SOURCES.daejeon) return '대전시 가정 내 폐의약품 안내';
   if (url === MEDICINE_SOURCES.donggu) return '대전 동구 폐의약품 배출 안내';
+  if (url === MEDICINE_SOURCES.guri) return '구리시보건소 폐의약품 수거 안내';
   if (url === REGIONAL_SOURCES.yuseongLargeFees) return '유성구 대형폐기물 품목·수수료표';
   const seoulLabels = { recycle: '서울시 분리배출 안내', vinyl: '서울시 폐비닐 안내', scope: '서울시 자치구 적용 범위', food: '서울시 음식물 RFID 안내' };
   for (const [key, source] of Object.entries(SEOUL_SOURCES)) if (url === source) return seoulLabels[key];
@@ -167,7 +170,7 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
   if (medicine) {
     result.regional.scope = medicine.scope;
     if (medicine.scope === 'city') result.regional.cityLabel = region.province === '대전광역시' ? '대전시' : '서울시';
-    result.regional.checkedAt = '2026-11-11';
+    result.regional.checkedAt = medicine.checkedAt || '2026-11-11';
     result.sourceUrls = result.sourceUrls.filter(url => url !== MEDICINE_SOURCES.seoul);
     result.steps = [...MEDICINE_SAFETY_STEPS, medicine.preparation];
     result.parts[0].steps = [...result.steps, medicine.collection];

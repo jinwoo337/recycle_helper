@@ -142,6 +142,10 @@ test('시행일 전에 종료 안내를 적용하지 않고 주소가 일치한 
   assert.equal(ranked[0].name, '경안동 행정복지센터');
   assert.equal(ranked[0].distanceKm, 0);
   assert.ok(ranked[1].distanceKm <= ranked[2].distanceKm);
+  const medicine = { itemName: '알약', region: { province: '경기도', district: '구리시' } };
+  const localMedicine = judgeDisposal(medicine);
+  assert.equal(verifiedCollectionPoints(localMedicine).points.length, 3);
+  assert.match(resultMarkup(medicine, localMedicine), /구리시 폐의약품 공공 수거함[\s\S]*031-550-8987/);
 });
 
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {

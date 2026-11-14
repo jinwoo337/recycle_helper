@@ -1,4 +1,5 @@
 import { REGIONAL_SOURCES } from './regions.js';
+import { MEDICINE_SOURCES } from './medicine-guide.js';
 
 // Both the collection list and the city directory must list the same address.
 // The directory coordinates mark the host facility, not the position inside it.
@@ -24,14 +25,36 @@ const gwangjuIcePacks = {
   hours: '센터 내 순환자원 교환창구는 평일 09:00–18:00예요. 수거함 이용 시간과 건물 내 위치는 방문할 센터에 확인해 주세요.',
   source: REGIONAL_SOURCES.gyeonggiGwangjuIcePack,
   directory: 'https://www.gjcity.go.kr/portal/contents.do?mId=0801050300',
+  directoryLabel: '센터별 연락처',
   checkedAt: '2026-11-14',
   points: gwangjuCenters.map(([name, address, latitude, longitude]) => ({
     name: `${name} 행정복지센터`, address: `경기도 광주시 ${address}`, latitude, longitude,
   })),
 };
 
+const guriMedicine = {
+  title: '구리시 폐의약품 공공 수거함',
+  accepts: '가정에서 나온 폐의약품',
+  hours: '포장 처리 방법, 접수 가능 품목과 이용 시간은 방문할 시설에 문의해 주세요.',
+  source: MEDICINE_SOURCES.guri,
+  directory: 'https://www.data.go.kr/data/15074686/fileData.do',
+  directoryLabel: '공공데이터 원본',
+  checkedAt: '2026-11-14',
+  dataDate: '2026-03-13',
+  points: [
+    ['구리시보건소', '건원대로34번길 84', 37.604776, 127.145194, '031-550-8987'],
+    ['수택건강생활지원센터', '체육관로 74', 37.591528, 127.138620, '031-550-2464'],
+    ['갈매건강생활지원센터', '갈매중앙로 80 3층', 37.631447, 127.116999, '031-550-8419'],
+  ].map(([name, address, latitude, longitude, phone]) => ({
+    name, address: `경기도 구리시 ${address}`, latitude, longitude, phone,
+  })),
+};
+
 export function verifiedCollectionPoints(result) {
-  return result?.regional?.comparisonKey === 'ice-pack:gyeonggi-gwangju-reuse' ? gwangjuIcePacks : null;
+  const key = result?.regional?.comparisonKey;
+  if (key === 'ice-pack:gyeonggi-gwangju-reuse') return gwangjuIcePacks;
+  if (key === 'medicine:guri') return guriMedicine;
+  return null;
 }
 
 export function rankCollectionPoints(points, { latitude, longitude }) {

@@ -12,6 +12,7 @@ function collectionMapUrl({ latitude, longitude }) {
 function pointList(points) {
   return points.map(point => `<li><strong>${escapeHtml(point.name)}</strong>
     <p>${escapeHtml(point.address)}${Number.isFinite(point.distanceKm) ? ` · 직선거리 ${point.distanceKm.toFixed(1)} km` : ''}</p>
+    ${point.phone ? `<p><a href="tel:${escapeHtml(point.phone)}">운영시간·접수 문의 ${escapeHtml(point.phone)}</a></p>` : ''}
     <button type="button" class="history-action" data-collection-map-url="${escapeHtml(collectionMapUrl(point))}" data-collection-map-name="${escapeHtml(point.name)}">지도에서 보기</button></li>`).join('');
 }
 
@@ -25,7 +26,7 @@ function verifiedCollectionMarkup(dataset) {
       <iframe class="collection-map" data-collection-map title="수거함이 있는 시설 지도" loading="lazy" hidden></iframe>
       <ul class="verified-collection-list" data-collection-list>${pointList(dataset.points)}</ul>
     </details>
-    <p class="input-hint">시설 위치 확인 ${dataset.checkedAt} · <a href="${dataset.source}" target="_blank" rel="noopener noreferrer">광주시 수거함·접수 안내 ↗</a> · <a href="${dataset.directory}" target="_blank" rel="noopener noreferrer">센터별 연락처 ↗</a></p>
+    <p class="input-hint">시설 위치 확인 ${dataset.checkedAt}${dataset.dataDate ? ` · 자료 기준일 ${dataset.dataDate}` : ''} · <a href="${escapeHtml(dataset.source)}" target="_blank" rel="noopener noreferrer">지자체 수거함·접수 안내 ↗</a> · <a href="${escapeHtml(dataset.directory)}" target="_blank" rel="noopener noreferrer">${escapeHtml(dataset.directoryLabel)} ↗</a></p>
     </section>`;
 }
 

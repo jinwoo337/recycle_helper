@@ -57,6 +57,16 @@ function syncMarkShape(row) {
   if (!showShape) shape.value = '';
 }
 
+function selectedPhotoMarks(root) {
+  const form = root.querySelector('[data-assist-mark-confirm]');
+  return [...(form?.querySelectorAll('[data-marking]') || [])].map(row => ({
+    marking: row.dataset.marking,
+    use: row.querySelector('[data-use-mark]').checked,
+    part: row.querySelector('[data-mark-part]').value,
+    shape: row.querySelector('[data-mark-shape]').value,
+  }));
+}
+
 function registeredGuide(name, region, { infer = true, condition } = {}) {
   if (isBatteryPackaging(name)) return { needsConditions: true, hint: '전지가 없는 포장만 선택하고 실제 재질 표시를 확인해 주세요.' };
   const item = lookupItem(name);
@@ -333,7 +343,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     queueInput({
       ...lookupOptions, itemName, region: region.get(), fromAssistance: true,
       ...(handlingCondition ? { handlingCondition } : {}),
-      ...(category && !lookupItem(itemName)?.material ? { category, categoryOrigin: 'manual', keywordCategory: false } : {}),
+      ...(!lookupOptions.category && category && !lookupItem(itemName)?.material ? { category, categoryOrigin: 'manual', keywordCategory: false } : {}),
       ...(confirmed.size ? { observations: [...confirmed.values()] } : {}),
     });
   }
@@ -382,7 +392,16 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       observations: view.observations, selectedObservations: view.selectedObservations, sourceName: assistanceDraft.sourceName,
       confirmIdentity: Boolean(view.guide?.ruleVersion && !view.fromInput && !view.guide?.condition && !view.identityConfirmed),
     });
-    result.querySelectorAll('[data-marking]').forEach(syncMarkShape);
+    const marks = new Map((view.selectedMarks || []).map(mark => [mark.marking, mark]));
+    result.querySelector('[data-assist-mark-confirm]')?.querySelectorAll('[data-marking]').forEach(row => {
+      const saved = marks.get(row.dataset.marking);
+      if (saved) {
+        row.querySelector('[data-use-mark]').checked = saved.use;
+        row.querySelector('[data-mark-part]').value = saved.part;
+        row.querySelector('[data-mark-shape]').value = saved.shape;
+      }
+      syncMarkShape(row);
+    });
     bindVerifiedCollection(result, view.guide);
     const disposeChecklist = bindDisposalChecklist(result);
     const disposeCopy = bindResultCopy(result, () => resultToText(resultInput(view), view.guide));
@@ -448,7 +467,9 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
         questions: guide ? [] : remaining.map(entry => entry.question),
         questionChoices: guide ? [] : remaining.map(entry => entry.choices),
       };
-      renderResult({ answer: nextAnswer, region: selectedRegion, guide, observations, fromInput: Boolean(typedGuide) });
+      const sameItem = followup && normalizeItemName(currentResult?.answer.itemName) === normalizeItemName(nextAnswer.itemName);
+      const selectedMarks = sameItem ? selectedPhotoMarks(result) : [];
+      renderResult({ answer: nextAnswer, region: selectedRegion, guide, observations, selectedMarks, fromInput: Boolean(typedGuide) });
     } catch (error) {
       if (alive() && operation.active()) {
         setStatus(error.message);
@@ -621,7 +642,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
       (assistanceDraft.sessions ||= {})[mode] = {
         description: description.value,
         answers: answered,
-        result: currentResult && !result.hidden ? { ...currentResult, pendingAnswers, selectedObservations } : null,
+        result: currentResult && !result.hidden ? { ...currentResult, pendingAnswers, selectedObservations, selectedMarks: selectedPhotoMarks(result) } : null,
       };
       if (mode === 'photo') assistanceDraft.photo = image ? { image, previewUrl } : null;
     }
