@@ -1,14 +1,14 @@
 export const PROVINCES = ['서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시', '경기도', '강원특별자치도', '충청북도', '충청남도', '전북특별자치도', '전라남도', '경상북도', '경상남도', '제주특별자치도'];
 export const SEOUL_DISTRICTS = '종로구 중구 용산구 성동구 광진구 동대문구 중랑구 성북구 강북구 도봉구 노원구 은평구 서대문구 마포구 양천구 강서구 구로구 금천구 영등포구 동작구 관악구 서초구 강남구 송파구 강동구'.split(' ');
 export { DAEJEON_DISTRICTS } from './daejeon-guides.js';
-import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES, YUSEONG_WASTE_GUIDE, isYuseong, yuseongDisposalSchedule, yuseongFoodInGeneralBag } from './daejeon-guides.js';
+import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES, YUSEONG_WASTE_GUIDE, foamColorFromName, isYuseong, yuseongDisposalSchedule, yuseongFoodInGeneralBag } from './daejeon-guides.js';
 import { SEOUL_SOURCES, SEOUL_RECYCLE_NOTES, SEOUL_SCOPE_NOTE, SEOUL_VINYL_NOTE } from './seoul-guides.js';
 import { MEDICINE_SAFETY_STEPS, MEDICINE_SOURCES, medicineRegionalGuidance } from './medicine-guide.js';
 import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } from './metro-guides.js';
 import { CITY_GUIDES } from './city-guides.js';
 import { usesGelIcePackCondition } from './special-guides.js';
 import { normalizeItemName } from './item-suggestions.js';
-import { APARTMENT_CARTON_SOURCE } from './catalog-sources.js';
+import { APARTMENT_CARTON_SOURCE, SHAMPOO_SOURCE } from './catalog-sources.js';
 export { METRO_DISTRICTS } from './metro-guides.js';
 export const citySuggestionsFor = province => Object.keys(CITY_GUIDES[province] || {});
 export const districtsFor = province => province === '서울특별시' ? SEOUL_DISTRICTS
@@ -479,9 +479,10 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       result.parts[0].steps = [...result.steps, daejeon.foodNote];
     } else if (yuseong && result.status === 'recycle' && input.combined === 'no' && input.material === '스티로폼') {
       const note = '유성구는 색이 있거나 이물질이 남은 스티로폼을 일반 재활용 수거 대상에서 제외해요.';
-      if (input.handlingCondition === 'foam-white') {
+      const color = input.handlingCondition || foamColorFromName(normalizeItemName(input.itemName));
+      if (color === 'foam-white') {
         set(daejeon.recycle, '하얀 포장용 스티로폼은 테이프와 이물질을 떼어내고 재활용품으로 배출해 주세요.', 'foam:yuseong-white');
-      } else if (input.handlingCondition === 'foam-colored') {
+      } else if (color === 'foam-colored') {
         applyLocalMethod({ method: '유색 스티로폼 · 유성구 일반 종량제봉투', reason: note,
           steps: ['가정에서 나온 소량의 유색 포장용 스티로폼은 유성구 일반 종량제봉투에 넣어 주세요.', '제품 포장재를 구입처에서 회수하는 경우 해당 회수 경로를 이용할 수 있어요.'],
           status: 'general', source: daejeon.recycle, note: '봉투에 담기 어려운 양이나 크기는 유성구청 자원순환과에 문의해 주세요.', key: 'foam:yuseong-colored' });
@@ -554,8 +555,10 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     const componentKeys = [];
     result.parts = result.parts.map((part, index) => {
       const condition = input.components?.[index - 1];
-      if (condition?.material !== '비닐' || condition.type !== 'packaging' || condition.contaminated !== 'yes'
-          || !['recycle', 'general'].includes(part.status) && part.pendingCondition !== 'removable') return part;
+      if (!condition) return part;
+      const dirtyVinyl = condition.material === '비닐' && condition.type === 'packaging' && condition.contaminated === 'yes'
+        && (['recycle', 'general'].includes(part.status) || part.pendingCondition === 'removable');
+      if (!dirtyVinyl && !(yuseong && part.handling === 'pump-with-spring')) return part;
       const local = applyRegionalRules({ ...condition, region, combined: 'no' }, {
         ...part, parts: [{ ...part, label: '본체' }], sourceUrls: [],
       }, asOf);
@@ -578,6 +581,7 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     });
     if (componentKeys.length) {
       result.regional.comparisonKey += `|${componentKeys.join('|')}`;
+      if (!result.parts[0].pendingCondition && !result.parts.some(part => part.status === 'check')) delete result.pendingCondition;
       if (result.parts.some(part => part.status === 'check')) {
         result.status = 'check'; result.method = '일부 재질 추가 확인 필요';
       } else if (result.parts.every(part => part.status === 'general')) {
@@ -589,6 +593,15 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     }
   }
   if (yuseong) {
+    if (result.handling === 'pump-with-spring') {
+      applyLocalMethod({ method: '복합재질 펌프 · 유성구 일반 종량제봉투',
+        reason: '플라스틱과 금속 스프링이 붙은 펌프는 플라스틱 용기류로 재활용하기 어려워요.',
+        steps: ['용기에서 분리한 펌프를 통째로 유성구 일반 종량제봉투에 넣어 주세요.'],
+        status: 'general', source: YUSEONG_WASTE_GUIDE, note: '스프링이 든 생활용품 펌프는 샴푸통과 따로 배출해 주세요.', key: 'pump:yuseong-general' });
+      result.sourceUrls = [...new Set([...result.sourceUrls, SHAMPOO_SOURCE])];
+      result.steps = [...new Set([...result.steps, ...result.regional.notes])];
+      result.notice = '샴푸 품목사전과 유성구 생활쓰레기 배출 안내를 적용했어요.';
+    }
     const rows = yuseongDisposalSchedule(result);
     if (rows.length) {
       const source = rows.find(row => row.source)?.source || YUSEONG_WASTE_GUIDE;

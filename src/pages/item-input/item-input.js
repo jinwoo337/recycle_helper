@@ -25,6 +25,7 @@ import { judgementRegionMarkup, bindJudgementRegion } from '../../components/jud
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
 import { disposalReasons, resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultHandlingQuestion, resultPendingQuestions } from '../../domain/disposal/result-display.js';
 import { disposalScheduleMarkup } from '../../components/disposal-schedule.js';
+import { foamColorFromName } from '../../domain/disposal/daejeon-guides.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
@@ -680,14 +681,15 @@ export function bindItemInput() {
     const dedicated = Boolean(known?.handling && known.material === '기타');
     const handling = known?.handling || category.value || '';
     const needsFoamColor = value('combined') === 'no' && (value('contaminated') === 'no' || value('removable') === 'yes');
-    const prompt = handlingConditionQuestion(handling, judgementRegion.get())
-      || (needsFoamColor ? resultHandlingQuestion(partValue(''), judgementRegion.get(), handling) : null);
+    const region = judgementRegion.get();
+    const prompt = handlingConditionQuestion(handling, region)
+      || (needsFoamColor ? resultHandlingQuestion(partValue(''), region, handling) : null);
     const promptKey = prompt?.title || '';
     if (handlingCondition.dataset.handling !== promptKey) {
       handlingCondition.dataset.handling = promptKey;
       handlingCondition.hidden = !prompt;
       handlingCondition.innerHTML = prompt ? question('handlingCondition', prompt.title, prompt.options.some(([option]) => option === 'unknown') ? prompt.options : [...prompt.options, ['unknown', '모르겠어요']]) : '';
-      if (prompt) writeValues({ handlingCondition: selectedHandlingCondition });
+      if (prompt) writeValues({ handlingCondition: selectedHandlingCondition || foamColorFromName(normalizeItemName(nameInput.value)) });
     }
     categorySection.hidden = !unregistered;
     const choosingSpoon = unregistered && !category.value && isAmbiguousSpoonName(nameInput.value);

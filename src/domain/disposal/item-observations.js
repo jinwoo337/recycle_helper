@@ -9,7 +9,7 @@ const fields = {
   vinylResidue: ['liquid-only', 'solids'],
   combined: ['yes', 'no'],
   separable: ['yes', 'no', 'unknown'],
-  handlingCondition: ['undamaged', 'damaged', 'reusable', 'unusable'],
+  handlingCondition: ['undamaged', 'damaged', 'reusable', 'unusable', 'foam-white', 'foam-colored'],
 };
 const partNames = { body: '본체', lid: '뚜껑', label: '라벨', film: '포장 필름' };
 const partAliases = {
@@ -19,7 +19,7 @@ const partAliases = {
 };
 const stateNames = { clean: '깨끗함', dirty: '오염 있음 · 세척 전', 'washed-dirty': '세척 후에도 오염 있음' };
 const residueNames = { 'liquid-only': '내용물·고형물 없이 기름·물 자국만 남음', solids: '음식물·부스러기 등 고형물 남음' };
-const handlingNames = { undamaged: '전지 · 손상 없음', damaged: '전지 · 팽창·누액 또는 파손 있음', reusable: '의류·잡화 · 다시 쓸 수 있음', unusable: '의류·잡화 · 심한 오염 또는 훼손 있음' };
+const handlingNames = { undamaged: '전지 · 손상 없음', damaged: '전지 · 팽창·누액 또는 파손 있음', reusable: '다시 쓸 수 있음', unusable: '오염 또는 훼손 있음', 'foam-white': '포장용 스티로폼 · 흰색', 'foam-colored': '포장용 스티로폼 · 색 있음' };
 const descriptionSource = 'description';
 const partPrefix = /^(?:(?:용기|병|통|컵)\s+)?(본체|몸체|뚜껑|마개|캡|덮개|라벨|상표|(?:포장\s*)?필름)(?:에는|이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
 const explicitParts = { 본체: 'body', 몸체: 'body', 뚜껑: 'lid', 마개: 'lid', 캡: 'lid', 덮개: 'lid', 라벨: 'label', 상표: 'label', 필름: 'film' };
@@ -76,6 +76,10 @@ export function observationsFromDescription(value) {
       targetLabel = undefined;
     }
     if (!clause || /아닌|아니|같아|같고|인 듯|아마|추정|불확실|모르|인가|일까|라면|라든지/.test(clause)) continue;
+    if (part === 'body') {
+      const foam = /^(?:(?:흰색|하얀색|백색|유색|색깔\s*있는)\s*스티로폼|스티로폼(?:\s*(?:완충재|상자|용기))?(?:은|는|이|가)?\s*(?:흰색|하얀색|백색|유색|색이\s*있))/.exec(clause)?.[0];
+      if (foam) entries.push({ part, field: 'handlingCondition', value: /흰색|하얀색|백색/.test(foam) ? 'foam-white' : 'foam-colored' });
+    }
     if (/다른\s*재질(?:이|은)?\s*(?:전혀\s*)?(?:없어요|없습니다|붙어\s*있지\s*않아요|붙지\s*않았어요)(?=\s*$)/.test(clause)) {
       entries.push({ part: 'body', field: 'combined', value: 'no' });
     } else if (/(?:붙어\s*있|달려\s*있)(?:어요|습니다|는\s*상태|고\s|$)/.test(clause) && /라벨|뚜껑|캡|필름/.test(clause)) {

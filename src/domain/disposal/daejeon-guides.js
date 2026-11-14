@@ -6,6 +6,8 @@ export const isYuseong = region => region?.province === '대전광역시' && reg
 export const yuseongFoamQuestion = (region, material, type) => isYuseong(region) && material === '스티로폼' && type === 'packaging'
   ? { title: '포장용 스티로폼 바탕색이 흰색인가요?', options: [['foam-white', '흰색이에요'], ['foam-colored', '색이 있어요']] }
   : null;
+export const foamColorFromName = name => /^(?:흰색|백색)스티로폼/.test(name) ? 'foam-white'
+  : /^(?:유색|색깔있는)스티로폼/.test(name) ? 'foam-colored' : '';
 
 export function yuseongFoodInGeneralBag(type, name) {
   if (type === 'excluded') return true;

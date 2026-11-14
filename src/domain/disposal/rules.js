@@ -9,7 +9,7 @@ import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-14.v42';
+export const RULE_VERSION = '2026-11-14.v43';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -166,7 +166,7 @@ function judgeComponent(component, index) {
   const { category } = resolveInputCategory({ itemName: part.label });
   const handling = registered?.handling || category;
   const special = guideForHandling(handling, component?.handlingCondition);
-  if (special?.status === 'check') return { label, material: part.material || '미확인', ...special };
+  if (special?.status === 'check') return { label, material: part.material || '미확인', ...special, handling: special.handling || handling };
   const variant = registered?.variants?.[part.material]?.includes(part.type);
   if (registered?.material && !variant && part.material && part.material !== '모르겠어요' &&
       (registered.material !== part.material || (registered.type && part.type && part.type !== 'unknown' && registered.type !== part.type))) {

@@ -319,6 +319,22 @@ test('유성구 포장용 스티로폼은 색상을 고르면 재활용과 종�
   assert.match(color.method, /유성구 일반 종량제봉투/);
   const other = judgeDisposal({ ...input, region: { ...region, district: '서구' }, handlingCondition: 'foam-colored' });
   assert.equal(other.status, 'recycle');
+  assert.equal(judgeDisposal({ ...input, itemName: '흰색스티로폼택배상자' }).status, 'recycle');
+  assert.equal(judgeDisposal({ ...input, itemName: '유색스티로폼용기' }).status, 'general');
+  assert.equal(observationsFromDescription('스티로폼 완충재는 하얀색이에요.')[0].value, 'foam-white');
+});
+
+test('유성구 스프링 펌프는 단독과 샴푸통 부속품에서 같은 경로를 사용한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  const pump = judgeDisposal({ itemName: '스프링샴푸펌프', region });
+  const input = { ...itemPresetInput('펌프샴푸통'), contaminated: 'no', region };
+  const result = judgeDisposal(input);
+  assert.equal(result.status, 'mixed');
+  assert.equal(result.parts[1].method, pump.method);
+  assert.deepEqual(result.disposalSchedule.rows.map(({ label, appliesTo }) => [label, appliesTo]), [
+    ['일반 종량제봉투', '스프링이 든 복합재질 펌프'], ['일반 재활용품', '본체'],
+  ]);
+  assert.doesNotMatch(resultToText(input, result), /펌프 · 지역 배출 기준 확인/);
 });
 
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {
