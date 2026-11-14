@@ -147,6 +147,20 @@
 .result-check-action .button { white-space: normal; text-align: left; }
 .result-verdict .eyebrow, .assist-method .eyebrow { margin: 0 0 6px; }
 .result-action-title { margin: 18px 0 8px; }
+.disposal-schedule { margin-block: 18px; padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; background: #f7faf7; }
+.disposal-schedule > h3 { margin: 0 0 12px; font-size: 17px; }
+.disposal-schedule-route + .disposal-schedule-route { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.disposal-schedule-route h4 { margin: 0; font-size: 14px; }
+.disposal-schedule-route h4 small { color: var(--muted); font-size: inherit; font-weight: 500; }
+.disposal-schedule-route p { margin: 5px 0 10px; color: var(--green); font-weight: 650; }
+.disposal-schedule-route dl { margin: 0; display: grid; gap: 5px; font-size: 14px; }
+.disposal-schedule-route dl > div { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 10px; }
+.disposal-schedule-route dd { margin: 0; }
+.disposal-schedule > a { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; color: var(--green); text-decoration: underline; }
+@media (max-width: 480px) {
+  .disposal-schedule { padding: 13px; }
+  .disposal-schedule-route dl > div { grid-template-columns: 1fr 1fr; }
+}
 .result-collection-action { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 10px; align-items: center; }
 .result-collection-action .button { white-space: normal; text-align: left; }
 .result-collection-action .button, .assist-result-actions .button, .part-material-quick button { min-height: 44px; }

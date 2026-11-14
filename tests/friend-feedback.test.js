@@ -148,12 +148,12 @@ test('철제 책상은 유성구 품목표의 형태 구분과 공식 신청 주
 });
 
 import { sourceLineMarkup, localGuideMarkup } from '../src/pages/item-input/item-input.js';
-test('대전 유성구 약 안내는 대전시 수거 기준을 사용하고 미확인 품목과 구분한다', () => {
+test('대전 유성구 약 안내는 구청 수거 기준을 사용하고 미확인 품목과 구분한다', () => {
   const yuseong = { province: '대전광역시', district: '유성구' };
   const result = judge('약', yuseong);
   const line = sourceLineMarkup(result, result.sourceUrls);
   assert.doesNotMatch(line, /서울/);
-  assert.match(line, /대전시/);
+  assert.match(line, /유성구 · 생활쓰레기 배출/);
   assert.equal(result.regional.coverage, 'verified');
   assert.match(result.steps.join(' '), /접수 여부/);
   const guide = localGuideMarkup(judge('건전지', yuseong), '건전지');

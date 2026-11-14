@@ -1,9 +1,11 @@
 import { normalizeItemName } from './item-suggestions.js';
+import { YUSEONG_WASTE_GUIDE } from './daejeon-guides.js';
 
 export const MEDICINE_SOURCES = {
   seoul: 'https://news.seoul.go.kr/env/archives/564807',
   daejeon: 'https://www.daejeon.go.kr/drh/depart/board/boardNormalView.do?boardId=normal_0096&menuSeq=1631&ntatcSeq=1438964404',
   donggu: 'https://www.donggu.go.kr/dg/kor/article/noticeDong13/142796',
+  yuseong: YUSEONG_WASTE_GUIDE,
   guri: 'https://www.guri.go.kr/health/selectBbsNttView.do?bbsNo=121&key=1327&nttNo=139147',
   seongnam: 'https://snvision.seongnam.go.kr/23216',
 };
@@ -28,6 +30,11 @@ export function medicineRegionalGuidance(region, itemName) {
     };
   }
   if (region.province === '대전광역시') {
+    if (region.district === '유성구') return {
+      scope: 'district', source: MEDICINE_SOURCES.yuseong, key: 'medicine:yuseong', checkedAt: '2026-11-14',
+      preparation: liquid ? '용기의 마개를 닫아 약이 새지 않게 준비해 주세요.' : checkPackaging,
+      collection: '유성구청 본관 1층 민원실, 동 행정복지센터, 유성구보건소 또는 지정 도서관의 폐의약품 수거함에 넣어 주세요.',
+    };
     const confirmedPackaging = region.district === '동구' && ['알약', '가루약'].includes(name);
     return {
       scope: confirmedPackaging ? 'district' : 'city', source: confirmedPackaging ? MEDICINE_SOURCES.donggu : MEDICINE_SOURCES.daejeon,

@@ -1,7 +1,7 @@
 export const PROVINCES = ['서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시', '경기도', '강원특별자치도', '충청북도', '충청남도', '전북특별자치도', '전라남도', '경상북도', '경상남도', '제주특별자치도'];
 export const SEOUL_DISTRICTS = '종로구 중구 용산구 성동구 광진구 동대문구 중랑구 성북구 강북구 도봉구 노원구 은평구 서대문구 마포구 양천구 강서구 구로구 금천구 영등포구 동작구 관악구 서초구 강남구 송파구 강동구'.split(' ');
 export { DAEJEON_DISTRICTS } from './daejeon-guides.js';
-import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES } from './daejeon-guides.js';
+import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES, YUSEONG_WASTE_GUIDE, yuseongDisposalSchedule } from './daejeon-guides.js';
 import { SEOUL_SOURCES, SEOUL_RECYCLE_NOTES, SEOUL_SCOPE_NOTE, SEOUL_VINYL_NOTE } from './seoul-guides.js';
 import { MEDICINE_SAFETY_STEPS, MEDICINE_SOURCES, medicineRegionalGuidance } from './medicine-guide.js';
 import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } from './metro-guides.js';
@@ -44,6 +44,7 @@ export const cityGuidanceLabel = result => `${result.regional?.cityLabel || '서
 export function resultRegionLabel(result) {
   const { regional, region } = result;
   if (!regional) return '지역 미기록';
+  if (regional.coverage !== 'verified' && result.disposalSchedule) return `${regional.label} · 지역 배출 일정 적용`;
   if (regional.coverage !== 'verified') return `${regional.label} · ${region ? '기본 안내 · 지역 기준 확인 필요' : '기본 안내'}`;
   return `${regional.label} · ${regional.scope === 'city' ? `${cityGuidanceLabel(result)} · 구·군별 수거 확인 필요` : '지역 기준 적용'}`;
 }
@@ -67,7 +68,7 @@ export const REGIONAL_SOURCES = {
   gimpoRecycle: 'https://gimpo.go.kr/portal/contents.do?key=1435',
   seongnamCarton: 'https://snvision.seongnam.go.kr/data/snvision/pdf/202604/2026043022123157.pdf',
   geumcheonFood: 'https://geumcheon.go.kr/portal/contents.do?key=818',
-  yuseongWaste: 'https://www.yuseong.go.kr/kor/sub07_11_03_09.do',
+  yuseongWaste: YUSEONG_WASTE_GUIDE,
   yuseongLargeFees: 'https://www.yuseong.go.kr/clean/html/sub02/02.html',
   ...Object.fromEntries(Object.entries(MEDICINE_SOURCES).map(([key, url]) => [`medicine-${key}`, url])),
 };
@@ -161,6 +162,7 @@ function daejeonRecycleNote(guide, { material, type }) {
 export function applyRegionalRules(input, base, asOf = dateFormat.format(new Date())) {
   const region = normalizeRegion(input.region);
   const result = structuredClone(base);
+  const yuseong = region?.province === '대전광역시' && region.district === '유성구';
   result.region = region;
   result.regional = { coverage: 'unverified', label: regionLabel(region), checkedAt: '2026-10-27', sources: [], notes: [], comparisonKey: `basic:${base.status}:${base.method}` };
   const single = input.combined !== 'yes' && !input.components?.length;
@@ -220,7 +222,8 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     result.regional.checkedAt = medicine.checkedAt || '2026-11-11';
     result.sourceUrls = result.sourceUrls.filter(url => url !== MEDICINE_SOURCES.seoul);
     result.steps = [...MEDICINE_SAFETY_STEPS, medicine.preparation];
-    result.parts[0].steps = [...result.steps, medicine.collection];
+    if (yuseong) result.steps.push(medicine.collection);
+    result.parts[0].steps = yuseong ? [...result.steps] : [...result.steps, medicine.collection];
     set(medicine.source, medicine.collection, medicine.key);
   }
   if (region?.province === '경기도' && region.district === '김포시') {
@@ -247,13 +250,12 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       status: 'general', source: baggedGel.source, note: '아이스팩 전용 수거함 운영이 종료됐어요.', key: 'ice-pack:volume-bag',
     });
   }
-  if (result.handling === 'gel-ice-pack' && region?.province === '대전광역시' && region.district === '유성구') {
+  if (result.handling === 'gel-ice-pack' && yuseong) {
     applyLocalMethod({
       method: '젤 아이스팩 · 통째로 유성구 일반 종량제봉투',
       reason: '젤 아이스팩은 통째로 전용 수거함이나 일반 종량제봉투에 배출할 수 있어요. 종량제봉투로 버릴 때는 유성구 생활쓰레기 배출 기준을 따라요.',
       steps: [
         '팩을 뜯지 말고 통째로 유성구 일반 종량제봉투에 넣어 주세요. 내용물을 하수구에 붓지 마세요.',
-        '일~목요일 저녁 6시~자정에 배출해요. 일반 주택은 집 앞, 공동주택은 단지 지정 장소, 도안 크린넷 사용 지역은 크린넷 투입구에 배출해 주세요.',
         '이용할 수 있는 아이스팩 전용 수거함이 있다면 깨끗하고 터지지 않은 팩은 통째로 넣어 재사용할 수 있어요.',
       ],
       status: 'general', source: REGIONAL_SOURCES.yuseongWaste,
@@ -417,6 +419,16 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       result.parts[0] = { ...result.parts[0], method: result.method, steps: [...result.steps] };
       result.regional.checkedAt = '2026-11-11';
       set(REGIONAL_SOURCES.yuseongLargeFees, '유성구 품목표는 책상을 양수, 편수, 컴퓨터용, 세트로 구분해요.', 'desk:yuseong-types');
+    } else if (yuseong && (knownGlass || result.handling === 'ceramic')) {
+      const name = knownGlass ? '깨진 유리' : '도자기류';
+      applyLocalMethod({
+        method: `${name} · 유성구 특수규격봉투(마대)로 배출`,
+        reason: '유성구는 깨진 유리와 도자기류를 불연성 폐기물로 수거해요.',
+        steps: ['날카로운 조각은 신문지 등으로 감싸고 내용물을 표시해 주세요.', '유성구 특수규격봉투에 담아 배출한 뒤 봉투 상단에 적힌 수거업체에 신고해 주세요.'],
+        status: 'general', source: YUSEONG_WASTE_GUIDE,
+        note: '특수규격봉투는 구청, 동 행정복지센터, 지정 판매처에서 살 수 있어요.',
+        key: knownGlass ? 'glass:yuseong-sack' : 'ceramic:yuseong-sack',
+      });
     } else if (knownGlass && region.district === '서구' && input.material === '유리' && input.type === 'broken') {
       result.status = 'general'; result.method = '깨진 유리 · 안전 포장 후 서구 종량제봉투로 배출';
       result.reasons = ['파편으로 다칠 수 있어 대전 서구는 유리를 안전하게 감싼 뒤 봉투에 위험물 표시를 하도록 안내해요.'];
@@ -532,7 +544,15 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       }
     }
   }
-  if (result.regional.coverage !== 'verified') {
+  if (yuseong) {
+    const rows = yuseongDisposalSchedule(result);
+    if (rows.length) {
+      result.disposalSchedule = { district: region.district, source: YUSEONG_WASTE_GUIDE, rows };
+      result.sourceUrls = [...new Set([...result.sourceUrls, YUSEONG_WASTE_GUIDE])];
+      if (result.status !== 'check') result.notice = '표시된 배출 일정은 유성구청 생활쓰레기 안내를 적용했어요.';
+    }
+  }
+  if (result.regional.coverage !== 'verified' && !result.disposalSchedule) {
     result.regional.notes.push(region ? '이 지역의 해당 품목에 대한 세부 기준은 아직 검증하지 못했어요. 아래 기본 안내를 참고하고 관할 시·군·구 청소 담당 부서 또는 관리사무소에 확인해 주세요.' : '지역을 설정하면 확인된 지역별 기준을 적용할 수 있어요. 현재는 기본 안내예요.');
   }
   return result;

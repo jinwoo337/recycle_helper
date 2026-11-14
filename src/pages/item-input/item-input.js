@@ -24,6 +24,7 @@ import { regionalComparisonMarkup } from '../../components/regional-comparison.j
 import { judgementRegionMarkup, bindJudgementRegion } from '../../components/judgement-region.js';
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
 import { disposalReasons, resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultPendingQuestions } from '../../domain/disposal/result-display.js';
+import { disposalScheduleMarkup } from '../../components/disposal-schedule.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
@@ -302,7 +303,9 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
   const collection = collectionAction(input, result);
   const canCheckMark = !itemTypeClarification(input.itemName) && (['unknown', 'material-only'].includes(input.category)
     || (input.category === 'packaging' && pendingQuestion?.condition === 'material'));
-  const badge = input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
+  const badge = input.material === '음식물류' && result.status === 'recycle' ? '음식물류'
+    : result.status === 'general' && /특수규격봉투|특수종량제|불연성/.test(result.method) ? '특수 배출'
+      : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
   const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category, result.region)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const regionToggle = inlineRegion ? ' aria-controls="result-region-form" aria-expanded="false"' : '';
   const details = part => conditionDetails(part).map(([title, value]) =>
@@ -342,6 +345,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
     ${steps.length ? stepListMarkup(steps, 'action-steps', { checklist: true, emphasizeFirst: true }) : ''}
     ${parts.length ? `<h3>본체와 부속품 배출 방법</h3><div class="result-parts">${parts.map(part => `<article><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${part.steps.length ? stepListMarkup(part.steps, 'part-steps', { checklist: true }) : ''}</article>`).join('')}</div>` : ''}
     </div>
+    ${disposalScheduleMarkup(result)}
     ${disposalReasonMarkup(result)}
     ${steps.length || parts.some(part => part.steps.length) ? checklistMarkup({ target: 'disposal-instructions' }) : ''}
     ${largeWasteMarkup(result, { topActionUrl: collection?.url })}

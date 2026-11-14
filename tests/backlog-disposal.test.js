@@ -198,15 +198,33 @@ test('유성구 젤 아이스팩은 배출 방법, 요일과 장소를 바로 �
   assert.equal(local.pendingCondition, undefined);
   assert.match(local.method, /통째로 유성구 일반 종량제봉투/);
   assert.match(local.steps[0], /팩을 뜯지 말고/);
-  assert.match(local.steps[1], /일~목요일.*집 앞.*단지 지정 장소.*크린넷 투입구/);
-  assert.match(local.steps[2], /전용 수거함이 있다면 깨끗하고 터지지 않은 팩/);
+  assert.match(local.steps[1], /전용 수거함이 있다면 깨끗하고 터지지 않은 팩/);
   assert.ok(local.sourceUrls.includes(GEL_ICE_PACK_SOURCE));
   assert.ok(local.sourceUrls.includes('https://www.yuseong.go.kr/kor/sub07_11_03_09.do'));
   const markup = resultMarkup(input, local);
   assert.match(markup, /대전광역시 유성구 · 지역 기준 적용/);
+  assert.match(markup, /유성구 배출 시간과 장소[\s\S]*일~목요일[\s\S]*집 앞[\s\S]*단지 지정 장소[\s\S]*크린넷 투입구/);
   assert.doesNotMatch(markup, /지역 기준 확인 필요/);
   assert.notEqual(judgeDisposal({ ...input, itemName: '물아이스팩' }).method, local.method);
   assert.equal(judgeDisposal({ ...input, region: { ...region, district: '서구' } }).regional.coverage, 'unverified');
+});
+
+test('유성구 배출 일정은 일반 종량제봉투나 일반 재활용품에만 적용한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  const input = { itemName: '물티슈낱장', region };
+  const wipe = judgeDisposal(input);
+  assert.match(resultToText(input, wipe), /유성구 배출 시간과 장소\n일반 종량제봉투\n일~목요일 저녁 6시~자정/);
+  assert.match(resultMarkup(input, wipe), /지역 배출 일정 적용/);
+  const can = judgeDisposal({ ...itemPresetInput('맥주캔'), itemName: '맥주캔', region, contaminated: 'no', combined: 'no' });
+  assert.equal(can.disposalSchedule.rows[0].label, '일반 재활용품');
+  for (const itemName of ['깨진유리', '사기그릇']) {
+    const local = judgeDisposal({ ...itemPresetInput(itemName), itemName, region });
+    assert.equal(local.disposalSchedule, undefined);
+    assert.match(local.method, /특수규격봉투\(마대\)/);
+    assert.match(local.steps.join(' '), /수거업체에 신고/);
+  }
+  assert.equal(judgeDisposal({ itemName: '알약', region }).disposalSchedule, undefined);
+  assert.equal(judgeDisposal({ itemName: '물티슈낱장' }).disposalSchedule, undefined);
 });
 
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {

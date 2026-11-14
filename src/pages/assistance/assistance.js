@@ -11,6 +11,7 @@ import { bindVerifiedCollection, collectionPointMarkup } from '../../components/
 import { collectionActionMarkup } from '../../components/collection-action.js';
 import { disposalReasonMarkup } from '../../components/disposal-reason.js';
 import { regionalComparisonMarkup } from '../../components/regional-comparison.js';
+import { disposalScheduleMarkup } from '../../components/disposal-schedule.js';
 import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNAMED_ITEM } from '../../services/input-draft.js';
 import { confirmedPhotoMark, photoMarkMaterial, photoMarkNeedsShape, photoMarkPart, photoMarkPartLabel } from '../../domain/disposal/recycle-marks.js';
 import { createOperationGate } from '../../utils/operation-gate.js';
@@ -188,6 +189,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
     ${resumeName ? `<p><button type="button" class="history-action" data-assist-resume-name>입력한 ‘${escapeHtml(resumeName)}’의 조건으로 돌아가기</button></p>` : ''}
     ${guide?.ruleVersion && !confirmIdentity ? collectionActionMarkup(resultInput({ answer, region, guide }), guide) : ''}
     ${hasQuestions && !category ? followUpMarkup(answer, answers, mode, pendingAnswers) : guidance}
+    ${!confirmIdentity && !guide?.needsConditions ? disposalScheduleMarkup(guide) : ''}
     ${confirmIdentity ? disposalReasonMarkup(null, '물건이 맞는지 확인하면 해당 품목의 배출 기준을 적용할 수 있어요.')
       : guide?.ruleVersion ? disposalReasonMarkup(guide)
         : disposalReasonMarkup(null, '물건의 용도나 상태에 따라 배출 방법이 달라요. 위에서 확인할 수 있는 정보를 골라 주세요.')}

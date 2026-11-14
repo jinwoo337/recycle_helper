@@ -18,7 +18,7 @@ const batterySources = {
   ] },
 };
 const seoulMedicineMap = 'https://map.seoul.go.kr/smgis2/short/6OiGm';
-export const YUSEONG_COLLECTION_GUIDE = 'https://www.yuseong.go.kr/kor/sub07_11_03_09.do';
+export const YUSEONG_COLLECTION_GUIDE = REGIONAL_SOURCES.yuseongWaste;
 const districtRecyclePage = region => METRO_GUIDES[region.province]?.districts[region.district]?.recycle
   || (region.province === '대전광역시' ? DAEJEON_GUIDES[region.district]?.recycle : null)
   || cityGuide(region)?.recycle;

@@ -1,5 +1,27 @@
 // 구청 공식 자료 확인일: 2026-10-26. 동별 배출일·공동주택 예외는 원문에서 확인합니다.
 export const DAEJEON_DISTRICTS = ['동구', '중구', '서구', '유성구', '대덕구'];
+export const YUSEONG_WASTE_GUIDE = 'https://www.yuseong.go.kr/kor/sub07_11_03_09.do';
+
+const ordinaryBag = part => part.status === 'general' && /종량제/.test(part.method) && !/특수|불연성|마대/.test(part.method);
+const ordinaryRecycling = part => part.status === 'recycle' && /^(?:오염 제거 후 )?(?:종이류|종이컵|플라스틱류|유리병|금속캔|비닐류)(?:으로|로) 분리배출$/.test(part.method);
+
+export function yuseongDisposalSchedule(result) {
+  const generalParts = result.parts.filter(ordinaryBag);
+  const rows = [];
+  const appliesTo = parts => parts.length === result.parts.length ? '' : parts.map(part => part.label).join(', ');
+  if (generalParts.length) rows.push({
+    label: '일반 종량제봉투', appliesTo: appliesTo(generalParts),
+    when: '일~목요일 저녁 6시~자정 · 가급적 저녁 8시 이전',
+    where: [['일반 주택', '집 앞'], ['공동주택', '단지 지정 장소'], ['도안 크린넷 사용 지역', '크린넷 투입구']],
+  });
+  const knownRecycling = result.parts.filter(ordinaryRecycling);
+  if (knownRecycling.length) rows.push({
+    label: '일반 재활용품', appliesTo: appliesTo(knownRecycling),
+    when: '동별 배출 요일 저녁 · 공동주택은 단지 수거 일정',
+    where: [['일반 주택·도안 크린넷 사용 지역', '투명봉투에 모아 집 앞'], ['공동주택', '단지 지정 장소']],
+  });
+  return rows;
+}
 export const DAEJEON_GUIDES = {
   '동구': {
     recycle: 'https://www.donggu.go.kr/dg/kor/contents/618',

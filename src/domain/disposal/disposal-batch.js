@@ -11,7 +11,7 @@ const groups = [
 function groupFor(input, result) {
   if (!result || result.status === 'check') return 'check';
   if (result.status === 'mixed' || (result.status === 'recycle' && (result.handling || input.material === '음식물류'))) return 'other';
-  if (result.status === 'general' && !/종량제|일반규격봉투/.test(result.method)) return 'other';
+  if (result.status === 'general' && (!/종량제|일반규격봉투/.test(result.method) || /특수|불연성|마대/.test(result.method))) return 'other';
   return result.status;
 }
 

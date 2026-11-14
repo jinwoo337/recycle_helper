@@ -67,7 +67,8 @@ test('서울 25개 구와 대전 5개 구는 모두 주요 재활용품 지역 �
 test('비교는 같은 입력·상태의 검증된 배출 방식만 묶고 현재 지역과 원본을 변경하지 않는다', () => {
   const input = { itemName: '깨진유리', material: '유리', type: 'broken', region: { province: '대전광역시', district: '서구' } };
   const before = structuredClone(input), comparison = compareRegionalDisposal(input);
-  assert.deepEqual(input, before); assert.equal(comparison.groups.length, 5);
+  assert.deepEqual(input, before); assert.equal(comparison.groups.length, 6);
+  assert.ok(comparison.groups.some(group => group.key === 'glass:yuseong-sack'));
   assert.ok(comparison.groups.some(group => group.regions.length === 22));
   assert.ok(comparison.groups.some(group => group.regions.some(region => region.district === '도봉구')));
   assert.ok(comparison.groups.some(group => group.regions.some(region => region.district === '김포시')));
