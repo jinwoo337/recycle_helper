@@ -38,10 +38,14 @@ const guides = {
 
 const clothingCondition = { title: '의류·잡화 상태는 어떤가요?', options: [['reusable', '깨끗하고 다시 쓸 수 있어요'], ['unusable', '심하게 오염됐거나 훼손됐어요'], ['unknown', '모르겠어요']] };
 const batteryCondition = { title: '전지가 부풀거나 새거나 깨졌나요?', options: [['undamaged', '손상이 없어요'], ['damaged', '손상이 있어요'], ['unknown', '모르겠어요']] };
+const gelIcePackCondition = { title: '젤 아이스팩이 깨끗하고 터지지 않았나요?',
+  options: [['reusable', '깨끗하고 터지지 않았어요'], ['unusable', '오염됐거나 터졌어요'], ['unknown', '모르겠어요']] };
+export const usesGelIcePackCondition = region => region?.province === '경기도' && region.district === '광주시';
 
-export function handlingConditionQuestion(handling) {
+export function handlingConditionQuestion(handling, region) {
   if (handling === 'clothing') return clothingCondition;
   if (handling === 'battery' || handling === 'rechargeable') return batteryCondition;
+  if (handling === 'gel-ice-pack' && usesGelIcePackCondition(region)) return gelIcePackCondition;
   return null;
 }
 

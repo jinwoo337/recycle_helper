@@ -19,7 +19,7 @@ export function resultToText(input, result) {
   const reasons = disposalReasons(result);
   const explanation = reasons.length ? `\n\n${result.status === 'check' ? '왜 확인이 필요한가요?' : '왜 이렇게 버리나요?'}\n${reasons.join('\n')}` : '';
   const regionNotes = (result.regional?.notes || []).filter(note => !result.steps.includes(note) && note !== result.notice);
-  const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
+  const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category, result.region)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const details = part => conditionDetails(part).map(([title, value]) => `${title} · ${value}`).join('\n');
   const conditions = [
     details(input),

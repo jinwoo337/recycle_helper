@@ -6,6 +6,7 @@ import { SEOUL_SOURCES, SEOUL_RECYCLE_NOTES, SEOUL_SCOPE_NOTE, SEOUL_VINYL_NOTE 
 import { MEDICINE_SAFETY_STEPS, MEDICINE_SOURCES, medicineRegionalGuidance } from './medicine-guide.js';
 import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } from './metro-guides.js';
 import { CITY_GUIDES } from './city-guides.js';
+import { usesGelIcePackCondition } from './special-guides.js';
 export { METRO_DISTRICTS } from './metro-guides.js';
 export const citySuggestionsFor = province => Object.keys(CITY_GUIDES[province] || {});
 export const districtsFor = province => province === '서울특별시' ? SEOUL_DISTRICTS
@@ -241,12 +242,22 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       source: REGIONAL_SOURCES.dobongIcePack, note: '도봉구 아이스팩 전용 수거는 2025년 1월 2일에 종료됐어요.', key: 'ice-pack:dobong-sack',
     });
   }
-  if (region?.province === '경기도' && region.district === '광주시' && result.handling === 'gel-ice-pack') {
-    applyLocalMethod({
-      method: '깨끗하고 온전한 젤 아이스팩 · 경기 광주시 전용 수거함',
+  if (result.handling === 'gel-ice-pack' && usesGelIcePackCondition(region)) {
+    const reusable = input.handlingCondition === 'reusable';
+    const unusable = input.handlingCondition === 'unusable';
+    const handling = ['팩을 뜯거나 내용물을 하수구에 붓지 마세요.'];
+    applyLocalMethod(unusable ? {
+      method: '오염·훼손된 젤 아이스팩 · 종량제봉투로 배출',
+      reason: '경기 광주시는 재사용할 수 있는 깨끗하고 온전한 팩만 전용 수거함으로 받아요.',
+      steps: [...handling, '오염됐거나 터진 팩은 내용물이 새지 않게 담아 종량제봉투로 배출해 주세요.'],
+      status: 'general', source: REGIONAL_SOURCES.gyeonggiGwangjuRecycle, note: '재사용 수거함에는 오염·훼손된 팩을 넣지 마세요.', key: 'ice-pack:volume-bag',
+    } : {
+      method: reusable ? '깨끗하고 온전한 젤 아이스팩 · 경기 광주시 전용 수거함' : '젤 아이스팩 상태 확인 · 경기 광주시 전용 수거함',
       reason: '경기 광주시는 오염이나 파손이 없는 젤 아이스팩을 모아 세척하고 재사용해요.',
-      steps: ['팩을 뜯거나 내용물을 하수구에 붓지 마세요.', '깨끗하고 터지지 않은 팩은 시에서 안내하는 전용 수거함에 넣어 주세요.', '오염됐거나 찢어진 팩은 재사용 수거함에 넣지 말고 광주시에 배출 방법을 확인해 주세요.'],
-      source: REGIONAL_SOURCES.gyeonggiGwangjuIcePack, note: '광주시청 안내에 행정복지센터 등 전용 수거함 위치가 있어요.', key: 'ice-pack:gyeonggi-gwangju-reuse',
+      steps: [...handling, reusable ? '시에서 안내하는 젤 아이스팩 전용 수거함에 넣어 주세요.' : '팩 겉면에 오염이 있거나 내용물이 새는지 확인해 주세요.'],
+      pendingCondition: reusable ? undefined : 'handling',
+      source: REGIONAL_SOURCES.gyeonggiGwangjuIcePack, note: '광주시청 안내에 행정복지센터 등 전용 수거함 위치가 있어요.',
+      key: reusable ? 'ice-pack:gyeonggi-gwangju-reuse' : 'ice-pack:gyeonggi-gwangju-check',
     });
   }
   if (region?.province === '서울특별시' && single && result.parts.length === 1 && result.parts[0].label === '본체' && !geumcheonFood) {

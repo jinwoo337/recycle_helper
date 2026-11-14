@@ -78,7 +78,7 @@ function registeredGuide(name, region, { infer = true, condition } = {}) {
   const detected = !registered && infer ? resolveInputCategory({ itemName: name }).category : '';
   if (!registered && (!detected || detected === 'packaging')) return null;
   const input = registered ? itemPresetInput(name) : { itemName: name };
-  const prompt = handlingConditionQuestion(item?.handling || detected);
+  const prompt = handlingConditionQuestion(item?.handling || detected, region);
   if (prompt) {
     if (!prompt.options.some(([value]) => value === condition)) return { needsConditions: true, prompt, inferred: !registered };
     return { ...judgeDisposal({ ...input, region, handlingCondition: condition }), prompt, condition, inferred: !registered };

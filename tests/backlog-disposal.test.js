@@ -149,7 +149,13 @@ test('시행일 전에 종료 안내를 적용하지 않고 주소가 일치한 
   assert.equal(applyRegionalRules(input, base, '2026-10-30').status, 'general');
   assert.equal(verifiedCollectionPoints(judgeDisposal(input)), null);
   const gwangju = { province: '경기도', district: '광주시' };
-  const { points } = verifiedCollectionPoints(judgeDisposal({ ...input, region: gwangju }));
+  const gwangjuInput = { ...input, region: gwangju };
+  assert.equal(judgeDisposal(gwangjuInput).pendingCondition, 'handling');
+  assert.equal(verifiedCollectionPoints(judgeDisposal(gwangjuInput)), null);
+  const damaged = judgeDisposal({ ...gwangjuInput, handlingCondition: 'unusable' });
+  assert.equal(damaged.status, 'general');
+  assert.equal(verifiedCollectionPoints(damaged), null);
+  const { points } = verifiedCollectionPoints(judgeDisposal({ ...gwangjuInput, handlingCondition: 'reusable' }));
   assert.equal(points.length, 13);
   assert.ok(points.every(point => !/신현동|송정동|광남1동/.test(point.name)));
   const ranked = rankCollectionPoints(points, { latitude: 37.410872, longitude: 127.257281 });

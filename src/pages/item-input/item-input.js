@@ -303,7 +303,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
   const canCheckMark = !itemTypeClarification(input.itemName) && (['unknown', 'material-only'].includes(input.category)
     || (input.category === 'packaging' && pendingQuestion?.condition === 'material'));
   const badge = input.material === '음식물류' && result.status === 'recycle' ? '음식물류' : { recycle: '재활용', general: '일반 배출', check: '추가 확인 필요', mixed: '재질별 배출' }[result.status];
-  const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category)?.options.find(([key]) => key === input.handlingCondition)?.[1];
+  const handlingAnswer = handlingConditionQuestion(lookupItem(input.itemName)?.handling || input.category, result.region)?.options.find(([key]) => key === input.handlingCondition)?.[1];
   const regionToggle = inlineRegion ? ' aria-controls="result-region-form" aria-expanded="false"' : '';
   const details = part => conditionDetails(part).map(([title, value]) =>
     `<div><dt>${title}</dt><dd>${escapeHtml(value)}</dd></div>`
@@ -386,7 +386,10 @@ export function bindItemInput() {
   }
   const form = document.getElementById('item-form');
   const judgementRegion = bindJudgementRegion(form, readJudgementRegion(getCurrentMember()), {
-    onChange: region => rememberJudgementRegion(region, getCurrentMember()),
+    onChange: region => {
+      rememberJudgementRegion(region, getCurrentMember());
+      updateConditional();
+    },
   });
   const summary = document.getElementById('item-summary');
   const nameInput = form.elements.namedItem('itemName');
@@ -521,6 +524,7 @@ export function bindItemInput() {
   let pendingCombination = '';
   let pendingSeparation = '';
   let compositionIsPreset = false;
+  let selectedHandlingCondition = '';
   const value = name => form.elements.namedItem(name)?.value || '';
   function partValue(prefix) {
     return Object.fromEntries(['material', 'type', 'contaminated', 'washed', 'removable', 'vinylResidue', 'foodSeparated', ...(prefix ? ['label'] : [])].map(key => [key, value(`${prefix}${key}`)]));
@@ -671,11 +675,13 @@ export function bindItemInput() {
     if (unregistered) missingName.textContent = `‘${nameInput.value.trim()}’`;
     const dedicated = Boolean(known?.handling && known.material === '기타');
     const handling = known?.handling || category.value || '';
-    if (handlingCondition.dataset.handling !== handling) {
-      handlingCondition.dataset.handling = handling;
-      const prompt = handlingConditionQuestion(handling);
+    const prompt = handlingConditionQuestion(handling, judgementRegion.get());
+    const promptKey = prompt?.title || '';
+    if (handlingCondition.dataset.handling !== promptKey) {
+      handlingCondition.dataset.handling = promptKey;
       handlingCondition.hidden = !prompt;
       handlingCondition.innerHTML = prompt ? question('handlingCondition', prompt.title, prompt.options.some(([option]) => option === 'unknown') ? prompt.options : [...prompt.options, ['unknown', '모르겠어요']]) : '';
+      if (prompt) writeValues({ handlingCondition: selectedHandlingCondition });
     }
     categorySection.hidden = !unregistered;
     const choosingSpoon = unregistered && !category.value && isAmbiguousSpoonName(nameInput.value);
@@ -1044,7 +1050,7 @@ export function bindItemInput() {
     if (pendingObservations.length) input.pendingObservations = pendingObservations;
     if (!lookupItem(input.itemName)?.material && value('category')) { input.category = value('category'); input.categoryOrigin = categoryOrigin || 'manual'; }
     if (!keywordCategoryEnabled) input.keywordCategory = false;
-    if (value('handlingCondition')) input.handlingCondition = value('handlingCondition');
+    if (value('handlingCondition') || selectedHandlingCondition) input.handlingCondition = value('handlingCondition') || selectedHandlingCondition;
     if (supportsState(input) || (['packaging', ''].includes(value('category')) && (unopenedParts.length || pendingCombination))) {
       input.combined = value('combined') || pendingCombination || (unopenedParts.length ? 'yes' : '');
       if (input.combined === 'yes') {
@@ -1228,6 +1234,7 @@ export function bindItemInput() {
     const editCategory = input.editCategory;
     keywordCategoryEnabled = input.keywordCategory !== false;
     input = prepareCategoryInput(input);
+    selectedHandlingCondition = input.handlingCondition || '';
     committedName = normalizeItemName(input.itemName);
     const preset = itemPresetInput(input.itemName);
     const presetParts = preset.components || [];
@@ -1506,6 +1513,7 @@ export function bindItemInput() {
       if (event.selectCandidate) retainBatchForCandidate(nameInput.value);
       else { draftBatchId = undefined; draftBatchResolution = false; }
       compositionIsPreset = false;
+      selectedHandlingCondition = '';
       missing.open = false;
       if (missingStatus) missingStatus.textContent = '';
       if (missingNote) missingNote.value = '';
@@ -1540,6 +1548,7 @@ export function bindItemInput() {
     }
     if (event.target.name === 'category') {
       categoryOrigin = 'manual'; keywordCategoryEnabled = false;
+      selectedHandlingCondition = '';
       observedStates.clear(); unopenedParts = []; pendingCombination = ''; pendingSeparation = '';
       compositionIsPreset = false;
       form.querySelectorAll('input[type="radio"]').forEach(control => { control.checked = false; });
@@ -1548,6 +1557,7 @@ export function bindItemInput() {
       form.elements.namedItem('type').value = '';
       materialEditor.open = true;
     }
+    if (event.target.name === 'handlingCondition') selectedHandlingCondition = event.target.value;
     if (event.target.name?.endsWith('currentState')) {
       const prefix = event.target.closest('.part-fields').dataset.prefix;
       if (!prefix && compositionIsPreset && !value('contaminated') && event.target.value !== 'unknown') {

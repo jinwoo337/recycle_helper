@@ -74,7 +74,7 @@ export function resultPendingQuestions(input, result) {
   parts.forEach((part, index) => add(part.pendingCondition, index));
   if (questions.size) return [...questions.values()];
   const unconfirmedHandling = !input.handlingCondition || input.handlingCondition === 'unknown';
-  if (unconfirmedHandling && handlingConditionQuestion(result.handling)) add('handling');
+  if (unconfirmedHandling && handlingConditionQuestion(result.handling, result.region)) add('handling');
   else if (['unknown', 'material-only'].includes(input.category)) add('category');
   return [...questions.values()];
 }
