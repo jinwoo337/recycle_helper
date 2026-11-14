@@ -26,6 +26,7 @@ const NEVER = ['약과', '약수', '약속', '계약', '예약', '절약', '약�
   '고무장갑', '비닐장갑', '위생장갑', '일회용장갑', '쿠션팩트', '팩트',
   // 제품 자체가 아니라 포장·부속품인 경우 (예: 휴대폰케이스, 노트북박스)
   '케이스', '커버', '보호필름', '필름', '거치대', '파우치', '박스', '상자', '포장'];
+const applianceParts = /(?:밥솥(?:내솥|뚜껑)|압력솥(?:내솥|고무패킹)|전자레인지(?:회전접시|유리접시|유리판)|정수기필터|청소기(?:필터|먼지봉투)|공기청정기필터|냉장고(?:선반|서랍)|(?:프린터|복합기)(?:잉크|토너)(?:카트리지)?)(?:만)?$/;
 
 // 앞에서부터 확인합니다. 더 구체적인 종류(손상 전지·깨진 조명·대형 가전 등)를 먼저 둡니다.
 // words: 이름 어디에 있어도 인식, ends: 이름이 이 낱말로 끝날 때만 인식(짧고 흔한 낱말의 오인식 방지)
@@ -53,7 +54,7 @@ export function detectItemCategory(name) {
   const value = key(name);
   if (splitItemList(name).length) return null;
   if (isBatteryPackaging(value)) return { category: 'packaging', keyword: value };
-  if (!value || NEVER.some(word => value.includes(word))) return null;
+  if (!value || NEVER.some(word => value.includes(word)) || applianceParts.test(value)) return null;
   for (const { category, words = [], ends = [] } of RULES) {
     const keyword = words.filter(word => value.includes(word)).sort((a, b) => b.length - a.length)[0]
       || ends.find(word => value.endsWith(word));

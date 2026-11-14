@@ -9,7 +9,7 @@ import { CATALOG_DETAIL_SOURCES, LAMINATED_MARK_SOURCE } from './catalog-sources
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-14.v48';
+export const RULE_VERSION = '2026-11-14.v49';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {

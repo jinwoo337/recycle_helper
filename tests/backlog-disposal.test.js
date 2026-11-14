@@ -35,6 +35,25 @@ test('유성구 책상의 종류에 따라 수수료가 다르고 신청서와 �
   assert.doesNotMatch(judgeDisposal({ ...input, region: seoul, handlingCondition: 'desk-double' }).method, /6,000원/);
 });
 
+test('유성구 책상 상판·거울·깨진 강화유리를 일반 유리 파편과 구분한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  for (const itemName of ['책상 상판만', '거울', '전신 거울', '깨진 강화유리']) {
+    const input = { ...itemPresetInput(itemName), region };
+    const result = judgeDisposal(input);
+    assert.equal(result.handling, 'large', itemName);
+    assert.match(result.method, /유성구 대형폐기물 배출 신청 \(2,000원\)/);
+    assert.equal(result.pendingCondition, undefined);
+    assert.match(resultMarkup(input, result), /유성구 대형폐기물 배출 신청/);
+    assert.doesNotMatch(result.method, /특수규격봉투/);
+  }
+  const broken = { ...itemPresetInput('깨진 유리병'), region };
+  assert.match(resultToText(broken, judgeDisposal(broken)), /특수규격봉투/);
+  const conflict = { ...itemPresetInput('거울'), region, type: 'bottle' };
+  assert.doesNotMatch(judgeDisposal(conflict).method, /2,000원/);
+  const unbroken = { ...itemPresetInput('강화유리'), region };
+  assert.doesNotMatch(judgeDisposal(unbroken).method, /2,000원/);
+});
+
 const response = {
   itemName: '삼각 소스통', identification: '소스 포장 용기', evidence: 'object', confidence: 'high',
   markings: [], method: '종량제에 바로 버리세요', steps: ['종량제에 바로 버리세요'], questions: [], cautions: [], category: 'packaging',

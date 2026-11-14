@@ -16,7 +16,8 @@ export const yuseongDeskTypes = [
 ];
 export const yuseongDeskTypeFromName = name => /책상세트|세트책상/.test(name) ? 'desk-set' : /컴퓨터용?책상/.test(name) ? 'desk-computer'
   : /양수책상|양쪽서랍책상/.test(name) ? 'desk-double' : /편수책상|한쪽서랍책상/.test(name) ? 'desk-single' : '';
-export const yuseongDeskQuestion = (region, name) => isYuseong(region) && /책상/.test(name)
+export const yuseongDeskTop = name => /^책상상판(?:만)?$/.test(name);
+export const yuseongDeskQuestion = (region, name) => isYuseong(region) && /책상/.test(name) && !yuseongDeskTop(name.replace(/\s+/g, ''))
   ? { title: '유성구 품목표에서 어떤 책상인가요?', options: yuseongDeskTypes.map(([id, label, , fee]) => [id, `${label} · ${fee}`]) }
   : null;
 

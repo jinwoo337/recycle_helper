@@ -52,7 +52,7 @@ export function collectionAction(input, result) {
     return { url: REGIONAL_SOURCES.yuseongSackSellers, scope, label: '유성구 특수규격봉투 판매처',
       extraUrl: YUSEONG_COLLECTION_GUIDE, extraLabel: '특수규격봉투 배출·신고 안내',
       office: '유성구청 불연성폐기물 문의', phone: '042-611-2344',
-      note: '구청 판매처 목록은 2026년 8월 기준이에요. 특수규격봉투에 담은 뒤 봉투에 적힌 수거업체에 배출을 신고하세요.' };
+      note: '유성구 30L 특수규격봉투는 품목표 기준 1,530원이에요. 담아서 내놓은 뒤 봉투에 적힌 수거업체에 신고하세요.' };
   }
   if (regional?.comparisonKey?.startsWith('carton:yuseong-drop-off')) {
     return { url: REGIONAL_SOURCES.yuseongCenters, scope, label: '동 행정복지센터 위치 보기',

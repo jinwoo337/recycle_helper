@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { detectItemCategory } from '../src/domain/disposal/category-keywords.js';
+
+test('가전 소모품과 용기를 가전 본체로 분류하지 않는다', () => {
+  for (const name of ['전기밥솥 내솥', '전자레인지 유리 접시만', '무선청소기 필터', '냉장고 선반', '프린터 토너 카트리지']) {
+    assert.equal(detectItemCategory(name), null, name);
+  }
+  assert.equal(detectItemCategory('고장 난 전기밥솥')?.category, 'electronic');
+  assert.equal(detectItemCategory('고장 난 전자레인지')?.category, 'large-electronic');
+});
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 
 const expected = {

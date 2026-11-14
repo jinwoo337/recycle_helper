@@ -1,7 +1,7 @@
 export const PROVINCES = ['서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시', '경기도', '강원특별자치도', '충청북도', '충청남도', '전북특별자치도', '전라남도', '경상북도', '경상남도', '제주특별자치도'];
 export const SEOUL_DISTRICTS = '종로구 중구 용산구 성동구 광진구 동대문구 중랑구 성북구 강북구 도봉구 노원구 은평구 서대문구 마포구 양천구 강서구 구로구 금천구 영등포구 동작구 관악구 서초구 강남구 송파구 강동구'.split(' ');
 export { DAEJEON_DISTRICTS } from './daejeon-guides.js';
-import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES, YUSEONG_WASTE_GUIDE, foamColorFromName, isYuseong, yuseongDeskTypes, yuseongDeskTypeFromName, yuseongDisposalSchedule, yuseongFoodInGeneralBag } from './daejeon-guides.js';
+import { DAEJEON_DISTRICTS, DAEJEON_GUIDES, DAEJEON_SOURCES, YUSEONG_WASTE_GUIDE, foamColorFromName, isYuseong, yuseongDeskTop, yuseongDeskTypes, yuseongDeskTypeFromName, yuseongDisposalSchedule, yuseongFoodInGeneralBag } from './daejeon-guides.js';
 import { SEOUL_SOURCES, SEOUL_RECYCLE_NOTES, SEOUL_SCOPE_NOTE, SEOUL_VINYL_NOTE } from './seoul-guides.js';
 import { MEDICINE_SAFETY_STEPS, MEDICINE_SOURCES, medicineRegionalGuidance } from './medicine-guide.js';
 import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } from './metro-guides.js';
@@ -494,8 +494,24 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     result.confirmedCollection = true;
   }
   if (daejeon && single) {
-    if (result.handling === 'large' && yuseong && /책상/.test(input.itemName || '')) {
-      const selected = input.handlingCondition || yuseongDeskTypeFromName(normalizeItemName(input.itemName));
+    const name = yuseong ? normalizeItemName(input.itemName) : '';
+    const deskTop = result.handling === 'large' && yuseongDeskTop(name);
+    const mirror = input.material === '유리' && input.type === 'special' && !result.pendingCondition && /^(?:벽|전신|깨진)?거울$/.test(name);
+    const temperedGlass = knownGlass && /^(?:깨진강화유리판?|파손강화유리)$/.test(name);
+    if (yuseong && (deskTop || mirror || temperedGlass)) {
+      const label = deskTop ? '책상 상판' : mirror ? '거울' : '깨진 강화유리';
+      const item = deskTop ? '상판' : mirror ? '거울' : '깨진유리(강화유리)';
+      applyLocalMethod({
+        method: `${label} · 유성구 대형폐기물 배출 신청 (2,000원)`,
+        reason: '유성구 품목표에 이 물건의 신고 항목과 수수료가 나와 있어요.',
+        steps: [`공식 배출 신청에서 ‘${item}’ 항목으로 신고하세요.`,
+          ...(!deskTop ? ['깨졌거나 날카로운 부분은 두꺼운 종이 등으로 감싸고 유리임을 표시하세요.'] : []),
+          '신고필증이나 접수 번호를 물건에 표시하고 지정된 날짜와 장소에 내놓으세요.'],
+        source: REGIONAL_SOURCES.yuseongLargeFees, note: '유성구 대형폐기물 품목표를 적용했어요.', key: `large:yuseong-${item}`,
+      });
+      result.handling = 'large';
+    } else if (result.handling === 'large' && /책상/.test(name)) {
+      const selected = input.handlingCondition || yuseongDeskTypeFromName(name);
       const type = yuseongDeskTypes.find(([id]) => id === selected);
       applyLocalMethod({
         method: type ? `${type[2]} 책상 · 유성구 대형폐기물 배출 신청 (${type[3]})` : '책상 · 유성구 대형폐기물 품목 확인 후 신청',
@@ -507,9 +523,9 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
         pendingCondition: type ? undefined : 'handling',
       });
     } else if (yuseong && (knownGlass || result.handling === 'ceramic')) {
-      const name = knownGlass ? '깨진 유리' : '도자기류';
+      const label = knownGlass ? '깨진 유리' : '도자기류';
       applyLocalMethod({
-        method: `${name} · 유성구 특수규격봉투(마대)로 배출`,
+        method: `${label} · 유성구 특수규격봉투(마대)로 배출`,
         reason: '유성구는 깨진 유리와 도자기류를 불연성 폐기물로 수거해요.',
         steps: ['날카로운 조각은 신문지 등으로 감싸고 내용물을 표시해 주세요.', '유성구 특수규격봉투에 담아 배출한 뒤 봉투 상단에 적힌 수거업체에 신고해 주세요.'],
         status: 'general', source: YUSEONG_WASTE_GUIDE,
