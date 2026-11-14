@@ -12,6 +12,7 @@ export const MIXED_CAPSULE_SOURCE = 'https://www.kca.go.kr/smartconsumer/sub.do?
 export const RECYCLING_APPENDIX_SOURCE = 'https://www.law.go.kr/flDownload.do?bylClsCd=200201&flSeq=160907851';
 export const APARTMENT_CARTON_SOURCE = 'https://www.korea.kr/multi/visualNewsView.do?newsId=148973111';
 export const SHAMPOO_SOURCE = 'https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=590';
+export const LAMINATED_MARK_SOURCE = 'https://www.wasteguide.or.kr/front/summary/recyclingRank.do';
 // 실제 검토한 공개 자료만 결과 화면의 출처로 허용합니다.
 export const CATALOG_DETAIL_SOURCES = {
   [PAPER_DISPOSAL_SOURCE]: '분리배출 누리집 · 종이, 택배 송장, 감열 영수증',
@@ -38,6 +39,7 @@ export const CATALOG_DETAIL_SOURCES = {
   [RECYCLING_APPENDIX_SOURCE]: '기후에너지환경부 · 재활용가능자원 분리수거 지침 별표 1',
   [APARTMENT_CARTON_SOURCE]: '기후에너지환경부 · 공동주택 종이팩 별도 배출',
   [SHAMPOO_SOURCE]: '품목사전 · 샴푸 용기와 펌프',
+  [LAMINATED_MARK_SOURCE]: '분리배출 누리집 · 도포·첩합 표시',
   'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=638': '품목사전 · 유색 스티로폼 포장재',
   'https://clean.yongsan.go.kr/resources/images/user/recycleExhaust.pdf': '재활용품 분리배출 가이드라인 · 나무젓가락',
   'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=416': '품목사전 · 작은 플라스틱 숟가락',

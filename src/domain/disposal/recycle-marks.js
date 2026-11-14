@@ -12,6 +12,7 @@ export const RECYCLE_MARKS = [
   { id: 'aseptic-carton', label: '멸균팩', hint: '안쪽에 은색 층이 있는 팩', material: '종이', type: 'carton' },
   { id: 'glass', label: '유리', hint: '음료·식품 유리병', material: '유리', type: 'bottle' },
   { id: 'other', label: 'OTHER', hint: '플라스틱·비닐류 아래에 표시', material: '기타', type: '' },
+  { id: 'laminated', label: '도포·첩합', hint: '분리배출 표시가 사선으로 그어진 포장재', material: '기타', type: 'laminated' },
 ];
 
 export const markById = id => RECYCLE_MARKS.find(mark => mark.id === id) || null;
@@ -37,8 +38,12 @@ function photoMarkCode(marking) {
   return String(marking || '').normalize('NFKC').trim().toUpperCase()
     .replace(photoPartPrefix, '').replace(/\s+표시$/, '');
 }
+export function laminatedMark(marking) {
+  return /^도포\s*[·ㆍ･・⋅./]?\s*첩합(?:\s*등)?$/.test(photoMarkCode(marking));
+}
 export function photoMarkMaterial(marking) {
   const printed = photoMarkCode(marking);
+  if (laminatedMark(printed)) return '기타';
   if (/^(?:플라스틱|비닐류)(?:\s+OTHER|\s*\(OTHER\))$/.test(printed)) return '기타';
   if (/^비닐류(?:\s+(?:PET|PP|HDPE|LDPE|PE|PS)|\s*\((?:PET|PP|HDPE|LDPE|PE|PS)\))$/.test(printed)) return '비닐';
   const code = printed.replace(/^플라스틱(?:\s+([A-Z]+)|\s*\(([A-Z]+)\))$/, (_, label, enclosed) => label || enclosed);
@@ -52,6 +57,7 @@ export function photoMarkNeedsShape(marking) {
 
 export function confirmedPhotoMark(marking, part, shape) {
   const code = photoMarkCode(marking);
+  if (laminatedMark(code)) return { material: '기타', type: 'laminated' };
   const material = photoMarkMaterial(marking);
   if (!material) return null;
   if (material === '비닐' || (photoMarkNeedsShape(marking) && (part === 'film' || shape === 'film'))) {

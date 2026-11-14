@@ -597,7 +597,7 @@ export function bindItemInput() {
     const quick = node.querySelector('.part-material-quick');
     const shape = !prefix && category.value === 'packaging' ? packagingShapes[packagingShape] : null;
     quick.querySelector('.item-choice-title').textContent = shape ? shape.hint : prefix ? '부속품 재질 선택' : '주요 재질 선택';
-    const choosingMaterial = !material || ['기타', '모르겠어요'].includes(material);
+    const choosingMaterial = !material || material === '모르겠어요' || (material === '기타' && value(`${prefix}type`) !== 'laminated');
     quick.hidden = !active || !(prefix || ['packaging', 'material-only'].includes(category.value));
     quick.classList.toggle('is-chosen', !choosingMaterial);
     const materialButtons = [...quick.querySelectorAll('[data-material-choice]')];
@@ -619,7 +619,7 @@ export function bindItemInput() {
     const options = TYPES[material] || [];
     const select = form.elements.namedItem(`${prefix}type`);
     const typeQuick = node.querySelector('.part-type-quick');
-    const showTypes = active && !materialOnly && options.length > 0;
+    const showTypes = active && !materialOnly && options.length > 0 && (material !== '기타' || select.value === 'laminated');
     if (select.dataset.material !== material) {
       select.innerHTML = '<option value="">세부 종류를 선택해 주세요</option>' + options.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
       select.dataset.material = material;

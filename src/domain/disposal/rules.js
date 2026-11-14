@@ -5,11 +5,11 @@ import { applyRegionalRules } from './regions.js';
 import { specialItemGuide, guideForHandling } from './special-guides.js';
 import { categoryLabel, categoryAllowsMaterial } from './item-categories.js';
 import { resolveInputCategory } from './input-category.js';
-import { CATALOG_DETAIL_SOURCES } from './catalog-sources.js';
+import { CATALOG_DETAIL_SOURCES, LAMINATED_MARK_SOURCE } from './catalog-sources.js';
 import { validateAiGuess } from './ai-classification.js';
 import { isBatteryPackaging } from './category-keywords.js';
 
-export const RULE_VERSION = '2026-11-14.v44';
+export const RULE_VERSION = '2026-11-14.v45';
 export const RULE_SOURCE = 'https://wasteguide.or.kr/front/bbsList.do?bbsId=BBS_0003';
 export const MATERIALS = ['플라스틱', '페트병', '종이', '유리', '금속·캔', '비닐', '스티로폼', '음식물류', '기타', '모르겠어요'];
 export const TYPES = {
@@ -21,6 +21,7 @@ export const TYPES = {
   '금속·캔': [['food-can', '음료·식품용 캔'], ['hazard', '가스·스프레이·페인트 등 특수 용기'], ['other', '그 밖의 금속 제품'], ['unknown', '모르겠어요']],
   '비닐': [['packaging', '비닐 봉투·포장재·랩'], ['other', '고무장갑·장판 등 그 밖의 제품'], ['unknown', '모르겠어요']],
   '스티로폼': [['packaging', '포장용 상자·완충재'], ['other', '건축용·코팅 제품 등'], ['unknown', '모르겠어요']],
+  '기타': [['laminated', '도포·첩합 표시가 있는 포장재'], ['unknown', '모르겠어요']],
 };
 
 const stateTypes = {
@@ -55,6 +56,12 @@ export function normalizePart(part = {}) {
 
 function outcome(status, method, reason, steps = []) {
   return { status, method, reasons: [reason], steps };
+}
+
+function laminatedPackaging() {
+  return { ...outcome('general', '도포·첩합 포장재 · 일반 종량제봉투',
+    '도포·첩합 표시가 있는 부분은 붙은 재질을 떼기 어려워 일반 재활용품으로 선별하기 어려워요.',
+    ['평소 내용물 비우기가 가능한 포장은 먼저 비워 주세요.', '표시가 적힌 부분을 일반 종량제봉투에 넣어 주세요. 쉽게 떨어지는 다른 부속품은 각각 확인해 주세요.']), laminated: true };
 }
 
 function judgePart(raw, itemName = '') {
@@ -164,6 +171,9 @@ function judgeComponent(component, index) {
   const registered = lookupItem(part.label);
   const name = normalizeItemName(part.label);
   const { category } = resolveInputCategory({ itemName: part.label });
+  if (part.material === '기타' && part.type === 'laminated' && !registered?.handling && (!category || category === 'packaging')) {
+    return { label, material: part.material, ...laminatedPackaging() };
+  }
   const handling = registered?.handling || category;
   const special = guideForHandling(handling, component?.handlingCondition);
   if (special?.status === 'check') return { label, material: part.material || '미확인', ...special, handling: special.handling || handling };
@@ -219,6 +229,11 @@ function judgeBaseDisposal(input = {}) {
     && !(name === '전자제품포장완충재' && input.material === '스티로폼' && input.type === 'packaging');
   // 종류를 직접 고르지 않았으면 이름 속 낱말로 종류를 알아봅니다. 사용자가 '다른 물건이에요'를 고르면(keywordCategory: false) 건너뜁니다.
   const { category, detected, origin } = resolveInputCategory(input);
+  const markedPackaging = category === 'packaging' || (known && ['플라스틱', '페트병', '종이', '비닐', '스티로폼'].includes(known.material));
+  if (!dangerous && !known?.handling && input.material === '기타' && input.type === 'laminated' && markedPackaging) {
+    const marked = laminatedPackaging();
+    return finish(marked, [{ label: '표시가 있는 부분', material: '기타', ...structuredClone(marked) }]);
+  }
   const clarification = itemTypeClarification(name);
   if (clarification) {
     const result = finish({ ...outcome('check', clarification.title, clarification.reason, [clarification.hint, clarification.unknown]),
@@ -356,7 +371,8 @@ function finishAi(result, input, ai, parts) {
 function finish(result, parts) {
   parts ||= [{ label: '물품 전체', material: '미확인', ...structuredClone(result) }];
   return { ...result, parts, ruleVersion: RULE_VERSION,
-    sourceUrls: parts.some(part => part.material === '음식물류') ? [RULE_SOURCE, FOOD_SOURCE] : [RULE_SOURCE],
+    sourceUrls: [RULE_SOURCE, ...(parts.some(part => part.material === '음식물류') ? [FOOD_SOURCE] : []),
+      ...(parts.some(part => part.laminated) ? [LAMINATED_MARK_SOURCE] : [])],
     sourceUrl: parts.some(part => part.material === '음식물류') ? FOOD_SOURCE : RULE_SOURCE, checkedAt: '2026-10-27',
     notice: '공개된 분리배출 지침을 참고한 안내예요. 지역별 수거 대상·수거함·배출일이 다를 수 있으므로 거주지 안내를 확인해 주세요.' };
 }

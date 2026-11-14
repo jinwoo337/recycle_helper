@@ -1,7 +1,7 @@
 import { MATERIALS, TYPES, needsWashQuestion, supportsState } from './rules.js';
 import { selectedState, stateAnswers } from './input-state.js';
 import { normalizeItemName } from './item-suggestions.js';
-import { confirmedPhotoMark } from './recycle-marks.js';
+import { confirmedPhotoMark, laminatedMark } from './recycle-marks.js';
 
 const fields = {
   material: MATERIALS.filter(value => value !== '모르겠어요'),
@@ -49,7 +49,7 @@ export function cleanItemObservations(raw, { allowTargetLabels = false } = {}) {
 // Only match explicit phrases. Everything else is left to the question form.
 export function observationsFromDescription(value) {
   const entries = [];
-  const source = String(value || '').normalize('NFKC');
+  const source = String(value || '').normalize('NFKC').replace(/도포\s*[·ㆍ･・⋅./]?\s*첩합/gu, '도포첩합');
   if (/건전지|충전지|배터리|\bAAA?\s*전지\b/.test(source)) {
     const undamaged = /(?:손상|파손|누액)(?:이|은)?\s*(?:전혀\s*)?없|부풀거나.{0,35}깨진\s*곳(?:이|은)?\s*없|손상되지\s*않/.test(source);
     const damaged = /액체(?:가|는)?\s*새(?:요|고|어|는)|(?:옆면|껍질|외관)(?:이|은|도)?\s*찌그러졌|손상됐|파손됐|부풀어\s*올랐|부풀었/.test(source);
@@ -88,13 +88,16 @@ export function observationsFromDescription(value) {
     const separable = /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*없|분리되지\s*않|떼어지지\s*않/.test(clause) ? 'no'
       : /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*있|분리돼요/.test(clause) ? 'yes' : '';
     if (separable) entries.push({ part: 'body', field: 'separable', value: separable });
-    const possibleCodes = new Set((clause.match(/(?:플라스틱|비닐류)(?:\s+(?:PET|PP|HDPE|LDPE|PE|PS|OTHER)\b|\s*\((?:PET|PP|HDPE|LDPE|PE|PS|OTHER)\))|\b(?:PP|HDPE|LDPE|PE|PS|PET)\b|무색\s*페트|일반팩|멸균팩|종이팩|비닐류/gi) || [])
+    const possibleCodes = new Set((clause.match(/(?:플라스틱|비닐류)(?:\s+(?:PET|PP|HDPE|LDPE|PE|PS|OTHER)\b|\s*\((?:PET|PP|HDPE|LDPE|PE|PS|OTHER)\))|\b(?:PP|HDPE|LDPE|PE|PS|PET)\b|무색\s*페트|일반팩|멸균팩|종이팩|비닐류|도포\s*[·ㆍ･・⋅./]?\s*첩합/gi) || [])
       .map(code => code.toUpperCase().replace(/무색\s*페트/, '무색페트')));
     const markText = prefix ? clause.slice(prefix[0].length) : '';
-    if (/^비닐(?:이에요|입니다|이고|이예요|$)/.test(markText)) entries.push({ part, targetLabel, field: 'material', value: '비닐', type: 'packaging' });
-    else if (!/표시.{0,9}없|표기가?\s*없|또는|[\/]\s*(?:PP|PE|PS|PET)\b/i.test(clause)) {
+    if (!/표시.{0,9}없|표기가?\s*없|또는|[\/]\s*(?:PP|PE|PS|PET)\b/i.test(clause)) {
       if (possibleCodes.has('무색페트')) possibleCodes.delete('PET');
-      for (const code of possibleCodes) {
+      const laminate = !/붙어\s*있지\s*않|표시[^,.]{0,10}없/.test(clause)
+        && /표시|마크|인쇄|적혀|써\s*있|^\s*도포|[:：]/.test(clause) && [...possibleCodes].find(laminatedMark);
+      if (!laminate) for (const code of possibleCodes) if (laminatedMark(code)) possibleCodes.delete(code);
+      if (!laminate && /^비닐(?:이에요|입니다|이고|이예요|$)/.test(markText)) possibleCodes.add('비닐류');
+      for (const code of laminate ? [laminate] : possibleCodes) {
         const mark = confirmedPhotoMark(code, part);
         if (mark) entries.push({ part, targetLabel, field: 'material', value: mark.material, type: mark.type });
       }

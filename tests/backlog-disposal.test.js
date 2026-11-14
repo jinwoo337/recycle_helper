@@ -8,6 +8,7 @@ import { itemPresetInput } from '../src/domain/disposal/input-presets.js';
 import { lookupItem, searchItemNames } from '../src/domain/disposal/item-suggestions.js';
 import { applyRegionalRules } from '../src/domain/disposal/regions.js';
 import { GEL_ICE_PACK_SOURCE } from '../src/domain/disposal/catalog-sources.js';
+import { confirmedPhotoMark } from '../src/domain/disposal/recycle-marks.js';
 import { nextRegularDisposal, yuseongRecyclingDays } from '../src/domain/disposal/yuseong-recycling-days.js';
 import { rankCollectionPoints, verifiedCollectionPoints } from '../src/domain/disposal/verified-collection-points.js';
 import { resultMarkup } from '../src/pages/item-input/item-input.js';
@@ -354,6 +355,24 @@ test('유성구는 온전한 조명과 전지의 전용 수거를 파손·일체
   assert.equal(judgeDisposal({ itemName: '건전지', region, handlingCondition: 'damaged' }).confirmedCollection, undefined);
   const pet = judgeDisposal({ ...itemPresetInput('투명생수병'), contaminated: 'no', combined: 'no', region });
   assert.match(pet.steps.join(' '), /투명 페트병 전용 수거함/);
+});
+
+test('도포·첩합 표시를 확인한 포장 부위만 일반 종량제봉투로 판별한다', () => {
+  const mark = confirmedPhotoMark('포장 필름: 도포·첩합', 'film');
+  assert.deepEqual(mark, { material: '기타', type: 'laminated' });
+  assert.equal(confirmedPhotoMark('재활용 어려움', 'film'), null);
+  assert.notEqual(confirmedPhotoMark('비닐류 OTHER', 'film').type, 'laminated');
+  assert.equal(observationsFromDescription('필름에 도포 · 첩합 표시가 없어요.').length, 0);
+  const notes = observationsFromDescription('본체에는 PP가 적혀 있어요. 포장 필름에는 도포 · 첩합 표시가 있어요.');
+  assert.deepEqual(notes.map(({ part, value, type }) => [part, value, type]), [['body', '플라스틱', undefined], ['film', '기타', 'laminated']]);
+  const region = { province: '대전광역시', district: '유성구' };
+  const input = { ...itemPresetInput('플라스틱용기'), contaminated: 'no', combined: 'yes', separable: 'yes', components: [{ label: '포장 필름', ...mark }], region };
+  const result = judgeDisposal(input);
+  assert.equal(result.status, 'mixed');
+  assert.match(result.parts[1].method, /도포·첩합 포장재/);
+  assert.equal(result.disposalSchedule.rows[0].appliesTo, '포장 필름');
+  assert.ok(result.sourceUrls.some(url => url.endsWith('/recyclingRank.do')));
+  assert.equal(judgeDisposal({ itemName: '휴대폰', category: 'packaging', ...mark }).status, 'check');
 });
 
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {
