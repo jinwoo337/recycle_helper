@@ -316,7 +316,9 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     } else if (input.material === '비닐' && input.type === 'packaging' && input.combined === 'no' && !usesSeoulVinylQuestions(region)
         && (['recycle', 'general'].includes(result.status) || result.pendingCondition === 'removable')) {
       const note = '도봉구는 이물질을 완전히 제거한 비닐만 투명봉투에 모아 배출해요.';
-      const reason = result.status === 'general' ? '도봉구는 이물질이 묻은 비닐을 종량제봉투로 안내해요.' : `${note} ${result.reasons[0]}`;
+      const reason = result.status === 'general' ? '도봉구는 이물질이 묻은 비닐을 종량제봉투로 안내해요.'
+        : result.pendingCondition === 'removable' ? '도봉구는 이물질이 남은 비닐을 받지 않아서 제거할 수 있는지 확인해야 해요.'
+          : note;
       applyLocalMethod({ method: result.method, reason, steps: result.steps, status: result.status, pendingCondition: result.pendingCondition,
         source: REGIONAL_SOURCES.dobongWaste, note, key: result.regional.comparisonKey });
     } else if (input.material === '비닐' && input.type === 'packaging' && input.combined === 'no' && input.contaminated === 'no' && result.status === 'recycle') {
@@ -333,13 +335,20 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
           result.reasons = ['고형물이 남아 있어 헹궈 제거한 뒤 배출해야 해요. 기름·물 자국만 남는 것은 수거할 수 있어요.'];
           result.steps = ['내용물을 비우고 음식물·소스 등 고형물을 물로 헹궈 제거해 주세요.', '고형물을 제거한 뒤 전용봉투 또는 투명 봉투에 비닐끼리 모아 배출해 주세요. 제거되지 않으면 구청·관리사무소에 수거 방법을 확인해 주세요.'];
         } else {
-          result.status = 'check'; result.method = '비닐의 내용물·고형물 확인 필요 · 서울시 안내';
+          result.status = 'check'; result.method = input.vinylResidue !== 'solids'
+            ? '비닐의 내용물·고형물 확인 필요 · 서울시 안내'
+            : input.removable === 'no' ? '고형물이 남은 비닐 · 지역 배출 방법 확인'
+              : '비닐에 남은 고형물 제거 가능 여부 확인';
           if (input.vinylResidue !== 'solids') result.pendingCondition = 'vinyl-residue';
           else if (!['yes', 'no'].includes(input.removable)) result.pendingCondition = 'removable';
           result.reasons = [input.vinylResidue !== 'solids' ? '서울시는 기름·물 자국과 고형물이 남은 경우를 다르게 안내해요.'
             : input.removable === 'no' ? '제거하기 어려운 고형물이 남아 있어 구별 수거 기준을 확인해야 해요.'
               : '고형물을 제거할 수 있는지 확인해야 비닐류로 배출할 수 있는지 알 수 있어요.'];
-          result.steps = ['비닐에 남은 것이 기름·물 자국인지 고형물인지 확인해 주세요.', '음식물·소스·부스러기는 비우거나 헹궈 제거해 주세요. 제거되지 않는 고형물은 구청·관리사무소에 수거 방법을 확인해 주세요.'];
+          result.steps = input.vinylResidue !== 'solids'
+            ? ['내용물을 비우고 비닐에 남은 것이 기름·물 자국인지 고형물인지 확인해 주세요.']
+            : input.removable === 'no'
+              ? ['제거하기 어려운 고형물이 붙은 비닐은 관할 구청이나 관리사무소에 배출 방법을 확인해 주세요.']
+              : ['음식물·소스·부스러기를 비우거나 헹궈 제거할 수 있는지 확인해 주세요.'];
         }
         result.parts[0] = { label: result.parts[0].label, material: result.parts[0].material, status: result.status, method: result.method, reasons: [...result.reasons], steps: [...result.steps] };
       }

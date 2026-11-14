@@ -176,6 +176,11 @@ test('서울 비닐에서 고형물을 확인했으면 제거 가능 여부를 �
   const result = judgeDisposal(input);
   assert.equal(result.pendingCondition, 'removable');
   assert.match(result.reasons[0], /제거할 수 있는지 확인/);
+  assert.match(result.steps[0], /부스러기를 비우거나 헹궈 제거할 수 있는지/);
+  assert.doesNotMatch(result.steps.join(' '), /자국인지 고형물인지/);
+  const fixed = judgeDisposal({ ...input, removable: 'no' });
+  assert.equal(fixed.pendingCondition, undefined);
+  assert.match(fixed.steps[0], /관할 구청이나 관리사무소/);
 });
 
 test('연습 종료 안내는 회원에게 불필요한 로그인을 요구하지 않는다', () => {
