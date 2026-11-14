@@ -337,6 +337,25 @@ test('유성구 스프링 펌프는 단독과 샴푸통 부속품에서 같은 �
   assert.doesNotMatch(resultToText(input, result), /펌프 · 지역 배출 기준 확인/);
 });
 
+test('유성구는 온전한 조명과 전지의 전용 수거를 파손·일체형 제품과 구분한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  for (const itemName of ['LED전구', '직관형LED램프', '형광등']) {
+    const result = judgeDisposal({ itemName, region });
+    assert.equal(result.confirmedCollection, true);
+    assert.match(result.method, /유성구 형광등 전용 수거함/);
+  }
+  assert.ok(judgeDisposal({ itemName: 'LED조명', region }).itemCandidates.includes('일체형LED등기구'));
+  for (const itemName of ['평판형LED조명', '깨진전구', '깨진형광등']) {
+    const result = judgeDisposal({ itemName, region });
+    assert.equal(result.confirmedCollection, undefined);
+  }
+  assert.equal(judgeDisposal({ itemName: '건전지', region }).confirmedCollection, undefined);
+  assert.equal(judgeDisposal({ itemName: '건전지', region, handlingCondition: 'undamaged' }).confirmedCollection, true);
+  assert.equal(judgeDisposal({ itemName: '건전지', region, handlingCondition: 'damaged' }).confirmedCollection, undefined);
+  const pet = judgeDisposal({ ...itemPresetInput('투명생수병'), contaminated: 'no', combined: 'no', region });
+  assert.match(pet.steps.join(' '), /투명 페트병 전용 수거함/);
+});
+
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {
   const input = { ...itemPresetInput('투명생수병'), contaminated: 'no', region: seoul,
     components: [{ label: '비닐 라벨', material: '비닐', type: 'packaging', contaminated: 'yes',

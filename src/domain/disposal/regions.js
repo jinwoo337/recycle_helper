@@ -7,7 +7,7 @@ import { MEDICINE_SAFETY_STEPS, MEDICINE_SOURCES, medicineRegionalGuidance } fro
 import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } from './metro-guides.js';
 import { CITY_GUIDES } from './city-guides.js';
 import { usesGelIcePackCondition } from './special-guides.js';
-import { normalizeItemName } from './item-suggestions.js';
+import { lookupItem, normalizeItemName } from './item-suggestions.js';
 import { APARTMENT_CARTON_SOURCE, SHAMPOO_SOURCE } from './catalog-sources.js';
 export { METRO_DISTRICTS } from './metro-guides.js';
 export const citySuggestionsFor = province => Object.keys(CITY_GUIDES[province] || {});
@@ -72,6 +72,9 @@ export const REGIONAL_SOURCES = {
   geumcheonFood: 'https://geumcheon.go.kr/portal/contents.do?key=818',
   yuseongWaste: YUSEONG_WASTE_GUIDE,
   yuseongCenters: 'https://www.yuseong.go.kr/kor/sub06_04.do',
+  yuseongLed: 'https://www.yuseong.go.kr/bbs/BBSMSTR_000000000138/view.do?nttId=B000000142652Oo6eB7',
+  yuseongBattery: 'https://www.yuseong.go.kr/bbs/BBSMSTR_000000000138/view.do?nttId=B000000142344Wo1nO5',
+  daejeonClearPet: 'https://www.daejeon.go.kr/drh/administration/board/boardGalleryView.do?boardId=gallery_0033&menuSeq=7795&ntatcSeq=1485905443&pageIndex=1',
   yuseongLargeFees: 'https://www.yuseong.go.kr/clean/html/sub02/02.html',
   ...Object.fromEntries(Object.entries(MEDICINE_SOURCES).map(([key, url]) => [`medicine-${key}`, url])),
 };
@@ -91,6 +94,9 @@ const sourceDetails = {
   [REGIONAL_SOURCES.gyeonggiGwangjuIcePack]: { scope: '경기도 광주시' },
   [REGIONAL_SOURCES.gyeonggiGwangjuRecycle]: { scope: '경기도 광주시' },
   [REGIONAL_SOURCES.yuseongWaste]: { scope: '대전광역시 유성구' },
+  [REGIONAL_SOURCES.yuseongLed]: { scope: '대전광역시 유성구', published: '2026-06-22' },
+  [REGIONAL_SOURCES.yuseongBattery]: { scope: '대전광역시 유성구', published: '2026-06-05' },
+  [REGIONAL_SOURCES.daejeonClearPet]: { scope: '대전광역시', published: '2025-06-25' },
   [MEDICINE_SOURCES.guri]: { scope: '경기도 구리시', published: '2026-02-19' },
   [MEDICINE_SOURCES.seongnam]: { scope: '경기도 성남시', published: '2026-08-25' },
 };
@@ -121,6 +127,9 @@ export function regionalSourceLabel(url) {
   if (url === MEDICINE_SOURCES.seongnam) return '성남시 폐의약품 수거함 설치 안내';
   if (url === REGIONAL_SOURCES.yuseongWaste) return '유성구 · 생활쓰레기 배출 시간과 장소';
   if (url === REGIONAL_SOURCES.yuseongCenters) return '유성구 · 동 행정복지센터 위치';
+  if (url === REGIONAL_SOURCES.yuseongLed) return '유성구 · 폐LED 조명 수거';
+  if (url === REGIONAL_SOURCES.yuseongBattery) return '유성구 · 폐건전지 수거 안내';
+  if (url === REGIONAL_SOURCES.daejeonClearPet) return '대전시 · 투명 페트병 별도 배출';
   if (url === REGIONAL_SOURCES.yuseongLargeFees) return '유성구 대형폐기물 품목·수수료표';
   const seoulLabels = { recycle: '서울시 분리배출 안내', vinyl: '서울시 폐비닐 안내', scope: '서울시 자치구 적용 범위', food: '서울시 음식물 RFID 안내' };
   for (const [key, source] of Object.entries(SEOUL_SOURCES)) if (url === source) return seoulLabels[key];
@@ -436,6 +445,32 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     if (input.type === 'residue') result.regional.comparisonKey = 'food:geumcheon-residue';
   }
   const daejeon = region?.province === '대전광역시' && DAEJEON_GUIDES[region.district];
+  if (yuseong && ['fluorescent', 'led'].includes(result.handling) && lookupItem(input.itemName)?.handling === result.handling) {
+    const led = result.handling === 'led';
+    applyLocalMethod({
+      method: `${led ? '온전한 전구형·직관형 LED' : '온전한 형광등'} · 유성구 형광등 전용 수거함`,
+      reason: '유성구는 깨지지 않은 형광등과 대상 LED 램프를 형광등 전용 수거함으로 모아요.',
+      steps: ['깨지지 않게 보호해 주세요. 이미 깨졌다면 이 수거함에 넣지 말고 깨진 조명 안내를 이용하세요.', '행정복지센터나 공원 등에 설치된 폐형광등 전용 수거함에 넣어 주세요.'],
+      source: led ? REGIONAL_SOURCES.yuseongLed : YUSEONG_WASTE_GUIDE, note: '유성구청에서 안내한 전용 수거함을 이용해 주세요.',
+      key: led ? 'lamp:yuseong-led' : 'lamp:yuseong-fluorescent',
+    });
+    result.confirmedCollection = true;
+  } else if (yuseong && result.handling === 'led-fixture') {
+    applyLocalMethod({
+      method: '일체형 LED 등기구 · 유성구 생활폐기물봉투 또는 대형폐기물',
+      reason: '유성구 폐LED 안내는 일체형 등기구를 폐형광등 전용 수거 대상에서 제외해요.',
+      steps: ['등기구를 임의로 분해하지 마세요.', '봉투에 들어가는 제품은 구청에 등기구 재질을 알려 종량제봉투·마대 종류를 확인해 주세요. 봉투에 담기 어려우면 대형폐기물 접수 품목을 확인해 주세요.'],
+      source: REGIONAL_SOURCES.yuseongLed, note: '평판형·십자형·일자형·원반형은 구청 안내의 전용 수거 제외 형태예요.', key: 'lamp:yuseong-fixture',
+    });
+  } else if (yuseong && result.handling === 'battery' && input.handlingCondition === 'undamaged') {
+    applyLocalMethod({
+      method: '온전한 폐건전지 · 유성구 폐건전지 전용 수거함',
+      reason: '유성구는 건전지를 다른 생활쓰레기와 분리해 전용 수거함으로 모아요.',
+      steps: [...result.steps.slice(0, -1), '행정복지센터나 공원 등에 설치된 폐건전지 전용 수거함에 넣어 주세요.'],
+      source: REGIONAL_SOURCES.yuseongBattery, note: '손상이나 누액이 생겼다면 일반 폐건전지 수거함에 넣기 전에 회수 방법을 문의해 주세요.', key: 'battery:yuseong-undamaged',
+    });
+    result.confirmedCollection = true;
+  }
   if (daejeon && single) {
     if (result.handling === 'large' && region.district === '유성구' && /책상/.test(input.itemName || '')) {
       result.method = '책상 · 유성구 대형폐기물 품목 확인 후 신청';
@@ -502,6 +537,14 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
   // 부속품마다 다른 지역 문장을 섞으면 헷갈리므로 본체 재질의 문장 하나만 더합니다.
   const separated = input.combined === 'yes' && input.separable === 'yes' && input.components?.length
     && result.parts[0]?.label === '본체' && result.parts[0].status === 'recycle';
+  if (daejeon && input.material === '페트병' && input.type === 'clear-drink' && result.parts[0]?.status === 'recycle'
+      && (separated || input.combined === 'no')) {
+    set(REGIONAL_SOURCES.daejeonClearPet, '무색 생수·음료 페트병은 내용물을 비우고 라벨을 떼어 투명 페트병 전용 수거함으로 배출해 주세요.', 'pet:daejeon-separate');
+    if (separated) {
+      const note = daejeonRecycleNote(daejeon, input);
+      if (note) set(daejeon.recycle, note);
+    }
+  }
   if (separated && result.regional.coverage !== 'verified') {
     if (region?.province === '서울특별시') {
       const key = seoulRecycleKey(input);

@@ -57,6 +57,16 @@ export function collectionAction(input, result) {
     return { url: REGIONAL_SOURCES.yuseongCenters, scope, label: '동 행정복지센터 위치 보기',
       note: '비우고 헹궈 말린 종이팩은 동 행정복지센터에서 화장지로 교환할 수 있어요. 교환 수량과 운영시간은 방문할 센터에 문의해 주세요.' };
   }
+  if (regional?.comparisonKey === 'lamp:yuseong-led' || regional?.comparisonKey === 'lamp:yuseong-fixture') {
+    return { url: REGIONAL_SOURCES.yuseongLed, scope, label: '유성구 폐LED 조명 형태별 안내',
+      ...(result.confirmedCollection ? { extraUrl: REGIONAL_SOURCES.yuseongCenters, extraLabel: '동 행정복지센터 위치' }
+        : { office: '유성구청 폐기물 문의', phone: '042-611-2344' }),
+      note: result.confirmedCollection ? '동 행정복지센터와 공원 등의 폐형광등 수거함을 이용하세요.' : '봉투 종류는 재질과 크기에 따라 달라요.' };
+  }
+  if (regional?.comparisonKey === 'battery:yuseong-undamaged') {
+    return { url: REGIONAL_SOURCES.yuseongBattery, scope, label: '유성구 폐건전지 분리배출 안내',
+      extraUrl: REGIONAL_SOURCES.yuseongCenters, extraLabel: '동 행정복지센터 위치', note: '온전한 전지만 폐건전지 수거함에 넣어 주세요.' };
+  }
   if (region?.province === '대전광역시' && region.district === '유성구' && ['medicine', 'fluorescent', 'battery'].includes(handling)) {
     const labels = { medicine: '폐의약품', fluorescent: '폐형광등', battery: '폐건전지' };
     return {
