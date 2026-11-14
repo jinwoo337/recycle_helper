@@ -48,6 +48,15 @@ export function collectionAction(input, result) {
     return { url: REGIONAL_SOURCES.gyeonggiGwangjuIcePack, scope, label: '경기 광주시 젤 아이스팩 수거함 위치',
       note: '깨끗하고 터지지 않은 젤 아이스팩을 받는 곳을 확인해 주세요.' };
   }
+  if (['glass:yuseong-sack', 'ceramic:yuseong-sack'].includes(regional?.comparisonKey)) {
+    return { url: REGIONAL_SOURCES.yuseongCenters, scope, label: '특수규격봉투를 파는 동 행정복지센터',
+      extraUrl: YUSEONG_COLLECTION_GUIDE, extraLabel: '특수규격봉투 배출·신고 안내',
+      office: '유성구청 불연성폐기물 문의', phone: '042-611-2344', note: '봉투에 적힌 수거업체에 배출을 신고해 주세요.' };
+  }
+  if (regional?.comparisonKey?.startsWith('carton:yuseong-drop-off')) {
+    return { url: REGIONAL_SOURCES.yuseongCenters, scope, label: '동 행정복지센터 위치 보기',
+      note: '비우고 헹궈 말린 종이팩은 동 행정복지센터에서 화장지로 교환할 수 있어요. 교환 수량과 운영시간은 방문할 센터에 문의해 주세요.' };
+  }
   if (region?.province === '대전광역시' && region.district === '유성구' && ['medicine', 'fluorescent', 'battery'].includes(handling)) {
     const labels = { medicine: '폐의약품', fluorescent: '폐형광등', battery: '폐건전지' };
     return {

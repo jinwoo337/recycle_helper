@@ -235,9 +235,22 @@ test('유성구 배출 일정은 일반 종량제봉투나 일반 재활용품�
     assert.equal(local.disposalSchedule, undefined);
     assert.match(local.method, /특수규격봉투\(마대\)/);
     assert.match(local.steps.join(' '), /수거업체에 신고/);
+    assert.match(resultMarkup({ itemName, region }, local), /특수규격봉투를 파는 동 행정복지센터[\s\S]*042-611-2344/);
   }
   assert.equal(judgeDisposal({ itemName: '알약', region }).disposalSchedule, undefined);
   assert.equal(judgeDisposal({ itemName: '물티슈낱장' }).disposalSchedule, undefined);
+});
+
+test('유성구 종이팩은 센터 교환 경로를 안내하고 공동주택 시행일을 구분한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  const input = { ...itemPresetInput('우유팩'), itemName: '우유팩', contaminated: 'no', combined: 'no', region };
+  const base = judgeDisposal({ ...input, region: null });
+  const current = judgeDisposal(input);
+  assert.match(current.steps.join(' '), /종이팩 교환 창구/);
+  assert.match(resultMarkup(input, current), /동 행정복지센터 위치 보기/);
+  assert.doesNotMatch(applyRegionalRules(input, base, '2026-09-30').steps.join(' '), /자율 시행/);
+  assert.match(applyRegionalRules(input, base, '2026-10-01').steps.join(' '), /자율 시행/);
+  assert.match(applyRegionalRules(input, base, '2027-01-01').steps.join(' '), /2027년 1월 1일부터 종이팩 별도 배출/);
 });
 
 test('유성구 약 수거함 시설만 지도 목록에 표시하고 위치를 주면 가까운 순으로 안내한다', () => {

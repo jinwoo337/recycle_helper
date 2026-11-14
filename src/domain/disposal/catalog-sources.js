@@ -10,6 +10,7 @@ export const GEL_ICE_PACK_SOURCE = 'https://www.wasteguide.or.kr/front/discharge
 export const ALUMINUM_CAPSULE_SOURCE = 'https://www.koreapost.go.kr/user/extra/kpost/99/1205/bbs/pressRelease/pressReleaseView/jsp/ExtraUser.do?bbsDataIdx=100087072';
 export const MIXED_CAPSULE_SOURCE = 'https://www.kca.go.kr/smartconsumer/sub.do?cate2=00000406&menukey=7800&mode=view&no=1003195658&page=18';
 export const RECYCLING_APPENDIX_SOURCE = 'https://www.law.go.kr/flDownload.do?bylClsCd=200201&flSeq=160907851';
+export const APARTMENT_CARTON_SOURCE = 'https://www.korea.kr/multi/visualNewsView.do?newsId=148973111';
 // 실제 검토한 공개 자료만 결과 화면의 출처로 허용합니다.
 export const CATALOG_DETAIL_SOURCES = {
   [PAPER_DISPOSAL_SOURCE]: '분리배출 누리집 · 종이, 택배 송장, 감열 영수증',
@@ -34,6 +35,7 @@ export const CATALOG_DETAIL_SOURCES = {
   [ALUMINUM_CAPSULE_SOURCE]: '우정사업본부 · 알루미늄 커피캡슐 회수',
   [MIXED_CAPSULE_SOURCE]: '한국소비자원 · 커피캡슐 재질 조사',
   [RECYCLING_APPENDIX_SOURCE]: '기후에너지환경부 · 재활용가능자원 분리수거 지침 별표 1',
+  [APARTMENT_CARTON_SOURCE]: '기후에너지환경부 · 공동주택 종이팩 별도 배출',
   'https://clean.yongsan.go.kr/resources/images/user/recycleExhaust.pdf': '재활용품 분리배출 가이드라인 · 나무젓가락',
   'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=416': '품목사전 · 작은 플라스틱 숟가락',
   'https://wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=775': '품목사전 · 목재 숟가락',

@@ -8,6 +8,7 @@ import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } f
 import { CITY_GUIDES } from './city-guides.js';
 import { usesGelIcePackCondition } from './special-guides.js';
 import { normalizeItemName } from './item-suggestions.js';
+import { APARTMENT_CARTON_SOURCE } from './catalog-sources.js';
 export { METRO_DISTRICTS } from './metro-guides.js';
 export const citySuggestionsFor = province => Object.keys(CITY_GUIDES[province] || {});
 export const districtsFor = province => province === '서울특별시' ? SEOUL_DISTRICTS
@@ -70,6 +71,7 @@ export const REGIONAL_SOURCES = {
   seongnamCarton: 'https://snvision.seongnam.go.kr/data/snvision/pdf/202604/2026043022123157.pdf',
   geumcheonFood: 'https://geumcheon.go.kr/portal/contents.do?key=818',
   yuseongWaste: YUSEONG_WASTE_GUIDE,
+  yuseongCenters: 'https://www.yuseong.go.kr/kor/sub06_04.do',
   yuseongLargeFees: 'https://www.yuseong.go.kr/clean/html/sub02/02.html',
   ...Object.fromEntries(Object.entries(MEDICINE_SOURCES).map(([key, url]) => [`medicine-${key}`, url])),
 };
@@ -118,6 +120,7 @@ export function regionalSourceLabel(url) {
   if (url === MEDICINE_SOURCES.guri) return '구리시보건소 폐의약품 수거 안내';
   if (url === MEDICINE_SOURCES.seongnam) return '성남시 폐의약품 수거함 설치 안내';
   if (url === REGIONAL_SOURCES.yuseongWaste) return '유성구 · 생활쓰레기 배출 시간과 장소';
+  if (url === REGIONAL_SOURCES.yuseongCenters) return '유성구 · 동 행정복지센터 위치';
   if (url === REGIONAL_SOURCES.yuseongLargeFees) return '유성구 대형폐기물 품목·수수료표';
   const seoulLabels = { recycle: '서울시 분리배출 안내', vinyl: '서울시 폐비닐 안내', scope: '서울시 자치구 적용 범위', food: '서울시 음식물 RFID 안내' };
   for (const [key, source] of Object.entries(SEOUL_SOURCES)) if (url === source) return seoulLabels[key];
@@ -203,6 +206,11 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       reason: '노원구는 일반 폐지와 종이팩을 따로 수거해요.',
       route: '종이팩 전용 수거함을 이용해 주세요. 전용함이 없으면 일반 종이와 구분해 투명봉투에 담아 지정 장소에 내놓아요.',
     },
+    '대전광역시 유성구': {
+      source: DAEJEON_GUIDES.유성구.recycle, key: 'carton:yuseong-drop-off',
+      reason: '유성구는 우유팩·두유팩·음료팩을 일반 종이와 따로 모으고 동 행정복지센터의 종이팩 교환도 안내해요.',
+      route: '종이팩 전용함에 배출하거나 모아서 동 행정복지센터의 종이팩 교환 창구에 가져갈 수 있어요.',
+    },
   })[result.regional.label];
   const localCarton = cartonRule && asOf >= (sourceDetails[cartonRule.source]?.effective || '');
   if (localCarton) {
@@ -211,12 +219,21 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
     const steps = [...body.steps.slice(0, -1), '내용물을 비우고 깨끗하게 헹궈 말려 주세요.', route];
     const note = '붙어 있던 빨대·비닐 등 다른 재질은 따로 배출해 주세요.';
     if (detachedCarton) {
+      result.steps = result.steps.filter(step => !body.steps.includes(step));
       result.parts[0] = { ...body, reasons: [reason, ...body.reasons], steps };
       result.regional.checkedAt = '2026-11-14';
       set(source, note, key);
     } else {
       applyLocalMethod({ method: result.method, reason, steps, status: result.status, source, note, key });
     }
+  }
+  if (carton && (input.combined === 'no' || detachedCarton) && asOf >= '2026-10-01') {
+    const notice = asOf >= '2027-01-01'
+      ? '의무관리대상 공동주택은 2027년 1월 1일부터 종이팩 별도 배출을 시행해요. 단지 종이팩 전용함이나 전용봉투를 이용해 주세요.'
+      : '2026년 10월부터 자율 시행 중인 의무관리대상 공동주택은 단지 종이팩 전용함이나 전용봉투를 이용해 주세요. 전면 시행일은 2027년 1월 1일이에요.';
+    result.parts[0].steps = [...new Set([...result.parts[0].steps, notice])];
+    if (!detachedCarton) result.steps = [...new Set([...result.steps, notice])];
+    result.sourceUrls = [...new Set([...result.sourceUrls, APARTMENT_CARTON_SOURCE])];
   }
   const medicine = region && result.handling === 'medicine' && medicineRegionalGuidance(region, input.itemName);
   if (medicine) {
@@ -477,7 +494,7 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       set(daejeon.recycle, daejeon.vinyl);
     } else if (result.status === 'recycle' && input.combined === 'no') {
       const note = daejeonRecycleNote(daejeon, input);
-      if (note) set(daejeon.recycle, note, daejeonComparisonKey(region.district, input));
+      if (note && !localCarton) set(daejeon.recycle, note, daejeonComparisonKey(region.district, input));
     }
   }
   // 라벨·뚜껑을 떼어 각각 분리배출하는 물건(예: 라벨 붙은 생수병)도 본체에는 지역 기준을 붙입니다.
