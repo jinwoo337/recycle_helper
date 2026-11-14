@@ -25,6 +25,7 @@
 9. 유성구의 소량 복합재질 펌프 안내를 대전시 자료와 전국 지침에서 재검증한다. 스프링이 명시된 펌프와 용기 본체를 함께 입력해도 각각 배출 방법이 나오도록 한다. 색상이 물건 이름이나 설명에 명시된 스티로폼의 중복 질문을 줄인다.
 10. 유성구청 폐LED·폐건전지 안내에 따라 정상 조명의 형태와 폐전지의 손상 상태를 구분한다. 대전시 투명 페트병 안내를 지역 판별에 적용하고 일반 용기류와 다른 수거 방법을 표시한다.
 11. 실제 포장에 인쇄된 도포·첩합 표시는 수동 선택과 사진 확인에서 해당 부위의 일반 배출 판정에 사용한다. OTHER 및 재활용 용이성 등급과 구분한다.
+12. 아이스팩의 냉매와 겉포장 표시를 구분한다. 물·젤을 아직 확인하지 않은 유성구 사용자는 두 경로를 바로 볼 수 있게 하고, 물 팩은 비닐류·도포첩합 등 확인된 겉포장에 따라 판별한다.
 
 ## 검증과 배포
 
@@ -46,3 +47,4 @@
 - `v43`에서 유성구의 가정용 복합재질 펌프는 용기와 떼어 일반 종량제봉투에 넣도록 표시한다. 샴푸통 본체를 함께 판별한 경우 본체와 펌프의 일정이 각각 나온다. 이름이나 설명에서 확인한 포장용 스티로폼 색상도 사용한다. [샴푸 품목사전](https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=590) · [유성구 일반쓰레기 안내](https://www.yuseong.go.kr/kor/sub07_11_03_09.do)
 - `v44`에서 유성구의 전구형·대체형 직관 LED와 정상 형광등은 폐형광등 전용 수거함, 온전한 건전지는 폐건전지 수거함으로 안내한다. 일체형 등기구는 재질·크기별 생활폐기물 경로를 별도로 안내한다. 대전 5개 구에는 무색 생수·음료 PET 전용 수거를 적용한다. [유성구 폐LED 안내](https://www.yuseong.go.kr/bbs/BBSMSTR_000000000138/view.do?nttId=B000000142652Oo6eB7) · [유성구 폐건전지 안내](https://www.yuseong.go.kr/bbs/BBSMSTR_000000000138/view.do?nttId=B000000142344Wo1nO5) · [대전시 투명 페트병 안내](https://www.daejeon.go.kr/drh/administration/board/boardGalleryView.do?boardId=gallery_0033&menuSeq=7795&ntatcSeq=1485905443&pageIndex=1)
 - `v45`에서 도포·첩합 표시를 수동 선택, 설명, 사진 확인에 추가한다. 본체가 재활용품이어도 필름에 표시가 있으면 필름은 종량제봉투에 배출하도록 표시한다. [분리배출 누리집 도포·첩합 표시](https://www.wasteguide.or.kr/front/summary/recyclingRank.do)
+- `v46`에서 유성구 물 아이스팩의 겉포장 표시를 고르면 비닐류와 일반 종량제봉투의 배출 일정으로 이어진다. 냉매 선택 화면에도 젤 팩과 물 팩의 처리 차이를 표시한다. [물 아이스팩 품목사전](https://www.wasteguide.or.kr/front/dischargeMethod/dictionaryView.do?niIdx=779) · [유성구 필름류 배출 안내](https://www.yuseong.go.kr/kor/sub07_11_03_03.do)

@@ -8,7 +8,7 @@ import { METRO_GUIDES, METRO_DISTRICTS, METRO_CITY_SOURCES, METRO_CHECKED_AT } f
 import { CITY_GUIDES } from './city-guides.js';
 import { usesGelIcePackCondition } from './special-guides.js';
 import { lookupItem, normalizeItemName } from './item-suggestions.js';
-import { APARTMENT_CARTON_SOURCE, SHAMPOO_SOURCE } from './catalog-sources.js';
+import { APARTMENT_CARTON_SOURCE, LAMINATED_MARK_SOURCE, SHAMPOO_SOURCE, WATER_ICE_PACK_SOURCE } from './catalog-sources.js';
 export { METRO_DISTRICTS } from './metro-guides.js';
 export const citySuggestionsFor = province => Object.keys(CITY_GUIDES[province] || {});
 export const districtsFor = province => province === '서울특별시' ? SEOUL_DISTRICTS
@@ -293,6 +293,25 @@ export function applyRegionalRules(input, base, asOf = dateFormat.format(new Dat
       status: 'general', source: REGIONAL_SOURCES.yuseongWaste,
       note: '유성구청의 일반쓰레기 시간·장소와 분리배출 품목사전의 젤 아이스팩 배출 방법을 적용했어요.', key: 'ice-pack:reuse-or-volume-bag',
     });
+  }
+  if (result.handling === 'water-ice-pack' && yuseong) {
+    const preparation = '내용물이 물이라고 표시된 팩만 잘라 물을 하수구에 비워 주세요.';
+    const laminated = input.handlingCondition === 'ice-laminated';
+    if (laminated || input.handlingCondition === 'ice-vinyl') {
+      const source = laminated ? YUSEONG_WASTE_GUIDE : DAEJEON_GUIDES.유성구.recycle;
+      applyLocalMethod({
+        method: laminated ? '물 아이스팩 도포·첩합 겉포장 · 유성구 일반 종량제봉투' : '물 아이스팩 · 물을 비우고 겉포장은 비닐류로 배출',
+        reason: laminated ? '도포·첩합 표시가 있는 겉포장은 물을 비운 뒤 일반쓰레기로 배출해요.' : '물을 비우고 오염이 없는 비닐 겉포장은 유성구의 비닐류 배출로 안내해요.',
+        steps: [preparation, laminated ? '빈 겉포장을 유성구 일반 종량제봉투에 넣어 주세요.' : '깨끗한 겉포장은 비닐류끼리 투명봉투에 모아 배출해 주세요.'],
+        status: laminated ? 'general' : 'recycle', source, note: '물 아이스팩의 냉매와 겉포장을 분리해 배출해 주세요.',
+        key: laminated ? 'ice-pack:yuseong-laminated' : 'ice-pack:yuseong-vinyl',
+      });
+      result.sourceUrls = [...new Set([...result.sourceUrls, WATER_ICE_PACK_SOURCE, ...(laminated ? [LAMINATED_MARK_SOURCE] : [])])];
+    } else {
+      applyLocalMethod({ method: '물 아이스팩 · 물을 비우고 겉포장 표시 확인', reason: '아이스팩의 물을 비운 뒤 겉포장 표시로 배출 방법을 정해요.',
+        steps: [preparation, '깨끗한 비닐류 표시는 비닐 수거로, 도포·첩합 표시는 유성구 일반 종량제봉투로 배출해요. 그 밖의 겉포장은 적힌 표시로 판별해 주세요.'],
+        pendingCondition: 'handling', source: DAEJEON_GUIDES.유성구.recycle, note: '유성구청의 필름류 포장재 기준을 적용했어요.', key: 'ice-pack:yuseong-wrapper' });
+    }
   }
   if (region?.province === '서울특별시' && region.district === '도봉구' && result.handling === 'gel-ice-pack'
       && asOf >= sourceDetails[REGIONAL_SOURCES.dobongIcePack].effective) {

@@ -25,7 +25,7 @@ import { judgementRegionMarkup, bindJudgementRegion } from '../../components/jud
 import { categoryLabel, categoryAllowsMaterial } from '../../domain/disposal/item-categories.js';
 import { disposalReasons, resultForDisplay, inputForDisplay, resultStepsForDisplay, conditionDetails, resultHandlingQuestion, resultPendingQuestions } from '../../domain/disposal/result-display.js';
 import { disposalScheduleMarkup } from '../../components/disposal-schedule.js';
-import { foamColorFromName } from '../../domain/disposal/daejeon-guides.js';
+import { foamColorFromName, isYuseong } from '../../domain/disposal/daejeon-guides.js';
 import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
@@ -744,7 +744,9 @@ export function bindItemInput() {
     const combined = supported && value('combined') === 'yes';
     const components = combined && value('separable') === 'yes';
     if (clarification) {
-      categoryGuidance.textContent = `${clarification.question} ${clarification.hint}`;
+      categoryGuidance.textContent = isYuseong(region) && clarification.variants.includes('젤아이스팩')
+        ? '팩에 적힌 냉매를 골라 주세요. 유성구에서는 젤 팩은 통째로 종량제봉투에 넣고, 물 팩은 물을 비운 뒤 겉포장을 배출해요. 냉매를 모르겠으면 팩을 뜯지 마세요.'
+        : `${clarification.question} ${clarification.hint}`;
     } else if (unregistered && !category.value) {
       if (choosingSpoon) categoryGuidance.textContent = '숟가락은 재질에 따라 배출 방법이 달라요. 실제 재질을 골라 주세요.';
       else if (itemList.length > 1) categoryGuidance.textContent = '여러 물건을 입력했어요. 먼저 확인할 물건을 골라 주세요.';

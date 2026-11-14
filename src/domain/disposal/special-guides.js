@@ -1,4 +1,5 @@
 import { MEDICINE_SAFETY_STEPS } from './medicine-guide.js';
+import { isYuseong } from './daejeon-guides.js';
 
 // 2026-10-27 확인: 분리배출 지침 별표 1 전지류·전기전자제품·조명제품.
 // 수거 장소와 손상 여부가 미확인이므로 status=check를 유지합니다.
@@ -43,12 +44,15 @@ const clothingCondition = { title: '의류·잡화 상태는 어떤가요?', opt
 const batteryCondition = { title: '전지가 부풀거나 새거나 깨졌나요?', options: [['undamaged', '손상이 없어요'], ['damaged', '손상이 있어요'], ['unknown', '모르겠어요']] };
 const gelIcePackCondition = { title: '젤 아이스팩이 깨끗하고 터지지 않았나요?',
   options: [['reusable', '깨끗하고 터지지 않았어요'], ['unusable', '오염됐거나 터졌어요'], ['unknown', '모르겠어요']] };
+const waterIcePackCondition = { title: '물이라고 적힌 아이스팩 겉면의 분리배출 표시는 무엇인가요?',
+  options: [['ice-vinyl', '비닐류 표시가 있어요'], ['ice-laminated', '도포·첩합 표시가 있어요'], ['unknown', '다른 표시이거나 모르겠어요']] };
 export const usesGelIcePackCondition = region => region?.province === '경기도' && region.district === '광주시';
 
 export function handlingConditionQuestion(handling, region) {
   if (handling === 'clothing') return clothingCondition;
   if (handling === 'battery' || handling === 'rechargeable') return batteryCondition;
   if (handling === 'gel-ice-pack' && usesGelIcePackCondition(region)) return gelIcePackCondition;
+  if (handling === 'water-ice-pack' && isYuseong(region)) return waterIcePackCondition;
   return null;
 }
 

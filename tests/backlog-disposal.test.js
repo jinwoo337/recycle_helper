@@ -375,6 +375,19 @@ test('도포·첩합 표시를 확인한 포장 부위만 일반 종량제봉투
   assert.equal(judgeDisposal({ itemName: '휴대폰', category: 'packaging', ...mark }).status, 'check');
 });
 
+test('유성구 물 아이스팩의 겉포장과 젤 아이스팩의 냉매는 다른 조건으로 처리한다', () => {
+  const region = { province: '대전광역시', district: '유성구' };
+  const input = { itemName: '물아이스팩', region };
+  assert.equal(judgeDisposal(input).pendingCondition, 'handling');
+  const vinyl = judgeDisposal({ ...input, handlingCondition: 'ice-vinyl' });
+  assert.match(vinyl.method, /겉포장은 비닐류/);
+  assert.equal(vinyl.disposalSchedule.rows[0].label, '일반 재활용품');
+  const laminated = judgeDisposal({ ...input, handlingCondition: 'ice-laminated' });
+  assert.match(laminated.method, /유성구 일반 종량제봉투/);
+  assert.equal(laminated.disposalSchedule.rows[0].label, '일반 종량제봉투');
+  assert.match(judgeDisposal({ ...input, itemName: '젤아이스팩', handlingCondition: 'ice-laminated' }).steps[0], /뜯지 말고 통째로/);
+});
+
 test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확인 조건의 위치를 유지한다', () => {
   const input = { ...itemPresetInput('투명생수병'), contaminated: 'no', region: seoul,
     components: [{ label: '비닐 라벨', material: '비닐', type: 'packaging', contaminated: 'yes',

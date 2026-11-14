@@ -28,7 +28,7 @@ export function yuseongDisposalSchedule(result) {
     when: '일~목요일 저녁 6시~자정 · 가급적 저녁 8시 이전',
     where: [['일반 주택', '집 앞'], ['공동주택', '단지 지정 장소'], ['도안 크린넷 사용 지역', '크린넷 투입구']],
   });
-  const knownRecycling = result.parts.filter(part => ordinaryRecycling(part) || result.regional.comparisonKey === 'foam:yuseong-white');
+  const knownRecycling = result.parts.filter(part => ordinaryRecycling(part) || ['foam:yuseong-white', 'ice-pack:yuseong-vinyl'].includes(result.regional.comparisonKey));
   if (knownRecycling.length) rows.push({
     label: '일반 재활용품', appliesTo: appliesTo(knownRecycling), recycling: true,
     when: '동별 배출 요일 저녁 · 공동주택은 단지 수거 일정',
