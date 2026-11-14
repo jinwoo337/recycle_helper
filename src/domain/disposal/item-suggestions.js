@@ -40,11 +40,11 @@ const localEntries = [
   [['배달용기뚜껑', '포장용기뚜껑', '배달용기포장필름', '배달포장필름'], '', '', '용기와 분리한 부속품의 실제 재질과 상태를 확인해 주세요.'],
 ];
 const aliases = {
-  '종이박스': '종이상자', '택배박스': '택배상자', '패트병': '페트병', 'pet병': '페트병', '음료수캔': '음료캔',
+  '종이박스': '종이상자', '택배박스': '택배상자', 'pet병': '페트병', '음료수캔': '음료캔',
   '일회용나무젓갈': '나무젓가락', '일회용목재젓가락': '나무젓가락',
   '배달음식용기': '배달용기', '배달음식통': '배달용기',
   '포장용기뚜껑': '배달용기뚜껑', '배달포장필름': '배달용기포장필름',
-  '택배종이박스': '택배상자', '투명생수패트병': '투명생수병', '우유종이팩': '우유팩',
+  '택배종이박스': '택배상자', '우유종이팩': '우유팩',
   '콜라깡통': '콜라캔', '캔음료': '음료캔',
   '감열지영수증': '감열영수증',
   '택배뽁뽁이': '뽁뽁이',
@@ -52,6 +52,11 @@ const aliases = {
   '택배송장': '감열택배송장', '감열배송송장': '감열택배송장',
   '택배운송장': '감열택배송장', '택배송장스티커': '감열택배송장', '운송장스티커': '감열택배송장',
   '물티슈뚜껑': '플라스틱물티슈캡', '물티슈캡': '플라스틱물티슈캡',
+};
+const spellingSuggestions = {
+  패트병: ['페트병'], 투명생수패트병: ['투명생수병'], 생수패트병: ['생수병'],
+  패트병뚜껑: ['플라스틱용기뚜껑', '생수병'], 패트병라벨: ['비닐포장필름', '종이포장지', '생수병'],
+  컵라면두껑: ['금속박종이포장지', '비닐포장필름', '플라스틱용기뚜껑'],
 };
 // These names require a choice even if a server catalog has an old entry.
 const requiredVariants = [
@@ -85,6 +90,12 @@ const requiredVariants = [
     hint: '라벨을 떼었다면 라벨에 적힌 재질을 확인해 주세요.',
     unknown: '라벨의 재질이 불확실하면 제품의 표시나 관할 지역 안내를 확인해 주세요.',
     reason: '라벨과 페트병 본체는 수거 방법이 달라요.', sources: [] },
+  { names: ['생수병뚜껑', '페트병뚜껑', '생수병마개', '페트병마개', '생수병캡', '페트병캡', '플라스틱병뚜껑'],
+    variants: ['플라스틱용기뚜껑', '생수병'],
+    title: '생수병 뚜껑의 배출 형태 확인', question: '뚜껑만 따로 버리나요, 병에 다시 닫아 버리나요?',
+    hint: '무색 투명한 음료용 페트병과 함께 버린다면 생수병 안내를 확인해 주세요.',
+    unknown: '뚜껑만 있고 재질을 모르면 제품에 적힌 표시나 관할 지역 안내를 확인해 주세요.',
+    reason: '따로 떼어낸 뚜껑과 뚜껑을 닫은 투명 페트병은 배출 준비가 달라요.', sources: [] },
   { names: ['물티슈', '물티슈포장', '물티슈봉지'],
     variants: ['사용한물티슈', '비닐물티슈겉포장', '플라스틱물티슈캡'],
     title: '물티슈에서 버릴 부분 확인', question: '어느 부분을 버리나요?',
@@ -126,7 +137,6 @@ const variantNames = [
   { names: ['병'], variants: ['생수병', '유리병', '유색페트병'] },
   { names: ['음료병', '음료수병'], variants: ['투명탄산음료페트병', '유리음료병', '유색음료페트병'] },
   { names: ['뚜껑', '마개'], variants: ['플라스틱용기뚜껑', '플라스틱컵뚜껑', '유리냄비뚜껑'] },
-  { names: ['생수병뚜껑', '페트병뚜껑', '생수병마개', '페트병마개', '플라스틱병뚜껑'], variants: ['플라스틱용기뚜껑', '생수병'] },
   { names: ['컵뚜껑', '커피컵뚜껑', '테이크아웃컵뚜껑'], variants: ['플라스틱컵뚜껑', '플라스틱테이크아웃컵', '종이컵'] },
   { names: ['그릇', '접시'], variants: ['도자기그릇', '유리그릇', '플라스틱용기'] },
   { names: ['깨진접시', '깨진그릇'], variants: ['깨진도자기', '깨진유리'] },
@@ -278,7 +288,7 @@ export function setItemCatalog(rows) {
 }
 
 export function lookupItem(name) {
-  if (itemTypeClarification(name)) return null;
+  if (itemTypeClarification(name) || Object.hasOwn(spellingSuggestions, foldItemName(name))) return null;
   const item = items.get(normalizeItemName(name));
   // 호출자가 자동 입력·부속품을 수정해도 다음 검색의 원본은 변하지 않습니다.
   return item ? structuredClone(item) : null;
@@ -354,13 +364,17 @@ function candidatesFor(query, limit, { confirmedOnly = false } = {}) {
   const normalized = normalizeItemName(search);
   if (!normalized || !Number.isInteger(limit) || limit < 1) return [];
   const capacity = Math.min(limit, 10);
-  const variants = nearbyItemNames(search);
+  const variants = Object.hasOwn(spellingSuggestions, search) ? spellingSuggestions[search] : nearbyItemNames(search);
   // Variants present meaningfully different possibilities before repeated aliases.
   if (itemTypeClarification(search)) return variants.slice(0, capacity);
   const eligible = entry => !confirmedOnly || items.get(entry.key)?.material;
+  const partSuffix = /(?:뚜껑|라벨|마개|덮개|필름|펌프|캡|상표)$/;
+  const requestedPart = partSuffix.exec(search)?.[0];
+  const matchingPart = entry => Boolean(requestedPart && (entry.spelling.endsWith(requestedPart) || entry.key.endsWith(requestedPart)));
   const matches = suggestions.filter(entry => eligible(entry) && (entry.key.includes(normalized) || entry.spelling.includes(search)))
     .sort((a, b) => Number(b.spelling === raw) - Number(a.spelling === raw)
       || Number(b.key === normalized) - Number(a.key === normalized)
+      || Number(matchingPart(b)) - Number(matchingPart(a))
       || Number(b.key.endsWith(normalized)) - Number(a.key.endsWith(normalized))
       || Number(b.key.startsWith(normalized)) - Number(a.key.startsWith(normalized))
       || Number(Boolean(items.get(b.key)?.material)) - Number(Boolean(items.get(a.key)?.material))
@@ -370,7 +384,8 @@ function candidatesFor(query, limit, { confirmedOnly = false } = {}) {
     const fuzzy = suggestions.filter(entry => eligible(entry) && items.get(entry.key)?.material
       && (entry.spelling[0] === search[0] || (search.length >= 4 && entry.spelling.slice(1) === search.slice(1)))
       && oneEdit(search, entry.spelling))
-      .sort((a, b) => Number(b.spelling.slice(0, 2) === search.slice(0, 2)) - Number(a.spelling.slice(0, 2) === search.slice(0, 2))
+      .sort((a, b) => Number(matchingPart(b)) - Number(matchingPart(a))
+        || Number(b.spelling.slice(0, 2) === search.slice(0, 2)) - Number(a.spelling.slice(0, 2) === search.slice(0, 2))
         || Math.abs(a.name.length - search.length) - Math.abs(b.name.length - search.length) || a.name.length - b.name.length);
     names.push(...fuzzy.map(entry => entry.name));
   }

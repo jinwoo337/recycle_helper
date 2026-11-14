@@ -111,6 +111,8 @@ test('짧은 포장 검색은 해당 부위의 후보부터 보여 주고 확인
   }
   assert.ok(searchItemNames('생수뱅').includes('생수병'));
   assert.equal(lookupItem('생수뱅'), null);
+  assert.equal(searchItemNames('패트병 라벨')[0], '비닐포장필름');
+  assert.equal(lookupItem('투명생수패트병'), null);
 });
 
 test('같은 설명의 무색페트, PP, 비닐 표기는 해당 부위에만 적용된다', () => {
@@ -126,6 +128,18 @@ test('같은 설명의 무색페트, PP, 비닐 표기는 해당 부위에만 �
   assert.deepEqual(applied.components[0], input.components[0]);
   assert.equal(applied.components[1].label, '뚜껑');
   assert.equal(applied.components[1].type, '');
+});
+
+test('두 뚜껑의 이름이 확인됐으면 재질과 상태를 각각 적용한다', () => {
+  const input = { itemName: '용기', combined: 'yes', separable: 'yes', components: [
+    { label: '안쪽 마개', material: '플라스틱', type: 'container', contaminated: 'no' },
+    { label: '바깥 뚜껑', material: '모르겠어요' },
+  ] };
+  const observations = mergeItemObservations([{ part: 'lid', field: 'state', value: 'dirty' }],
+    '안쪽 마개는 PP이고 바깥 뚜껑에는 비닐류 표시가 있어요. 깨끗해요.');
+  const applied = applyItemObservations(input, observations);
+  assert.deepEqual(applied.components[0], input.components[0]);
+  assert.deepEqual(applied.components[1], { label: '바깥 뚜껑', material: '비닐', type: 'packaging', contaminated: 'no' });
 });
 
 test('시행일 전에 종료 안내를 적용하지 않고 주소가 일치한 수거함만 거리순으로 정렬한다', () => {

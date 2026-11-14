@@ -114,6 +114,20 @@ test('부속품 상태가 미확인이어도 확정한 본체의 지역 안내�
   assert.doesNotMatch(result.parts[1].steps.join(' '), /김포시/);
 });
 
+test('노원구 종이팩은 전용함이 없으면 투명봉투로, 김포시는 일반팩과 멸균팩을 구분해 안내한다', () => {
+  const carton = { ...itemPresetInput('우유팩'), contaminated: 'no', combined: 'no',
+    region: { province: '서울특별시', district: '노원구' } };
+  const nowon = judgeDisposal(carton);
+  assert.match(nowon.steps.join(' '), /전용함이 없으면 일반 종이와 구분해 투명봉투/);
+  assert.doesNotMatch(nowon.steps.join(' '), /일반 종이와 구분해 묶/);
+  assert.match(nowon.reasons[0], /노원구/);
+  const gimpo = judgeDisposal({ ...carton, region: { province: '경기도', district: '김포시' }, combined: 'yes', separable: 'yes',
+    components: [{ label: '빨대', material: '모르겠어요' }] });
+  assert.equal(gimpo.status, 'check');
+  assert.match(gimpo.parts[0].steps.join(' '), /일반팩과 멸균팩을 구분/);
+  assert.doesNotMatch(gimpo.parts[1].steps.join(' '), /일반팩과 멸균팩을 구분/);
+});
+
 test('대구의 비닐 묶음 배출을 보여 주고 현재 지역과 같은 방식은 목록에서 뺀다', () => {
   const input = { ...itemPresetInput('과자봉지'), contaminated: 'no', combined: 'no',
     region: { province: '대구광역시', district: '달서구' } };

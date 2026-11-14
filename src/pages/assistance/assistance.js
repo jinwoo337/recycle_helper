@@ -22,7 +22,7 @@ import { CATALOG_DETAIL_SOURCES } from '../../domain/disposal/catalog-sources.js
 import { handlingConditionQuestion } from '../../domain/disposal/special-guides.js';
 import { isBatteryPackaging } from '../../domain/disposal/category-keywords.js';
 import { categoryLabel } from '../../domain/disposal/item-categories.js';
-import { mergeItemObservations, observationLabel } from '../../domain/disposal/item-observations.js';
+import { mergeItemObservations, observationKey, observationLabel } from '../../domain/disposal/item-observations.js';
 import { resolveInputCategory } from '../../domain/disposal/input-category.js';
 import { bindDisposalChecklist, checklistMarkup } from '../../components/disposal-checklist.js';
 import { relatedDisposalMarkup } from '../../components/related-disposal.js';
@@ -55,6 +55,9 @@ function syncMarkShape(row) {
   const showShape = Boolean(part && part !== 'film' && photoMarkMaterial(marking) === '플라스틱');
   shape.closest('[data-assist-mark-shape]').hidden = !showShape;
   if (!showShape) shape.value = '';
+  const label = row.querySelector('[data-mark-label]');
+  label.closest('.field').hidden = !part || part === 'body';
+  if (part === 'body') label.value = '';
 }
 
 function selectedPhotoMarks(root) {
@@ -64,6 +67,7 @@ function selectedPhotoMarks(root) {
     use: row.querySelector('[data-use-mark]').checked,
     part: row.querySelector('[data-mark-part]').value,
     shape: row.querySelector('[data-mark-shape]').value,
+    label: row.querySelector('[data-mark-label]').value,
   }));
 }
 
@@ -125,7 +129,7 @@ function followUpMarkup(answer, answers, mode, pendingAnswers) {
     </form></section>`;
 }
 
-export function assistanceResultMarkup(answer, region, { answers = [], pendingAnswers = [], mode = 'description', guide = answer.evidence === 'object' && answer.confidence !== 'low' ? registeredGuide(answer.itemName, region) : null, fromInput = false, observations = [], selectedObservations, sourceName = '', confirmIdentity = false } = {}) {
+export function assistanceResultMarkup(answer, region, { answers = [], pendingAnswers = [], mode = 'description', guide = answer.evidence === 'object' && answer.confidence !== 'low' ? registeredGuide(answer.itemName, region) : null, fromInput = false, observations = [], selectedObservations, sourceName = '', componentLabels = [], confirmIdentity = false } = {}) {
   if (guide) answer = { ...answer, questions: [] };
   const hasQuestions = answer.questions.length > 0;
   const uncertain = assistanceUncertain(answer, answers);
@@ -159,8 +163,10 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
     ${readableMarks.map(mark => `<fieldset class="assist-observations" data-marking="${escapeHtml(mark)}">
       <legend>${escapeHtml(mark)}</legend><label><input type="checkbox" data-use-mark> 이 표시 적용</label>
       <div class="field"><label>표시가 있는 곳 <select data-mark-part><option value="">부위를 골라 주세요</option>${[['body', '본체'], ['lid', '뚜껑·마개'], ['label', '라벨'], ['film', '포장 필름']].map(([value, label]) => `<option value="${value}"${photoMarkPart(mark) === value ? ' selected' : ''}>${label}</option>`).join('')}</select></label></div>
+      <div class="field" hidden><label>부속품 이름 (선택) <input type="text" data-mark-label maxlength="40" placeholder="예: 바깥 뚜껑, 안쪽 마개"${componentLabels.length ? ' list="assist-existing-parts"' : ''}></label></div>
       <div class="field" data-assist-mark-shape hidden><label>표시가 있는 부분의 형태 <select data-mark-shape><option value="">다음 화면에서 고르기</option><option value="film">비닐 봉지·얇은 포장 필름</option><option value="container">단단한 용기·트레이</option></select></label></div>
     </fieldset>`).join('')}
+    ${componentLabels.length ? `<datalist id="assist-existing-parts">${componentLabels.map(label => `<option value="${escapeHtml(label)}"></option>`).join('')}</datalist>` : ''}
     <p class="field-error" data-mark-error role="alert"></p>
     <button type="submit" class="button primary">선택한 표시로 이어서 확인</button>
   </form>` : '';
@@ -230,6 +236,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     assistanceDraft = { version: inputSearchVersion() }; descriptionOwner = owner;
   }
   if (queued?.sourceName) assistanceDraft.sourceName = queued.sourceName;
+  if (queued?.componentLabels) assistanceDraft.componentLabels = queued.componentLabels;
   let image = null, previewUrl = '', photoRevision = 0, preparing = false, busy = false, disposed = false, controller, answer, answered = [];
   let currentResult = null;
   let disposeResult = () => {};
@@ -339,7 +346,9 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     const category = confirm && sameItem && !currentResult?.guide && !assistanceUncertain(answer, answered) ? answer.category : '';
     const observations = confirm && sameItem && currentResult?.observations?.length ? [...result.querySelectorAll('[data-assist-observation]:checked')]
       .map(input => currentResult.observations[Number(input.dataset.assistObservation)]).filter(Boolean) : [];
-    const confirmed = new Map([...observations, ...typedObservations].map(entry => [`${entry.part}:${entry.field}`, entry]));
+    const namedParts = new Set(typedObservations.filter(entry => entry.targetLabel).map(entry => entry.part));
+    const confirmed = new Map([...observations.filter(entry => !namedParts.has(entry.part)), ...typedObservations]
+      .map(entry => [observationKey(entry), entry]));
     queueInput({
       ...lookupOptions, itemName, region: region.get(), fromAssistance: true,
       ...(handlingCondition ? { handlingCondition } : {}),
@@ -390,6 +399,8 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     result.innerHTML = assistanceResultMarkup(answer, view.region, {
       answers: answered, pendingAnswers: view.pendingAnswers, mode, guide: view.guide, fromInput: view.fromInput,
       observations: view.observations, selectedObservations: view.selectedObservations, sourceName: assistanceDraft.sourceName,
+      componentLabels: normalizeItemName(assistanceDraft.sourceName) === normalizeItemName(answer.itemName) || answer.evidence === 'markings'
+        ? assistanceDraft.componentLabels : [],
       confirmIdentity: Boolean(view.guide?.ruleVersion && !view.fromInput && !view.guide?.condition && !view.identityConfirmed),
     });
     const marks = new Map((view.selectedMarks || []).map(mark => [mark.marking, mark]));
@@ -399,6 +410,7 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
         row.querySelector('[data-use-mark]').checked = saved.use;
         row.querySelector('[data-mark-part]').value = saved.part;
         row.querySelector('[data-mark-shape]').value = saved.shape;
+        row.querySelector('[data-mark-label]').value = saved.label || '';
       }
       syncMarkShape(row);
     });
@@ -509,13 +521,18 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
         const partControl = row.querySelector('[data-mark-part]');
         const part = partControl.value;
         if (!part) { error.textContent = '선택한 표시가 적힌 부위를 골라 주세요.'; partControl.focus(); return; }
-        if (observations.has(part)) {
-          error.textContent = '같은 부위로 선택한 표시가 있어요. 부위를 수정하거나 한 표시만 적용해 주세요.';
-          partControl.focus();
+        const labelControl = row.querySelector('[data-mark-label]');
+        const targetLabel = part !== 'body' ? labelControl.value.trim() : '';
+        const mark = confirmedPhotoMark(row.dataset.marking, part, row.querySelector('[data-mark-shape]').value);
+        if (!mark) continue;
+        const observation = { part, field: 'material', value: mark.material, type: mark.type, ...(targetLabel ? { targetLabel } : {}) };
+        const key = observationKey(observation);
+        if (observations.has(key) || [...observations.values()].some(previous => previous.part === part && (!targetLabel || !previous.targetLabel))) {
+          error.textContent = '같은 부위로 선택한 표시가 있어요. 여러 부속품이라면 각각 다른 이름을 적어 주세요.';
+          (part === 'body' ? partControl : labelControl).focus();
           return;
         }
-        const mark = confirmedPhotoMark(row.dataset.marking, part, row.querySelector('[data-mark-shape]').value);
-        if (mark) observations.set(part, { part, field: 'material', value: mark.material, type: mark.type });
+        observations.set(key, observation);
       }
       const hasObject = answer?.evidence === 'object';
       const name = hasObject ? answer.itemName : assistanceDraft.sourceName || UNNAMED_ITEM;

@@ -19,11 +19,14 @@ const partAliases = {
 const stateNames = { clean: '깨끗함', dirty: '오염 있음 · 세척 전', 'washed-dirty': '세척 후에도 오염 있음' };
 const handlingNames = { undamaged: '전지 · 손상 없음', damaged: '전지 · 팽창·누액 또는 파손 있음', reusable: '의류·잡화 · 다시 쓸 수 있음', unusable: '의류·잡화 · 심한 오염 또는 훼손 있음' };
 const descriptionSource = 'description';
-const partPrefix = /^(본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
+const partPrefix = /^(본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:에는|이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
 const explicitParts = { 본체: 'body', 몸체: 'body', 뚜껑: 'lid', 마개: 'lid', 캡: 'lid', 라벨: 'label', 필름: 'film' };
+const namedPartPrefix = /^((?:안쪽|바깥(?:쪽)?|내부|외부|겉|속|왼쪽|오른쪽|위쪽|아래쪽)\s*(뚜껑|마개|캡|라벨|필름))(?:에는|이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
+const partIdentity = entry => entry.targetLabel ? `attachment:${normalizeItemName(entry.targetLabel)}` : entry.part;
+export const observationKey = entry => `${partIdentity(entry)}:${entry.field}`;
 
 // Gemini only proposes values from the same vocabulary used by the form.
-export function cleanItemObservations(raw) {
+export function cleanItemObservations(raw, { allowTargetLabels = false } = {}) {
   if (!Array.isArray(raw) || raw.length > 12) return [];
   const clean = new Map(), ambiguous = new Set();
   for (const entry of raw) {
@@ -31,9 +34,12 @@ export function cleanItemObservations(raw) {
     const { part, field, value } = entry;
     if (!fields[field].includes(value) || (part !== 'body' && ['combined', 'separable', 'handlingCondition'].includes(field))) continue;
     const type = field === 'material' && TYPES[value]?.some(([id]) => id === entry.type && id !== 'unknown') ? entry.type : '';
-    const key = `${part}:${field}`, prior = clean.get(key);
-    if (prior && (prior.value !== value || prior.type !== type)) ambiguous.add(key);
-    clean.set(key, { part, field, value, ...(type ? { type } : {}) });
+    const targetLabel = allowTargetLabels && part !== 'body' && typeof entry.targetLabel === 'string'
+      ? entry.targetLabel.trim().slice(0, 40) : '';
+    const observation = { part, field, value, ...(type ? { type } : {}), ...(targetLabel ? { targetLabel } : {}) };
+    const key = observationKey(observation), prior = clean.get(key);
+    if (prior && (prior.value !== value || prior.type !== observation.type || prior.part !== part)) ambiguous.add(key);
+    clean.set(key, observation);
   }
   return [...clean].filter(([key]) => !ambiguous.has(key)).map(([, entry]) => entry);
 }
@@ -48,12 +54,22 @@ export function observationsFromDescription(value) {
     if (damaged || undamaged) entries.push({ part: 'body', field: 'handlingCondition', value: damaged ? 'damaged' : 'undamaged' });
   }
   let part = 'body';
-  const clauses = source.split(/[,.!?;·\n]|그리고|\s+(?=(?:본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:이|가|은|는|에)?[:\s])/);
+  let targetLabel;
+  const clauses = source
+    .replace(/고\s+(?=(?:(?:안쪽|바깥(?:쪽)?|내부|외부|겉|속|왼쪽|오른쪽|위쪽|아래쪽)\s*)?(?:본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:에는|이|가|은|는|에)?[:\s])/gu, '고, ')
+    .replace(/(?<=[A-Z가-힣])\s+(?=(?:본체|몸체|뚜껑|마개|캡|라벨|필름)\s+(?:PP|PE|HDPE|LDPE|PS|PET|무색|비닐))/gu, ', ')
+    .split(/[,.!?;·\n]|그리고/);
   for (const chunk of clauses) {
     const clause = chunk.trim();
-    const prefix = partPrefix.exec(clause);
-    if (prefix) part = explicitParts[prefix[1]] || 'film';
-    else if (/^(용기|통|안에|안에는|속에|내부)/.test(clause)) part = 'body';
+    const named = namedPartPrefix.exec(clause);
+    const prefix = named || partPrefix.exec(clause);
+    if (prefix) {
+      part = explicitParts[named?.[2] || prefix[1]] || 'film';
+      targetLabel = named?.[1];
+    } else if (/^(용기|통|안에|안에는|속에|내부)/.test(clause)) {
+      part = 'body';
+      targetLabel = undefined;
+    }
     if (!clause || /아닌|아니|같아|같고|인 듯|아마|추정|불확실|모르|인가|일까|라면|라든지/.test(clause)) continue;
     if (/다른\s*재질(?:이|은)?\s*(?:전혀\s*)?(?:없어요|없습니다|붙어\s*있지\s*않아요|붙지\s*않았어요)(?=\s*$)/.test(clause)) {
       entries.push({ part: 'body', field: 'combined', value: 'no' });
@@ -63,30 +79,34 @@ export function observationsFromDescription(value) {
     const separable = /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*없|분리되지\s*않|떼어지지\s*않/.test(clause) ? 'no'
       : /(?:분리|떼어\s*낼)\s*(?:할\s*)?수\s*있|분리돼요/.test(clause) ? 'yes' : '';
     if (separable) entries.push({ part: 'body', field: 'separable', value: separable });
-    const possibleCodes = clause.match(/\b(?:PP|HDPE|LDPE|PE|PS|PET)\b|무색\s*페트|일반팩|멸균팩|종이팩|비닐류/gi) || [];
+    const possibleCodes = new Set((clause.match(/\b(?:PP|HDPE|LDPE|PE|PS|PET)\b|무색\s*페트|일반팩|멸균팩|종이팩|비닐류/gi) || [])
+      .map(code => code.toUpperCase().replace(/\s+/g, '')));
     const markText = prefix ? clause.slice(prefix[0].length) : '';
-    if (/^비닐(?:이에요|입니다|이고|이예요|$)/.test(markText)) entries.push({ part, field: 'material', value: '비닐', type: 'packaging' });
+    if (/^비닐(?:이에요|입니다|이고|이예요|$)/.test(markText)) entries.push({ part, targetLabel, field: 'material', value: '비닐', type: 'packaging' });
     else if (!/표시.{0,9}없|표기가?\s*없|또는|[\/]\s*(?:PP|PE|PS|PET)\b/i.test(clause)) {
+      if (possibleCodes.has('무색페트')) possibleCodes.delete('PET');
       for (const code of possibleCodes) {
-        const mark = confirmedPhotoMark(code.replace(/\s+/g, ''), part);
-        if (mark) entries.push({ part, field: 'material', value: mark.material, type: mark.type });
+        const mark = confirmedPhotoMark(code, part);
+        if (mark) entries.push({ part, targetLabel, field: 'material', value: mark.material, type: mark.type });
       }
     }
     const clean = /(?:오염(?:이|은)?\s*(?:없어요|없습니다)|깨끗(?:해요|합니다|하네요|한\s*상태(?:예요|입니다)?))\s*$/.test(clause)
       && !/깨끗.{0,8}(?:않|못)|않(?:아|습)|못(?:했|해)/.test(clause);
     const dirty = /(?:음식물|내용물|기름기|오염|얼룩)(?:이|가|은)?\s*(?:조금\s*)?(?:남았어요|남았습니다|남아\s*있어요|남아\s*있습니다|묻었어요|묻어\s*있어요|있어요|있습니다)|오염된\s*상태/.test(clause)
       && !/남아\s*있지\s*않|남아\s*있진\s*않|남[은아].{0,9}없/.test(clause);
-    if (clean) entries.push({ part, field: 'state', value: 'clean' });
-    if (dirty) entries.push({ part, field: 'state', value: /씻(?:었는데|어도)|세척(?:했지만|해도)/.test(clause) ? 'washed-dirty' : 'dirty' });
+    if (clean) entries.push({ part, targetLabel, field: 'state', value: 'clean' });
+    if (dirty) entries.push({ part, targetLabel, field: 'state', value: /씻(?:었는데|어도)|세척(?:했지만|해도)/.test(clause) ? 'washed-dirty' : 'dirty' });
   }
-  return cleanItemObservations(entries);
+  return cleanItemObservations(entries, { allowTargetLabels: true });
 }
 
 export function mergeItemObservations(ai, description) {
   const explicit = observationsFromDescription(description);
-  const byKey = new Map(cleanItemObservations(ai).map(entry => [`${entry.part}:${entry.field}`, { ...entry, source: 'ai' }]));
+  const namedParts = new Set(explicit.filter(entry => entry.targetLabel).map(entry => entry.part));
+  const byKey = new Map(cleanItemObservations(ai).filter(entry => !namedParts.has(entry.part))
+    .map(entry => [observationKey(entry), { ...entry, source: 'ai' }]));
   for (const entry of explicit) {
-    const key = `${entry.part}:${entry.field}`;
+    const key = observationKey(entry);
     const previous = byKey.get(key);
     if (entry.field === 'handlingCondition' && entry.value === 'undamaged' && previous?.value === 'damaged') {
       byKey.set(key, { ...previous, conflicts: true });
@@ -96,7 +116,7 @@ export function mergeItemObservations(ai, description) {
 }
 
 export function observationLabel(entry) {
-  const label = partNames[entry.part];
+  const label = entry.targetLabel || partNames[entry.part];
   if (entry.field === 'material') return `${label} · ${entry.value}${entry.type ? ` (${TYPES[entry.value].find(([id]) => id === entry.type)[1]})` : ''}`;
   if (entry.field === 'state') return `${label} · ${stateNames[entry.value]}`;
   if (entry.field === 'combined') return entry.value === 'yes' ? '다른 재질이 붙어 있어요' : '다른 재질이 없어요';
@@ -108,12 +128,13 @@ export function observationLabel(entry) {
 export function applyItemObservations(input, observations) {
   const next = structuredClone(input);
   const parts = new Map();
-  const entries = cleanItemObservations(observations);
+  const entries = cleanItemObservations(observations, { allowTargetLabels: true });
   for (const entry of entries) {
     if (['combined', 'separable', 'handlingCondition'].includes(entry.field)) next[entry.field] = entry.value;
     else {
-      if (!parts.has(entry.part)) parts.set(entry.part, {});
-      parts.get(entry.part)[entry.field] = entry;
+      const key = partIdentity(entry);
+      if (!parts.has(key)) parts.set(key, { part: entry.part, targetLabel: entry.targetLabel });
+      parts.get(key)[entry.field] = entry;
     }
   }
   function applyPart(part, evidence) {
@@ -154,9 +175,13 @@ export function applyItemObservations(input, observations) {
   }
   if (attachments.length && next.combined === 'yes') {
     next.components ||= [];
-    for (const [key, evidence] of attachments) {
-      const label = partNames[key];
-      const matches = next.components.filter(item => partAliases[key].test(normalizeItemName(item.label)));
+    for (const [, evidence] of attachments) {
+      const { part: key, targetLabel } = evidence;
+      const label = targetLabel || partNames[key];
+      const matches = next.components.filter(item => {
+        const name = normalizeItemName(item.label);
+        return targetLabel ? name === normalizeItemName(targetLabel) : partAliases[key].test(name);
+      });
       if (matches.length > 1) continue;
       let part = matches[0];
       if (!part) {

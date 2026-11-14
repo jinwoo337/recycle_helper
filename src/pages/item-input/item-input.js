@@ -396,7 +396,8 @@ export function bindItemInput() {
   const describeInstead = form.querySelector('[data-describe-instead]');
   const handoff = path => {
     const name = nameInput.value.trim();
-    queueInput({ description: name, sourceName: name, newSearch: !name, region: judgementRegion.get() }, path);
+    const componentLabels = (draft.components || []).map(part => part.label).filter(Boolean);
+    queueInput({ description: name, sourceName: name, newSearch: !name, region: judgementRegion.get(), componentLabels }, path);
   };
   describeInstead.addEventListener('click', () => {
     handoff('/describe');
