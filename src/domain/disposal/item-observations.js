@@ -6,6 +6,7 @@ import { confirmedPhotoMark } from './recycle-marks.js';
 const fields = {
   material: MATERIALS.filter(value => value !== '모르겠어요'),
   state: ['clean', 'dirty', 'washed-dirty'],
+  vinylResidue: ['liquid-only', 'solids'],
   combined: ['yes', 'no'],
   separable: ['yes', 'no', 'unknown'],
   handlingCondition: ['undamaged', 'damaged', 'reusable', 'unusable'],
@@ -17,6 +18,7 @@ const partAliases = {
   film: /^(?:떼어내는|분리한)?(?:비닐)?(?:포장)?(?:필름|랩)$/,
 };
 const stateNames = { clean: '깨끗함', dirty: '오염 있음 · 세척 전', 'washed-dirty': '세척 후에도 오염 있음' };
+const residueNames = { 'liquid-only': '내용물·고형물 없이 기름·물 자국만 남음', solids: '음식물·부스러기 등 고형물 남음' };
 const handlingNames = { undamaged: '전지 · 손상 없음', damaged: '전지 · 팽창·누액 또는 파손 있음', reusable: '의류·잡화 · 다시 쓸 수 있음', unusable: '의류·잡화 · 심한 오염 또는 훼손 있음' };
 const descriptionSource = 'description';
 const partPrefix = /^(본체|몸체|뚜껑|마개|캡|라벨|(?:포장\s*)?필름)(?:에는|이|가|은|는|에)?(?=[:\s]|$)[:\s]*/;
@@ -94,8 +96,11 @@ export function observationsFromDescription(value) {
       && !/깨끗.{0,8}(?:않|못)|않(?:아|습)|못(?:했|해)/.test(clause);
     const dirty = /(?:음식물|내용물|기름기|오염|얼룩)(?:이|가|은)?\s*(?:조금\s*)?(?:남았어요|남았습니다|남아\s*있어요|남아\s*있습니다|묻었어요|묻어\s*있어요|있어요|있습니다)|오염된\s*상태/.test(clause)
       && !/남아\s*있지\s*않|남아\s*있진\s*않|남[은아].{0,9}없/.test(clause);
+    const liquidOnly = /(?:기름|물)\s*자국만\s*(?:남았어요|남아\s*있어요|있어요|남음|$)/.test(clause);
+    const solids = /(?:고형물|부스러기|음식\s*덩어리)(?:이|가|은|는)?\s*(?:남았어요|남아\s*있어요|있어요|남음)/.test(clause);
     if (clean) entries.push({ part, targetLabel, field: 'state', value: 'clean' });
-    if (dirty) entries.push({ part, targetLabel, field: 'state', value: /씻(?:었는데|어도)|세척(?:했지만|해도)/.test(clause) ? 'washed-dirty' : 'dirty' });
+    if (dirty || liquidOnly || solids) entries.push({ part, targetLabel, field: 'state', value: /씻(?:었는데|어도)|세척(?:했지만|해도)/.test(clause) ? 'washed-dirty' : 'dirty' });
+    if (liquidOnly || solids) entries.push({ part, targetLabel, field: 'vinylResidue', value: solids ? 'solids' : 'liquid-only' });
   }
   if (['yes', 'no'].every(value => entries.some(entry => entry.field === 'separable' && entry.value === value))) {
     return cleanItemObservations([
@@ -117,6 +122,7 @@ export function mergeItemObservations(ai, description) {
     if (entry.field === 'handlingCondition' && entry.value === 'undamaged' && previous?.value === 'damaged') {
       byKey.set(key, { ...previous, conflicts: true });
     } else byKey.set(key, { ...entry, source: descriptionSource });
+    if (entry.field === 'state' && entry.value === 'clean') byKey.delete(observationKey({ ...entry, field: 'vinylResidue' }));
   }
   return [...byKey.values()];
 }
@@ -125,6 +131,7 @@ export function observationLabel(entry) {
   const label = entry.targetLabel || partNames[entry.part];
   if (entry.field === 'material') return `${label} · ${entry.value}${entry.type ? ` (${TYPES[entry.value].find(([id]) => id === entry.type)[1]})` : ''}`;
   if (entry.field === 'state') return `${label} · ${stateNames[entry.value]}`;
+  if (entry.field === 'vinylResidue') return `${label} · ${residueNames[entry.value]}`;
   if (entry.field === 'combined') return entry.value === 'yes' ? '다른 재질이 붙어 있어요' : '다른 재질이 없어요';
   if (entry.field === 'handlingCondition') return handlingNames[entry.value];
   if (entry.value === 'unknown') return '붙은 재질의 분리 가능 여부를 다시 확인해요';
@@ -145,7 +152,7 @@ export function applyItemObservations(input, observations) {
     }
   }
   function applyPart(part, evidence) {
-    const { material, state } = evidence;
+    const { material, state, vinylResidue } = evidence;
     if (material) {
       const changed = part.material !== material.value || Boolean(material.type && part.type !== material.type);
       if (changed) {
@@ -167,6 +174,10 @@ export function applyItemObservations(input, observations) {
     } else if (state) {
       // Form applies this only after a compatible subtype is chosen.
       part.observedState = state.value;
+    }
+    if (vinylResidue && part.material === '비닐' && part.type === 'packaging' && state?.value !== 'clean') {
+      if (part.contaminated !== 'yes') Object.assign(part, stateAnswers('dirty'));
+      part.vinylResidue = vinylResidue.value;
     }
   }
   if (parts.has('body')) applyPart(next, parts.get('body'));

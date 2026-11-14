@@ -202,6 +202,18 @@ test('분리한 비닐 라벨에 지역별 오염 기준을 적용하고 미확�
   assert.match(resultMarkup(input, missing), /비닐 라벨 · 비닐에 남은 오염 확인하기/);
 });
 
+test('비닐에 기름 자국만 남았다는 명시적 설명을 같은 지역 판별에 전달한다', () => {
+  const input = { ...itemPresetInput('과자봉지'), region: seoul };
+  const observations = observationsFromDescription('과자봉지예요. 기름 자국만 남았어요. 다른 재질이 없어요.');
+  const confirmed = applyItemObservations(input, observations);
+  assert.equal(confirmed.vinylResidue, 'liquid-only');
+  assert.equal(judgeDisposal(confirmed).status, 'recycle');
+  const withSolids = applyItemObservations(input, observationsFromDescription('부스러기가 남았어요. 다른 재질이 없어요.'));
+  assert.equal(judgeDisposal(withSolids).pendingCondition, 'removable');
+  const unsure = observationsFromDescription('기름 자국만 남았는지 모르겠어요.');
+  assert.deepEqual(unsure, []);
+});
+
 test('포장 랩의 사진 표시를 기존 부속품에 반영하고 붙은 재질에 관한 모순은 다시 묻는다', () => {
   const input = itemPresetInput('랩포장스티로폼정육트레이');
   const film = { part: 'film', field: 'material', value: '비닐', type: 'packaging' };

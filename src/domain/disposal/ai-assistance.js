@@ -85,8 +85,8 @@ export function assistanceSchema() {
   };
   const observation = { type: 'OBJECT', properties: {
     part: { type: 'STRING', enum: ['body', 'lid', 'label', 'film'] },
-    field: { type: 'STRING', enum: ['material', 'state', 'combined', 'separable', 'handlingCondition'] },
-    value: { type: 'STRING', enum: [...MATERIALS.filter(value => value !== '모르겠어요'), 'clean', 'dirty', 'washed-dirty', 'yes', 'no', 'undamaged', 'damaged', 'reusable', 'unusable'] },
+    field: { type: 'STRING', enum: ['material', 'state', 'vinylResidue', 'combined', 'separable', 'handlingCondition'] },
+    value: { type: 'STRING', enum: [...MATERIALS.filter(value => value !== '모르겠어요'), 'clean', 'dirty', 'washed-dirty', 'liquid-only', 'solids', 'yes', 'no', 'undamaged', 'damaged', 'reusable', 'unusable'] },
     type: { type: 'STRING', enum: [...new Set(Object.values(TYPES).flatMap(options => options.map(([id]) => id).filter(id => id !== 'unknown')))] },
   }, required: ['part', 'field', 'value'] };
   return { type: 'OBJECT', properties: {
@@ -110,6 +110,7 @@ markings: 실제 보이거나 사용자가 명시한 분리배출 표시만 최�
 category: 아래 코드 중 하나로 물건의 용도를 제안한다. 포장·라벨·뚜껑 자체를 버리는 경우 내용물의 종류와 혼동하지 않는다. 불명확하면 unknown.
 ${ITEM_CATEGORIES.filter(([id]) => id !== 'material-only').map(([id, label]) => `${id}=${label}`).join('; ')}
 observations: 직접 읽은 표시, 명시적인 설명·답변, 사진에서 확실히 보이는 오염만 확인 후보로 적는다. part는 body(본체), lid(뚜껑), label(라벨), film(포장 필름). field는 material(재질), state(오염), combined(다른 재질 결합), separable(분리 가능). 결합·분리 값은 body에만 yes/no. state는 clean, dirty(오염 있음·세척 전), washed-dirty(세척 후에도 오염). 사진만으로 깨끗함·세척·분리 가능 여부를 추정하지 않는다. material은 재질 선택지 그대로, type은 명시된 세부 종류 코드가 있으면 추가한다.
+비닐 포장의 내용물을 비웠고 기름·물 자국만 남았다고 사용자가 명시하면 vinylResidue를 liquid-only로, 음식물 고형물이나 부스러기가 남았다고 명시하면 solids로 제안할 수 있다. 보이지 않는 내용물의 유무는 추정하지 않는다.
 전지나 의류의 상태가 설명에 명시된 경우 또는 사진에서 전지 팽창·파손이나 의류의 심한 오염이 분명한 경우에는 body의 handlingCondition을 제안할 수 있다. 전지는 undamaged/damaged, 의류는 reusable/unusable이다. 사진만으로 손상이 없거나 의류를 다시 사용할 수 있다고 판단하지 않는다.
 ${Object.entries(TYPES).map(([name, entries]) => `${name}: ${entries.map(([id, label]) => `${id}=${label}`).join(', ')}`).join('\n')}
 confidence: high/medium/low는 물건 인식의 확실성이다. 인식할 수 없으면 low로 하고 질문한다. 사진만으로 세척 완료·내용물 없음·내부 코팅 없음·부속품 분리 가능을 단정하지 않는다.
