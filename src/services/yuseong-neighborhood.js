@@ -9,5 +9,5 @@ export function readYuseongNeighborhood(member) {
 }
 
 export function rememberYuseongNeighborhood(member, choice) {
-  try { localStorage.setItem(keyFor(member), JSON.stringify(choice)); } catch { /* The current choice is still shown. */ }
+  try { localStorage.setItem(keyFor(member), JSON.stringify(choice)); return true; } catch { return false; }
 }
