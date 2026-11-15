@@ -6,7 +6,6 @@ import { aiToggleMarkup, bindAiToggle } from '../../components/ai-toggle.js';
 import { tipOfTheDay } from '../../domain/disposal/daily-tips.js';
 import { voiceButtonMarkup, bindVoiceInput } from '../../components/voice-input.js';
 import { getDisposalHistory } from '../../services/disposal-history.js';
-import { collectionDaysMarkup, bindCollectionDays } from '../../components/collection-days.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
 import { bindJudgementRegion, judgementRegionMarkup } from '../../components/judgement-region.js';
 import { regionLabel } from '../../domain/disposal/regions.js';
@@ -44,7 +43,6 @@ export function mainPage(member) {
       <div class="home-direct-choices"><button class="history-action" type="button" data-home-unnamed>이름 없이 종류 고르기</button><button class="history-action" type="button" data-home-mark>분리배출 표시로 찾기</button></div></div>
       <div class="example-items" role="group" aria-label="검색 예시" data-home-examples>${exampleItemsMarkup(region)}</div><details class="search-options"><summary>검색 설정</summary><div class="ai-mode-controls">${aiToggleMarkup('home-ai-enabled', { compact: true })}</div></details>${member ? '' : '<p class="input-hint">로그인 없이 찾을 수 있어요.</p>'}</form>
     ${readDisposalBatch().items.length ? '<p><a class="history-action" href="#/batch">함께 버릴 물건 목록 보기 →</a></p>' : ''}
-    <div data-home-collection-days>${collectionDaysMarkup(region)}</div>
     <nav class="home-shortcuts" aria-label="주요 기능 바로가기">
       <a href="#/history" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('history')}</span><div><h2>나의 기록</h2><p>찾아본 물건과 통계를 한눈에</p></div><span aria-hidden="true">↗</span></a>
       <a href="#/game" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('game')}</span><div><h2>분리배출 게임</h2><p>60초 도전으로 배우고 대결해요</p></div><span aria-hidden="true">↗</span></a>
@@ -117,9 +115,7 @@ export function bindMain() {
   const regionLabelNode = root.querySelector('[data-home-region-label]');
   const regionForm = root.querySelector('#home-region-form');
   const regionToggle = root.querySelector('[data-home-region-toggle]');
-  const collectionDays = root.querySelector('[data-home-collection-days]');
   const regionEditor = bindJudgementRegion(regionForm, region);
-  let disposeCollection = bindCollectionDays(collectionDays);
   function closeRegion() {
     regionForm.hidden = true;
     regionToggle.setAttribute('aria-expanded', 'false');
@@ -143,9 +139,6 @@ export function bindMain() {
     regionLabelNode.textContent = `판별 지역 · ${regionLabel(region)}`;
     regionToggle.textContent = region ? '지역 변경' : '지역 선택';
     examples.innerHTML = exampleItemsMarkup(region);
-    disposeCollection();
-    collectionDays.innerHTML = collectionDaysMarkup(region);
-    disposeCollection = bindCollectionDays(collectionDays);
     closeRegion();
   });
   let active = true;
@@ -154,7 +147,6 @@ export function bindMain() {
   return () => {
     homeDraft = { owner, itemName: input.value };
     active = false;
-    disposeCollection();
     autocomplete.dispose();
     aiSwitch.dispose();
     disposeVoice();

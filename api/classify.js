@@ -205,40 +205,6 @@ export async function saveSharedGuess(name, guess, { fetcher = fetch, serviceKey
   } catch (error) { console.error('shared guesses save failed', error?.name); return false; }
 }
 
-// "틀렸어요" 신고: 그 이름(과 같은 물건의 별칭)의 공용 답을 숨겨 다른 사용자에게 더 이상 보이지 않게 합니다.
-// 숨긴 뒤에는 다음 사용자가 AI에게 새로 묻습니다(숨긴 줄은 덮어쓰지 않으므로 공용 저장은 다시 되지 않음).
-export async function hideSharedGuess(name, { fetcher = fetch, serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY } = {}) {
-  const key = normalizeItemName(name);
-  if (!key || !serviceKey) return false;
-  const quoted = `"${key.replace(/["\\]/g, '')}"`;
-  try {
-    const response = await fetcher(`${SHARED_TABLE}?or=${encodeURIComponent(`(name_key.eq.${quoted},canonical_key.eq.${quoted})`)}`, {
-      method: 'PATCH',
-      headers: {
-        apikey: serviceKey, ...(serviceKey.startsWith('eyJ') ? { Authorization: `Bearer ${serviceKey}` } : {}),
-        'Content-Type': 'application/json', Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({ hidden: true }), signal: AbortSignal.timeout(2_000),
-    });
-    if (!response.ok) { console.error('shared guesses hide failed', response.status); return false; }
-    return true;
-  } catch (error) { console.error('shared guesses hide failed', error?.name); return false; }
-}
-
-function forgetCached(name) {
-  const prefix = `${String(name).toLowerCase()}|`;
-  for (const key of [...cache.keys()]) if (key.startsWith(prefix)) cache.delete(key);
-}
-
-async function readBody(req) {
-  if (req.body && typeof req.body === 'object') return req.body;
-  let text = typeof req.body === 'string' ? req.body : '';
-  if (!text && typeof req[Symbol.asyncIterator] === 'function') {
-    for await (const chunk of req) { text += chunk; if (text.length > 2_000) return null; }
-  }
-  try { return JSON.parse(text); } catch { return null; }
-}
-
 function send(res, status, body, cacheSeconds = 0) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', cacheSeconds ? `public, max-age=3600, s-maxage=${cacheSeconds}` : 'no-store');
@@ -246,18 +212,7 @@ function send(res, status, body, cacheSeconds = 0) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'POST') {
-    const body = await readBody(req);
-    const reported = cleanAiName(body?.name);
-    if (body?.action !== 'report' || !reported) { send(res, 400, { error: 'invalid_report' }); return; }
-    const ip = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
-    if (!allowRequest(ip)) { send(res, 429, { error: 'rate_limited' }); return; }
-    forgetCached(reported);
-    const hidden = await hideSharedGuess(reported);
-    send(res, 200, { reported: true, hidden });
-    return;
-  }
-  if (req.method !== 'GET') { res.setHeader('Allow', 'GET, POST'); send(res, 405, { error: 'method_not_allowed' }); return; }
+  if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); send(res, 405, { error: 'method_not_allowed' }); return; }
   const rawName = Array.isArray(req.query?.name) ? req.query.name[0] : req.query?.name;
   const name = cleanAiName(rawName);
   if (!name) { send(res, 400, { error: 'invalid_name' }); return; }

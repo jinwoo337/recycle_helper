@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { applyRegionalRules, normalizeRegion, districtsFor, regionalSourceLabel } from '../src/domain/disposal/regions.js';
 import { METRO_GUIDES } from '../src/domain/disposal/metro-guides.js';
-import { largeWasteHelp } from '../src/domain/disposal/large-waste.js';
 import { localGuideMarkup, sourceLineMarkup } from '../src/pages/item-input/item-input.js';
 
 const judge = (input, province, district) => { const full = { ...input, region: { province, district } }; return applyRegionalRules(full, judgeDisposal(full)); };
@@ -61,12 +60,3 @@ test('부산·인천은 지역 기준이라고 하지 않고 구청 공식 안�
   assert.doesNotMatch(sourceLineMarkup(busan, [...busan.sourceUrls, METRO_GUIDES['대구광역시'].city.recycle]), /대구/);
 });
 
-test('광역시 대형폐기물 안내는 구청 대형폐기물 페이지로 바로 연결한다', () => {
-  const help = largeWasteHelp(judge({ itemName: '소파' }, '인천광역시', '부평구'));
-  assert.equal(help.place, '인천 부평구');
-  assert.equal(help.reportUrl, 'https://www.icbp.go.kr/main/life/clean/remove.jsp');
-  assert.equal(help.homepage, 'https://www.icbp.go.kr');
-  const noPage = largeWasteHelp(judge({ itemName: '소파' }, '부산광역시', '해운대구'));
-  assert.equal(noPage.reportUrl, null);
-  assert.equal(noPage.homepage, 'https://www.haeundae.go.kr');
-});

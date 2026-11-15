@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import { judgeDisposal } from '../src/domain/disposal/rules.js';
 import { applyRegionalRules } from '../src/domain/disposal/regions.js';
 import { CITY_GUIDES, cityGuide } from '../src/domain/disposal/city-guides.js';
-import { largeWasteHelp } from '../src/domain/disposal/large-waste.js';
-import { localGuideMarkup, largeWasteMarkup } from '../src/pages/item-input/item-input.js';
+import { localGuideMarkup } from '../src/pages/item-input/item-input.js';
 
 const judge = (input, province, district) => { const full = { ...input, region: { province, district } }; return applyRegionalRules(full, judgeDisposal(full)); };
 const can = { itemName: '콜라캔', material: '금속·캔', type: 'food-can', combined: 'no', contaminated: 'no' };
@@ -43,28 +42,11 @@ test('김포시 지역 기준 결과에도 시청 공식 안내 링크를 붙인
   assert.match(localGuideMarkup(pet, '무라벨생수병'), /김포시 공식 안내/);
 });
 
-test('큰 도시 대형폐기물은 구가 있어도 시청 안내로 연결한다', () => {
-  const help = largeWasteHelp(judge({ itemName: '소파' }, '경기도', '고양시 일산동구'));
-  assert.equal(help.office, '고양시');
-  assert.equal(help.homepage, 'https://www.goyang.go.kr');
-  assert.match(help.reportUrl, /goyang\.go\.kr/);
-  assert.equal(largeWasteHelp(judge({ itemName: '소파' }, '경기도', '양주시')).reportUrl, null);
-  const sofa = judge({ itemName: '소파' }, '충청북도', '청주시 흥덕구');
-  const markup = largeWasteMarkup(sofa);
-  assert.match(markup, /clean\.cheongju\.go\.kr/);
-  assert.match(markup, /청주시 대형폐기물 안내/);
-  assert.match(markup, /청주시청 누리집/);
-  // 광역시는 그대로 구청 이름
-  assert.equal(largeWasteHelp(judge({ itemName: '소파' }, '인천광역시', '부평구')).office, '부평구');
-});
-
 test('경기도는 31개 시·군 전체를 시청·군청 공식 안내로 연결하고 추천 목록으로 보여 준다', async () => {
   const { citySuggestionsFor } = await import('../src/domain/disposal/regions.js');
   const gyeonggi = '수원 고양 용인 화성 성남 부천 남양주 안산 평택 시흥 파주 김포 의정부 안양 광주 하남 광명 군포 양주 오산 이천 구리 안성 의왕 포천 여주 동두천 과천'.split(' ').map(name => `${name}시`).concat(['양평군', '가평군', '연천군']);
   assert.deepEqual(citySuggestionsFor('경기도').slice().sort(), gyeonggi.slice().sort());
   assert.deepEqual(citySuggestionsFor('서울특별시'), []);
-  const sofa = judge({ itemName: '소파' }, '경기도', '가평군');
-  assert.match(largeWasteMarkup(sofa), /가평군 대형폐기물 안내.*가평군청 누리집/s);
   assert.match(localGuideMarkup(judge(can, '경기도', '연천군'), '콜라캔'), /연천군 공식 안내: .*재활용/);
 });
 
@@ -77,5 +59,4 @@ test('8개 도의 모든 시·군을 시청·군청 공식 안내로 연결한�
   assert.equal(cityGuide({ province: '강원특별자치도', district: '고성군' }).home, 'https://www.gwgs.go.kr');
   assert.equal(cityGuide({ province: '경상남도', district: '고성군' }).home, 'https://www.goseong.go.kr');
   assert.match(localGuideMarkup(judge(can, '전라남도', '신안군'), '콜라캔'), /신안군 공식 안내: .*군청 누리집/);
-  assert.match(largeWasteMarkup(judge({ itemName: '소파' }, '경상남도', '진주시')), /진주시 대형폐기물 안내/);
 });

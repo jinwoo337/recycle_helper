@@ -28,7 +28,7 @@ test('유성구 책상의 종류에 따라 수수료가 다르고 신청서와 �
     const result = judgeDisposal(answered);
     assert.ok(result.method.includes(fee));
     assert.equal(result.pendingCondition, undefined);
-    assert.match(resultMarkup(answered, result), /class="result-badge">대형폐기물[\s\S]*유성구 대형폐기물 배출 신청[\s\S]*유성구 품목·수수료표/);
+    assert.match(resultMarkup(answered, result), /class="result-badge">대형폐기물/);
     assert.match(resultToText(answered, result), /이렇게 배출하세요/);
     assert.equal(batchGroups([{ input: answered, result }]).find(group => group.id === 'other').entries.length, 1);
   }
@@ -489,20 +489,6 @@ test('검증 지역 링크는 다음 행동과 복사에 남고, 손상 전지�
   assert.match(damagedHtml, /손상 전지 · 수거처에 먼저 문의/);
   assert.doesNotMatch(damagedHtml, /어떤 주택에 거주하나요/);
   assert.doesNotMatch(resultMarkup({ ...input, region: seoul }, judgeDisposal({ ...input, region: seoul })), /asan\.go\.kr/);
-});
-
-test('아산·김포 대형폐기물은 각각 공식 신청·안내로 가고 다른 지역에 섞이지 않는다', () => {
-  for (const [region, link] of [
-    [{ province: '충청남도', district: '아산시' }, 'https://smartclean.asan.go.kr/online/bulky/request'],
-    [{ province: '경기도', district: '김포시' }, 'https://m.gimpo.go.kr/portal/contents.do?key=1437'],
-  ]) {
-    const input = { itemName: '책상', region };
-    const result = judgeDisposal(input);
-    assert.ok(resultMarkup(input, result).includes(link));
-    assert.ok(resultToText(input, result).includes(link));
-    const elsewhere = { ...input, region: seoul };
-    assert.ok(!resultMarkup(elsewhere, judgeDisposal(elsewhere)).includes(link));
-  }
 });
 
 test('함께 버릴 물건은 지역·재질과 결과를 독립적으로 보존하고 미판별 물건도 복사한다', () => {

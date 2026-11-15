@@ -1,4 +1,4 @@
-import { largeWasteHelp, DISTRICT_HOMEPAGES } from './large-waste.js';
+import { DISTRICT_HOMEPAGES } from './district-homepages.js';
 import { MEDICINE_SOURCES } from './medicine-guide.js';
 import { cityGuide } from './city-guides.js';
 import { METRO_GUIDES } from './metro-guides.js';
@@ -25,19 +25,7 @@ const districtRecyclePage = region => METRO_GUIDES[region.province]?.districts[r
 
 export function collectionAction(input, result) {
   const { handling, region, regional } = result;
-  const large = largeWasteHelp(result);
   const scope = region ? regionLabel(region) : '';
-  if (large?.reportUrl && !large.maybe) return {
-    url: large.reportUrl, scope: large.place,
-    primary: result.confirmedReport,
-    label: `${large.office} 대형폐기물 ${large.directReport ? '배출 신청' : '공식 안내'}`,
-    note: result.confirmedReport ? '신청에서 위 품목을 선택한 뒤 수수료와 배출일·장소를 확인하세요.'
-      : '품목·크기에 맞는 수수료, 배출일과 장소는 신청 페이지에서 확인해 주세요.',
-  };
-  if (large && !large.maybe) return {
-    url: large.homepage, scope, label: `${large.office} 공식 누리집`,
-    note: '관할 지자체 대형폐기물 담당 부서에 품목과 크기를 알려 접수 방법·수수료·배출 장소를 확인해 주세요.',
-  };
   const isBattery = batteries.includes(handling);
   const brokenGlass = input.material === '유리' && input.type === 'broken';
   if (region && result.parts?.[0]?.label === '본체와 결합 재질' && input.separable === 'no') {

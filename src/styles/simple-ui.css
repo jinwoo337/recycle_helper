@@ -214,22 +214,14 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .result-region:has(+ .result-source-line) { margin-bottom:6px; }
 .result-source-line { margin:0 0 20px; font-size:13px; color:var(--muted); }
 .result-source-line a { color:var(--green); text-decoration:underline; overflow-wrap:anywhere; }
-.large-waste-help { margin:0 0 22px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:#fffaf0; }
-.large-waste-help h3 { margin:0 0 10px; font-size:16px; }
-.large-waste-help ol { padding-left:22px; margin:0 0 10px; font-size:14px; }
-.large-waste-help li { margin-bottom:4px; }
-.large-waste-links { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-.large-waste-links .button { font-size:13px; min-height:40px; }
-.icon-steps { list-style:none; padding-left:0 !important; counter-reset:step; }
-.icon-steps > li { counter-increment:step; display:flex; align-items:flex-start; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; line-height:1.6; }
-.action-steps.icon-steps > .result-first-step { background:#f3f7ef; }
-.icon-steps > li + li { margin-top:8px; }
-.icon-steps .step-icon { flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:50%; background:#eef5e9; font-size:21px; line-height:1; position:relative; }
-.icon-steps .step-icon::after { content:counter(step); position:absolute; top:-4px; left:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; background:var(--green); color:#fff; font-size:11px; font-weight:700; display:grid; place-items:center; font-family:inherit; }
-.icon-steps .step-text { padding-top:7px; }
-.part-steps.icon-steps > li { padding:8px 10px; }
-.part-steps.icon-steps .step-icon { width:34px; height:34px; font-size:18px; }
-.part-steps.icon-steps .step-text { padding-top:4px; font-size:14px; }
+.numbered-steps { list-style:none; padding-left:0 !important; }
+.numbered-steps > li { display:flex; align-items:flex-start; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; line-height:1.6; }
+.action-steps.numbered-steps > .result-first-step { background:#f3f7ef; }
+.numbered-steps > li + li { margin-top:8px; }
+.numbered-steps .step-number { flex:none; display:grid; place-items:center; width:26px; height:26px; margin-top:1px; border-radius:50%; background:var(--green); color:#fff; font-size:13px; font-weight:700; line-height:1; }
+.part-steps.numbered-steps > li { padding:8px 10px; }
+.part-steps.numbered-steps .step-number { width:22px; height:22px; font-size:12px; }
+.part-steps.numbered-steps .step-text { font-size:14px; }
 .collection-help { margin:0 0 22px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:#f1f7fb; }
 .collection-help h3 { margin:0 0 6px; font-size:16px; }
 .verified-collection details > summary { cursor:pointer; margin-bottom:10px; }

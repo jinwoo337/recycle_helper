@@ -1,7 +1,6 @@
 import { categoryLabel } from './item-categories.js';
 import { conditionDetails, disposalReasons, inputForDisplay, resultForDisplay, resultHandlingQuestion, resultNeedsCheck, resultStepsForDisplay } from './result-display.js';
 import { resultRegionLabel } from './regions.js';
-import { largeWasteHelp } from './large-waste.js';
 import { collectionAction } from './collection-action.js';
 import { disposalScheduleRows } from './yuseong-recycling-days.js';
 const numbered = steps => steps.map((step, index) => `${index + 1}. ${step}`).join('\n');
@@ -30,8 +29,7 @@ export function resultToText(input, result, { neighborhood } = {}) {
     ...(input.components || []).map((part, index) => `${part.label || `부속품 ${index + 1}`}\n${details(part)}`),
   ].filter(Boolean).join('\n\n');
   const action = collectionAction(input, result);
-  const large = largeWasteHelp(result);
-  const sources = [...new Set([...(result.sourceUrls || []), action?.url, action?.extraUrl, large?.reportUrl, large?.feeUrl].filter(Boolean))];
+  const sources = [...new Set([...(result.sourceUrls || []), action?.url, action?.extraUrl].filter(Boolean))];
   const heading = [
     input.itemName,
     `판별 지역 · ${resultRegionLabel(result)}`,

@@ -3,7 +3,7 @@ import { getDisposalHistory, saveDisposalRecord, deleteDisposalRecord, clearDisp
 import { MATERIALS, TYPES, supportsState, needsWashQuestion, normalizePart, judgeDisposal, RULE_SOURCE, RULE_VERSION } from '../../domain/disposal/rules.js';
 import { disposalItemList, disposalQueryName, suggestItemInfo, searchItemNames, lookupItem, normalizeItemName, relatedItemCandidates, itemCandidateHint, itemCandidateTitle, itemTypeClarification } from '../../domain/disposal/item-suggestions.js';
 import { cleanAiName, validateAiGuess, aiOpinionNeedsReview, suggestedItemCategory } from '../../domain/disposal/ai-classification.js';
-import { requestAiGuess, reportAiGuess } from '../../services/ai-classify.js';
+import { requestAiGuess } from '../../services/ai-classify.js';
 import { aiToggleMarkup, bindAiToggle, readAiEnabled } from '../../components/ai-toggle.js';
 import { RECYCLE_MARKS, RECYCLE_MARK_SOURCE, markById } from '../../domain/disposal/recycle-marks.js';
 import { encodeAiState } from '../../domain/disposal/ai-state.js';
@@ -30,7 +30,6 @@ import { detectItemCategory, isBatteryPackaging } from '../../domain/disposal/ca
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { prepareCategoryInput } from '../../domain/disposal/input-category.js';
 import { readJudgementRegion, rememberJudgementRegion } from '../../services/judgement-region.js';
-import { largeWasteHelp } from '../../domain/disposal/large-waste.js';
 import { collectionPointMarkup } from '../../components/collection-help.js';
 import { collectionActionMarkup } from '../../components/collection-action.js';
 import { collectionAction } from '../../domain/disposal/collection-action.js';
@@ -254,14 +253,6 @@ export function localGuideMarkup(result, itemName = '') {
     : `${escapeHtml(place)}${topicParticle(place)} 아직 지역 자료를 모으지 못해 <strong>전국 공통 기준</strong>으로 안내했어요.`;
   return `<p class="local-guide-line">🗺️ ${text} <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(region.district || region.province)} 공식 안내 찾기 ↗</a></p>`;
 }
-export function largeWasteMarkup(result, { topActionUrl } = {}) {
-  const help = largeWasteHelp(result);
-  if (!help) return '';
-  return `<section class="large-waste-help" aria-labelledby="large-waste-title"><h3 id="large-waste-title">🪑 ${help.maybe ? '봉투에 안 들어가면 ' : ''}대형폐기물 신고하기${help.place ? ` · ${escapeHtml(help.place)}` : ''}</h3>
-    <div class="large-waste-links">${help.reportUrl && help.reportUrl !== topActionUrl ? `<a class="button primary" href="${escapeHtml(help.reportUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.office)} 대형폐기물 ${help.directReport ? '배출 신청' : '안내'} ↗</a>` : ''}${help.feeUrl ? `<a class="button secondary" href="${escapeHtml(help.feeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.feeLabel)} ↗</a>` : help.homepage && help.homepage !== topActionUrl ? `<a class="button secondary" href="${escapeHtml(help.homepage)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.office)}청 누리집 ↗</a>` : ''}${help.directReport ? '' : `<a class="button secondary" href="${escapeHtml(help.searchUrl)}" target="_blank" rel="noopener noreferrer">신고 페이지 찾기 ↗</a>`}</div>
-    <details class="result-evidence"><summary>신고 순서·수수료</summary><ol>${help.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol><p class="input-hint">${escapeHtml(help.feeNote)}</p></details>
-    ${help.place ? '' : '<p class="input-hint">판별 지역을 고르면 우리 구 신고 페이지로 바로 안내해요.</p>'}</section>`;
-}
 const sourceLabel = url => url === RULE_SOURCE ? '분리배출 지침' : CATALOG_DETAIL_SOURCES[url] || regionalSourceLabel(url);
 // 결과를 펼치지 않아도 어떤 기준(공식 출처·확인일)으로 판단했는지 한 줄로 보여 줍니다.
 // 고른 지역의 자료 → 전국 자료(품목 사전·지침) 순으로 대표 출처를 고르고, 다른 지역(예: 대전인데 서울시) 자료는 대표로 쓰지 않습니다.
@@ -349,7 +340,6 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
     ${disposalScheduleMarkup(result)}
     ${disposalReasonMarkup(result)}
     ${steps.length || parts.some(part => part.steps.length) ? checklistMarkup({ target: 'disposal-instructions' }) : ''}
-    ${largeWasteMarkup(result, { topActionUrl: collection?.url })}
     ${collectionPointMarkup({ ...result, itemName: input.itemName }, { official: false })}
     ${relatedDisposalMarkup(input.itemName)}
     ${regionalComparisonMarkup(result)}
@@ -485,8 +475,6 @@ export function bindItemInput() {
   const aiToggle = document.getElementById('ai-enabled');
   // 이름별 AI 의견 상태: { status: 'loading' | 'done' | 'error', guess, error, promise }
   const opinions = new Map();
-  // 이 화면에서 "틀렸어요"를 누른 이름(정규화). 신고 상태: 'sending' | 'done' | 오류 문구
-  const reports = new Map();
   const catalogStatus = document.getElementById('catalog-status');
   const retryCatalog = document.getElementById('retry-catalog');
   let catalogLoading = false;
@@ -963,10 +951,8 @@ export function bindItemInput() {
     if (verifiedNameGuide(name)) { panel.closest('details').remove(); return; }
     const known = Boolean(lookupItem(name)?.material);
     const entry = shownResult?.aiGuess ? { status: 'done', guess: shownResult.aiGuess } : opinions.get(aiKey(name, shownAiState()));
-    const report = reports.get(normalizeItemName(name));
     let body;
-    if (report === 'done') body = `<p class="ai-panel-title">알려 주셔서 고마워요 🙏</p><p class="ai-note">이 AI 답은 숨겨서 다른 사용자에게 더 이상 보이지 않아요.${shownResult?.aiAssisted ? ' 아래 <strong>조건 수정</strong>에서 물건 종류와 재질을 직접 골라 다시 확인해 주세요.' : ''}</p>`;
-    else if (!entry || entry.status === 'loading') body = '<p class="ai-panel-title">AI에게 물어보고 있어요…</p>';
+    if (!entry || entry.status === 'loading') body = '<p class="ai-panel-title">AI에게 물어보고 있어요…</p>';
     else if (entry.status === 'error') body = `<p class="ai-panel-title">AI 의견을 받지 못했어요</p><p class="ai-panel-reason">${escapeHtml(entry.error)}</p><button type="button" class="button secondary" data-ai-retry>다시 묻기</button>`;
     else if (!entry.guess) body = '<p class="ai-panel-title">AI가 이 물건을 분류하지 못했어요</p>';
     else {
@@ -1021,7 +1007,6 @@ export function bindItemInput() {
   });
   summary.addEventListener('click', event => {
     if (event.target.closest('[data-ai-retry]') && shownInput) askAi(shownInput.itemName, shownAiState());
-    if (event.target.closest('[data-ai-report]') && shownInput) reportWrongAi(shownInput.itemName);
   });
   const aiSwitch = bindAiToggle(aiToggle, enabled => {
     aiEnabled = enabled;
@@ -1039,19 +1024,6 @@ export function bindItemInput() {
     }
     refreshAi();
   });
-  async function reportWrongAi(name) {
-    const key = normalizeItemName(name);
-    if (!key || reports.get(key) === 'sending' || reports.get(key) === 'done') return;
-    reports.set(key, 'sending'); renderOpinion();
-    try {
-      await reportAiGuess(name);
-      reports.set(key, 'done');
-      for (const opinionKey of [...opinions.keys()]) if (opinionKey.startsWith(`${key}|`)) opinions.delete(opinionKey);
-      opinions.set(aiKey(name), { status: 'done', guess: null, promise: Promise.resolve(null) });
-      if (aiGuess && normalizeItemName(aiGuess.itemName) === key) aiGuess = null;
-    } catch (error) { reports.set(key, error.message); }
-    if (form.isConnected) refreshAi();
-  }
   function attachOpinionPanel() {
     if (needsNameChoice(shownInput?.itemName) || verifiedNameGuide(shownInput?.itemName) || (shownInput?.category && !shownResult?.aiAssisted)) return false;
     if (!summary.querySelector('#ai-opinion')) {
