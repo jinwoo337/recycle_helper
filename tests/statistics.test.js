@@ -25,3 +25,10 @@ test('빈 기록·반복 판별·이름 검색과 공백 처리', () => {
   assert.equal(searchDisposalHistory(records, 'pet').length, 1);
   assert.equal(searchDisposalHistory(records, '없는 이름').length, 0);
 });
+
+test('기록 검색도 품목 검색과 같은 표기·별칭 정규화를 사용한다', () => {
+  const records = [record('택배상자','종이'),record('페트병','페트병'),record('PET 병','페트병'),record('우유 팩','종이')];
+  assert.deepEqual(searchDisposalHistory(records,'택배박스').map(row=>row.itemName),['택배상자']);
+  assert.deepEqual(searchDisposalHistory(records,'ＰＥＴ병').map(row=>row.itemName),['페트병','PET 병']);
+  assert.deepEqual(searchDisposalHistory(records,'  우유팩 ').map(row=>row.itemName),['우유 팩']);
+});

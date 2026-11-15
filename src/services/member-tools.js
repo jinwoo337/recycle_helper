@@ -2,10 +2,14 @@ import { getCurrentMember, isAuthReady } from './auth.js';
 import { getSupabase } from './supabase.js';
 import { databaseError, readAllPages } from './database.js';
 import { normalizeItemName } from '../domain/disposal/item-suggestions.js';
+import { validItemCategory } from '../domain/disposal/item-categories.js';
 
 export function validFavoriteInput(input) {
-  const fields = ['material', 'type', 'contaminated', 'washed', 'removable', 'combined', 'separable', 'foodSeparated'];
+  const fields = ['material', 'type', 'contaminated', 'washed', 'removable', 'vinylResidue', 'combined', 'separable', 'foodSeparated'];
   const part = value => value && typeof value === 'object' && !Array.isArray(value) &&
+    (value.category === undefined || validItemCategory(value.category)) &&
+    (value.categoryOrigin === undefined || ['manual', 'keyword'].includes(value.categoryOrigin)) &&
+    (value.keywordCategory === undefined || typeof value.keywordCategory === 'boolean') &&
     fields.every(key => value[key] === undefined || typeof value[key] === 'string');
   return part(input) && typeof input.itemName === 'string' && input.itemName.trim().length > 0 &&
     input.itemName.length <= 80 && (input.components === undefined ||
@@ -77,6 +81,16 @@ export function createMemberTools({ getClient = getSupabase, getMember = getCurr
       return request(id, () => client.from('disposal_feedback').insert({ id: crypto.randomUUID(), user_id: id,
         kind, item_name: input.itemName, input: structuredClone(input), result: structuredClone(result),
         message: message.trim(), status: 'pending' }).select('id,status').single());
+    },
+    async listFeedback() {
+      const id = owner();
+      if (!id) return [];
+      const client = await getClient(); check(id);
+      const rows = await readAllPages(() => client.from('disposal_feedback')
+        .select('id,kind,item_name,input,result,status,created_at')
+        .eq('user_id', id).order('created_at', { ascending: false }).order('id'));
+      check(id);
+      return rows;
     },
   };
 }

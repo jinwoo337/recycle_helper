@@ -1,3 +1,5 @@
+import { normalizeItemName } from './item-suggestions.js';
+
 export const categories = [
   ['food', '음식물류', '#b18b47'],
   ['plastic', '플라스틱', '#538463'], ['pet', '투명 페트병', '#7aa68a'],
@@ -37,8 +39,8 @@ export function getDisposalStatistics(records) {
 }
 
 export function searchDisposalHistory(records, query) {
-  const normalized = query.trim().toLocaleLowerCase('ko-KR').replace(/\s+/g, '');
-  return records.filter(record => record.itemName.toLocaleLowerCase('ko-KR').replace(/\s+/g, '').includes(normalized));
+  const normalized = normalizeItemName(query);
+  return records.filter(record => normalizeItemName(record.itemName).includes(normalized));
 }
 
 export function filterDisposalHistory(records, { query = '', category = '', from = '', to = '', sort = 'newest' } = {}) {

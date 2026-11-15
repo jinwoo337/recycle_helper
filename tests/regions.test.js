@@ -8,9 +8,28 @@ import { fakeAuthClient } from './helpers/auth-client.js';
 import { validRecord } from '../src/services/disposal-history.js';
 import { DAEJEON_DISTRICTS } from '../src/domain/disposal/daejeon-guides.js';
 import { profilePage } from '../src/pages/profile/profile.js';
+import { compareRegionalDisposal } from '../src/domain/disposal/regional-comparison.js';
 
 const gimpo = { province: '경기도', district: '김포시' };
 const geumcheon = { province: '서울특별시', district: '금천구' };
+test('폐의약품은 서울과 대전의 수거 경로를 비교하고 대전 동구의 확인된 포장 안내를 따로 적용한다', () => {
+  const seoul = judgeDisposal({ itemName: '알약', region: geumcheon });
+  assert.equal(seoul.regional.scope, 'city');
+  assert.match(seoul.steps.join(' '), /서울의 우체통/);
+  assert.doesNotMatch(seoul.steps.join(' '), /물약|연고/);
+  const daejeon = { province: '대전광역시', district: '유성구' };
+  const result = judgeDisposal({ itemName: '알약', region: daejeon });
+  assert.equal(result.regional.coverage, 'verified');
+  assert.match(result.steps.join(' '), /포장 처리 방법과 접수 여부/);
+  assert.doesNotMatch(result.steps.join(' '), /개봉|우체통/);
+  const donggu = judgeDisposal({ itemName: '알약', region: { ...daejeon, district: '동구' } });
+  assert.match(donggu.steps.join(' '), /약이 든 포장 그대로/);
+  assert.match(resultToText({ itemName: '알약', region: daejeon }, result), /유성구 · 지역 기준 적용[\s\S]*유성구청 본관 1층 민원실/);
+  const comparison = compareRegionalDisposal({ itemName: '알약', region: daejeon }, result);
+  assert.deepEqual(comparison.groups.map(group => group.regions.length), [25, 1, 3, 1, 1]);
+  assert.ok(comparison.groups.some(group => group.key === 'medicine:guri'));
+  assert.doesNotMatch(judgeDisposal({ itemName: '물약', region: geumcheon }).steps.join(' '), /우체통/);
+});
 test('지역: 17개 시도, 서울 자치구, 세종, 상세주소·비정상 값 검증', () => {
   assert.equal(PROVINCES.length, 17);
   assert.deepEqual(normalizeRegion({ ...gimpo, district: ' 김포시 ' }), gimpo);
@@ -25,7 +44,11 @@ test('지역: 김포 깨진 유리 전용마대 기준, 다른 지역/이름충�
   assert.equal(result.regional.coverage, 'verified');
   assert.match(result.parts[0].method, /백색마대/);
   assert.ok(result.regional.sources.includes(REGIONAL_SOURCES.gimpoWaste));
-  for (const altered of [{ ...input, region: geumcheon }, { ...input, itemName: '건전지' }, { ...input, itemName: '모르는유리' }, { ...input, combined: 'yes' }, { ...input, type: 'bottle' }]) {
+  const seoul = judgeDisposal({ ...input, region: geumcheon });
+  assert.equal(seoul.regional.coverage, 'verified');
+  assert.equal(seoul.regional.scope, 'city');
+  assert.doesNotMatch(seoul.method, /백색마대/);
+  for (const altered of [{ ...input, itemName: '건전지' }, { ...input, itemName: '모르는유리' }, { ...input, combined: 'yes' }, { ...input, type: 'bottle' }]) {
     const other = judgeDisposal(altered);
     assert.equal(other.regional.coverage, 'unverified');
     assert.doesNotMatch(other.method, /백색마대/);
@@ -69,7 +92,7 @@ test('대전: 5개 구의 재활용·음식물 출처, 유성 크린넷 예외, 
     assert.doesNotMatch(food.steps.join(), /전용 봉투·전용 용기·RFID/);
     if (district === '유성구') assert.match(food.regional.notes.join(), /자동크린넷/);
     const glass = judgeDisposal({ itemName: '깨진유리', material: '유리', type: 'broken', region });
-    assert.equal(glass.regional.coverage, district === '서구' ? 'verified' : 'unverified');
+    assert.equal(glass.regional.coverage, ['서구', '유성구'].includes(district) ? 'verified' : 'unverified');
     if (district === '서구') { assert.equal(glass.status, 'general'); assert.match(glass.method, /종량제/); }
     const unsafe = judgeDisposal({ itemName: '스프레이', material: '금속·캔', type: 'food-can', region });
     assert.equal(unsafe.status, 'check'); assert.equal(unsafe.regional.coverage, 'unverified');

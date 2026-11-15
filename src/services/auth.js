@@ -1,12 +1,17 @@
 import { getSupabase, isGoogleLoginEnabled, SUPABASE_URL } from './supabase.js';
 import { rememberGoogleLogin, clearGoogleLogin } from '../utils/auth-callback.js';
 import { normalizeRegion } from '../domain/disposal/regions.js';
+import { rememberPasswordRecovery, hasPasswordRecovery, clearPasswordRecovery } from '../utils/password-recovery.js';
 
 let auth;
 let currentMember = null;
 let subscription;
 let initialized = false;
+let initializationVersion = 0;
+let recoveryFor = null;
+let recoveryUntil = 0;
 const listeners = new Set();
+function clearRecoveryState() { recoveryFor = null; recoveryUntil = 0; clearPasswordRecovery(); }
 
 function publicMember(user) {
   if (!user) return null;
@@ -16,9 +21,9 @@ function publicMember(user) {
     nickname: typeof nickname === 'string' && nickname.trim() ? nickname.trim().slice(0, 20) : '회원' };
 }
 
-function updateMember(user) {
+function updateMember(user, force = false) {
   const next = publicMember(user);
-  if (JSON.stringify(currentMember) === JSON.stringify(next)) return;
+  if (JSON.stringify(currentMember) === JSON.stringify(next) && !force) return;
   currentMember = next;
   // 인증 이벤트 안에서 다른 인증 API를 호출하지 않도록 화면 갱신은 다음 작업으로 미룹니다.
   setTimeout(() => listeners.forEach(listener => listener()), 0);
@@ -30,6 +35,12 @@ export function authError(error) {
     email_not_confirmed: '이메일 인증이 필요해요. 가입할 때 받은 인증 메일을 확인해 주세요.',
     user_already_exists: '이미 가입된 이메일이에요. 로그인해 주세요.',
     weak_password: '더 안전한 비밀번호를 입력해 주세요.',
+    same_password: '이전과 다른 새 비밀번호를 입력해 주세요.',
+    otp_expired: '인증 링크가 만료됐어요. 새 재설정 링크를 요청해 주세요.',
+    flow_state_expired: '인증 시간이 지났어요. 같은 브라우저에서 새 재설정 링크를 요청해 주세요.',
+    flow_state_not_found: '인증을 시작한 브라우저에서 링크를 열어 주세요. 계속되면 새 링크를 요청해 주세요.',
+    session_not_found: '인증 세션이 만료됐어요. 새 재설정 링크를 요청해 주세요.',
+    reauthentication_needed: '다시 인증해야 해요. 새 재설정 링크를 요청해 주세요.',
     signup_disabled: '현재 신규 회원가입이 중단되어 있어요.',
     email_address_invalid: '사용 가능한 이메일 주소를 입력해 주세요.',
     email_address_not_authorized: '현재 메일 발송 설정으로는 이 주소에 인증 메일을 보낼 수 없어요. 운영자의 SMTP 설정이 필요해요.',
@@ -54,14 +65,29 @@ export function authError(error) {
 }
 
 export async function initializeAuth(client) {
+  const version = ++initializationVersion;
   initialized = false;
   const selected = client || await getSupabase();
-  const { data, error } = await selected.auth.getSession();
-  if (error) throw authError(error);
+  if (version !== initializationVersion) throw new Error('인증 상태 확인 요청이 변경됐어요. 다시 시도해 주세요.');
   subscription?.unsubscribe();
   auth = selected.auth;
-  updateMember(data.session?.user);
-  ({ data: { subscription } } = auth.onAuthStateChange((_event, session) => updateMember(session?.user)));
+  let observedEvent = false;
+  ({ data: { subscription } } = auth.onAuthStateChange((event, session) => {
+    if (version !== initializationVersion) return;
+    observedEvent = true;
+    const id = session?.user?.id;
+    if (event === 'PASSWORD_RECOVERY' && id) {
+      recoveryFor = id; recoveryUntil = Date.now() + 15 * 60 * 1000; rememberPasswordRecovery(id);
+    } else if (!id || event === 'SIGNED_IN' || (currentMember && currentMember.id !== id)) {
+      clearRecoveryState();
+    }
+    updateMember(session?.user, event === 'PASSWORD_RECOVERY');
+  }));
+  const { data, error } = await auth.getSession();
+  if (version !== initializationVersion) throw new Error('인증 상태 확인 요청이 변경됐어요. 다시 시도해 주세요.');
+  if (error) { subscription?.unsubscribe(); throw authError(error); }
+  if (!observedEvent) updateMember(data.session?.user);
+  if (!currentMember || (recoveryFor && recoveryFor !== currentMember.id)) clearRecoveryState();
   initialized = true;
 }
 
@@ -78,6 +104,25 @@ export function onMemberChange(listener) {
 }
 
 export function getCurrentMember() { return currentMember; }
+export function isPasswordRecovery() { return Boolean(initialized && currentMember && ((recoveryFor === currentMember.id && Date.now() < recoveryUntil) || hasPasswordRecovery(currentMember.id))); }
+
+export async function requestPasswordReset(email) {
+  if (typeof email !== 'string' || email.trim().length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new Error('올바른 이메일 주소를 입력해 주세요.');
+  const api = await requireAuth();
+  const { error } = await api.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: `${location.origin}${location.pathname}` });
+  if (error) throw authError(error);
+}
+
+export async function resetPassword(password) {
+  if (typeof password !== 'string' || password.length < 8 || !password.trim()) throw new Error('새 비밀번호는 8자 이상으로 입력해 주세요.');
+  const api = await requireAuth();
+  const owner = currentMember?.id;
+  if (!owner || !isPasswordRecovery()) throw new Error('재설정 링크의 인증이 필요해요. 같은 브라우저에서 새 링크를 열어 주세요.');
+  const { data, error } = await api.updateUser({ password });
+  if (error) throw authError(error);
+  if (currentMember?.id !== owner || data?.user?.id !== owner) throw new Error('로그인 계정이 변경됐어요. 현재 계정에서 다시 확인해 주세요.');
+  clearRecoveryState(); updateMember(data.user);
+}
 
 export async function signup(nickname, email, password, region) {
   nickname = nickname.trim();
@@ -108,6 +153,7 @@ export async function logout() {
   if (!auth) return;
   const { error } = await auth.signOut({ scope: 'local' });
   if (error) throw authError(error);
+  clearRecoveryState();
   updateMember(null);
 }
 
