@@ -34,6 +34,7 @@ import { resultToText } from '../../domain/disposal/result-text.js';
 import { bindItemAutocomplete } from '../../components/item-autocomplete.js';
 import { addDisposalBatchItem, addMealToBatch } from '../../services/disposal-batch.js';
 import { saveDisposalRecord } from '../../services/disposal-history.js';
+import { aiFeedbackMarkup, bindAiFeedback } from '../../components/ai-feedback.js';
 
 const titles = { description: '물건 설명하기', photo: '사진으로 인식하기' };
 let assistanceDraft = {}, descriptionOwner;
@@ -180,6 +181,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
   return `<p class="eyebrow">${guide?.inferred ? '이름으로 알아본 종류의 안내' : guide ? '등록 품목 안내' : 'AI 참고 안내'} · ${escapeHtml(guide?.regional ? resultRegionLabel(guide) : regionLabel(region))}</p>
     <h2 id="assistance-result-title">${escapeHtml(answer.itemName)}</h2>
     <div class="assist-method"><p class="eyebrow">어디에 버리나요?</p>${!confirmIdentity && guide?.confirmedReport ? '<span class="result-badge">대형폐기물</span>' : !confirmIdentity && guide?.confirmedCollection ? '<span class="result-badge">전용 수거</span>' : ''}<h3>${escapeHtml(method)}</h3></div>
+    ${fromInput ? '' : aiFeedbackMarkup()}
     ${guide && !fromInput ? '<p class="assist-identification">사진이나 설명에서 추정한 이름이에요. 실제 물건과 같은지 확인해 주세요.</p>' : !guide && answer.identification ? `<p class="assist-identification">${escapeHtml(answer.identification)}</p>` : ''}
     ${answer.evidence === 'markings' ? '<p class="input-hint">표시는 읽었지만 실제 물건은 확인하지 못했어요. 물건 전체 사진이나 용도 설명을 더해 주세요.</p>' : ''}
     ${answer.markings.length ? `<p class="assist-markings"><strong>AI가 읽은 표시</strong> ${answer.markings.map(escapeHtml).join(' · ')}</p>` : ''}
@@ -404,13 +406,22 @@ export function bindAssistance(mode, { root = document.getElementById('assistanc
     answer = view.answer;
     currentResult = view;
     disposeResult();
+    const confirmIdentity = Boolean(view.guide?.ruleVersion && !view.fromInput && !view.guide?.condition && !view.identityConfirmed);
     result.innerHTML = assistanceResultMarkup(answer, view.region, {
       answers: answered, pendingAnswers: view.pendingAnswers, mode, guide: view.guide, fromInput: view.fromInput,
       observations: view.observations, selectedObservations: view.selectedObservations, sourceName: assistanceDraft.sourceName,
       componentLabels: normalizeItemName(assistanceDraft.sourceName) === normalizeItemName(answer.itemName) || answer.evidence === 'markings'
         ? assistanceDraft.componentLabels : [],
-      confirmIdentity: Boolean(view.guide?.ruleVersion && !view.fromInput && !view.guide?.condition && !view.identityConfirmed),
+      confirmIdentity,
     });
+    if (!view.fromInput) bindAiFeedback(result, () => ({
+      input: resultInput(view),
+      result: {
+        method: result.querySelector('.assist-method h3').textContent,
+        steps: confirmIdentity || view.guide?.needsConditions ? [] : view.guide?.steps || [],
+        assistance: { mode, identification: view.answer.identification, category: view.answer.category, markings: view.answer.markings, questions: view.answer.questions },
+      },
+    }));
     const marks = new Map((view.selectedMarks || []).map(mark => [mark.marking, mark]));
     result.querySelector('[data-assist-mark-confirm]')?.querySelectorAll('[data-marking]').forEach(row => {
       const saved = marks.get(row.dataset.marking);

@@ -44,6 +44,7 @@ export function mainPage(member) {
       <div class="example-items" role="group" aria-label="검색 예시" data-home-examples>${exampleItemsMarkup(region)}</div><details class="search-options"><summary>검색 설정</summary><div class="ai-mode-controls">${aiToggleMarkup('home-ai-enabled', { compact: true })}</div></details>${member ? '' : '<p class="input-hint">로그인 없이 찾을 수 있어요.</p>'}</form>
     ${readDisposalBatch().items.length ? '<p><a class="history-action" href="#/batch">함께 버릴 물건 목록 보기 →</a></p>' : ''}
     <nav class="home-shortcuts" aria-label="주요 기능 바로가기">
+      <a href="#/bulky-waste" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('bulkyWaste')}</span><div><h2>대형폐기물 신고</h2><p>지역별 수수료 조회와 배출 신고</p></div><span aria-hidden="true">↗</span></a>
       <a href="#/history" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('history')}</span><div><h2>나의 기록</h2><p>찾아본 물건과 통계를 한눈에</p></div><span aria-hidden="true">↗</span></a>
       <a href="#/game" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('game')}</span><div><h2>분리배출 게임</h2><p>60초 도전으로 배우고 대결해요</p></div><span aria-hidden="true">↗</span></a>
       <a href="#/guide" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('guide')}</span><div><h2>분리배출 방법</h2><p>비우고, 분리하고, 제대로 버려요</p></div><span aria-hidden="true">↗</span></a>
@@ -64,6 +65,7 @@ function tipCard() {
 function homeIcon(name) {
   const paths={history:'<path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/>',game:'<circle cx="12" cy="13" r="7"/><path d="M9 2h6M12 6V2M12 13l3-3"/>',profile:'<circle cx="12" cy="8" r="3"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/>'};
   paths.guide = '<path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Zm0 0v15M6 8h3M6 12h3M15 8h3M15 12h3"/>';
+  paths.bulkyWaste = '<path d="M5 11V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v3M5 11a2 2 0 0 0-2 2v4h18v-4a2 2 0 0 0-4 0H7a2 2 0 0 0-2-2Zm1 6v2m12-2v2"/>';
   return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
 }
 

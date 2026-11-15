@@ -115,6 +115,41 @@
 .home-region > button { color: var(--green); text-decoration: underline; }
 .home-region-form { margin-bottom: 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .home-region-form .choice-row { margin-top: 10px; }
+
+@media (min-width: 701px) { .home-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 940px) { .home-shortcuts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.bulky-waste-page { max-width: 760px; padding-block: 24px 48px; }
+.bulky-waste-page [hidden] { display: none; }
+.bulky-waste-card { margin-bottom: 16px; padding: clamp(16px, 4vw, 24px); background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+.bulky-waste-card h2 { margin: 0 0 10px; font-size: 19px; }
+.bulky-waste-region { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
+.bulky-waste-region h2 { margin-bottom: 4px; }
+.bulky-waste-region p { margin: 0; font-size: 14px; }
+.bulky-waste-region button { color: var(--green); text-decoration: underline; }
+.bulky-waste-card form, .bulky-waste-action { margin-top: 16px; }
+.bulky-waste-action .input-hint { margin: 8px 0 0; }
+.bulky-waste-card input { font-size: 16px; }
+.bulky-waste-status { color: var(--muted); font-size: 13px; margin: 0; }
+.bulky-waste-table { width: 100%; margin-top: 10px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.bulky-waste-table thead { background: #f2f7ef; }
+.bulky-waste-table th, .bulky-waste-table td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: left; overflow-wrap: anywhere; }
+.bulky-waste-table thead th:last-child { width: 96px; }
+.bulky-waste-table thead th:last-child, .bulky-waste-table td { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bulky-waste-table .bulky-waste-item th { padding-block: 12px; background: #f7f9f3; color: var(--green); }
+.bulky-waste-table th[scope="row"] { font-weight: 400; padding-inline-start: 16px; }
+.bulky-waste-table tbody tr:focus { outline: 2px solid var(--green); outline-offset: -2px; }
+.bulky-waste-more { margin-top: 12px; }
+.bulky-waste-source { margin-top: 14px; font-size: 12px; color: var(--muted); }
+.bulky-waste-source p { margin: 0 0 4px; }
+.bulky-waste-source a { display: inline-flex; align-items: center; gap: 4px; min-height: 38px; color: var(--green); text-decoration: underline; margin-right: 12px; }
+
+@media (max-width: 520px) {
+  .bulky-waste-page .guide-heading { margin-block: 8px 20px; }
+  .bulky-waste-page .guide-heading h1 { font-size: 28px; }
+  .bulky-waste-table th, .bulky-waste-table td { padding-inline: 5px; }
+  .bulky-waste-table thead th:last-child { width: 72px; }
+}
 .home-search { border-color: #d3dfd6; padding: 28px; }
 .home-search .example-items button, .input-examples .history-action { min-height: 44px; padding-inline: 12px; }
 .item-name-options button { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; }

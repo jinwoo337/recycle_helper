@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bindResultTools } from '../src/components/result-tools.js';
 import { bindResultCopy } from '../src/components/result-copy.js';
+import { bindAiFeedback } from '../src/components/ai-feedback.js';
 import { RULE_VERSION } from '../src/domain/disposal/rules.js';
 
 class Node extends EventTarget {
@@ -108,4 +109,40 @@ test('제보는 공백을 제외한 길이를 확인하고 전송 중 중복·�
     assert.equal(message.disabled,false);assert.equal(button.disabled,false);assert.equal(message.value,'');
     assert.match(status.textContent,/검토 요청을 보냈어요/);
   } finally {ui.dispose();delete globalThis.window;}
+});
+
+test('틀렸어요는 당시 AI 안내를 정정 제보로 보내고 전송 실패 시 재시도할 수 있다', async () => {
+  const form = new Node(), button = new Node(), status = new Node();
+  const field = { value: '   ', focus() {} };
+  form.elements = { message: field };
+  form.querySelector = selector => selector === 'button' ? button : status;
+  form.isConnected = true;
+  form.reset = () => { field.value = ''; };
+  const input = { itemName: '용기', region: { province: '대전광역시', district: '유성구' } };
+  const result = { method: '재활용', aiAssisted: true };
+  const requests = [];
+  const sending = pending();
+  bindAiFeedback({ querySelector: () => form }, () => ({ input, result }), {
+    submitFeedback: async payload => {
+      requests.push(payload);
+      if (requests.length === 1) throw new Error('연결 실패');
+      return sending.promise;
+    },
+  });
+  const submit = () => form.dispatchEvent(new Event('submit', { cancelable: true }));
+  submit();
+  assert.equal(requests.length, 0);
+  field.value = '  배출 방법 오류  ';
+  submit();
+  await flush();
+  assert.equal(status.textContent, '연결 실패');
+  assert.equal(field.value, '  배출 방법 오류  ');
+  submit();
+  submit();
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1], { kind: 'correction', input, result, message: '[AI 안내 오류] 배출 방법 오류' });
+  sending.resolve();
+  await flush();
+  assert.match(status.textContent, /제보를 보냈어요/);
+  assert.equal(field.value, '');
 });

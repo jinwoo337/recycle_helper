@@ -10,6 +10,7 @@ import { encodeAiState } from '../../domain/disposal/ai-state.js';
 import { getCurrentMember } from '../../services/auth.js';
 import { getCatalogMessage, initializeItemCatalog } from '../../services/item-catalog.js';
 import { resultToolsMarkup, bindResultTools, missingItemMarkup } from '../../components/result-tools.js';
+import { aiFeedbackMarkup, bindAiFeedback } from '../../components/ai-feedback.js';
 import { memberTools } from '../../services/member-tools.js';
 import { regionLabel, REGIONAL_SOURCES, regionalSourceDetail, regionalSourceLabel, resultRegionLabel, usesSeoulVinylQuestions } from '../../domain/disposal/regions.js';
 import { METRO_GUIDES } from '../../domain/disposal/metro-guides.js';
@@ -318,6 +319,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
     ${inlineRegion ? `<form id="result-region-form" class="result-region-form" aria-label="판별 지역 변경" novalidate hidden>${judgementRegionMarkup(result.region, { onResult: true })}
       <div class="choice-row"><button type="submit" class="button primary">이 지역 기준 보기</button><button type="button" class="button secondary" data-cancel-region>취소</button></div></form>` : ''}
     ${result.aiAssisted ? '<p class="ai-badge">🤖 AI 추정 결과예요. 실제 제품의 분리배출 표시를 꼭 확인해 주세요.</p>' : ''}
+    ${result.aiAssisted ? aiFeedbackMarkup() : ''}
     ${result.keywordCategory ? `<p class="keyword-note">🔎 이름의 ‘${escapeHtml(result.keywordCategory.keyword)}’(으)로 <strong>${escapeHtml(categoryLabel(result.keywordCategory.category))}</strong>(으)로 알아봤어요. <button type="button" class="history-action" id="category-other">다른 물건이에요</button></p>` : ''}
     ${partial ? `<div class="result-partial-note">
       <h3 class="result-action-title">배출 방법을 확인한 부분</h3>${routeList('배출 방법을 확인한 부분', parts.filter(part => part.status !== 'check'))}
@@ -951,7 +953,7 @@ export function bindItemInput() {
     if (verifiedNameGuide(name)) { panel.closest('details').remove(); return; }
     const known = Boolean(lookupItem(name)?.material);
     const entry = shownResult?.aiGuess ? { status: 'done', guess: shownResult.aiGuess } : opinions.get(aiKey(name, shownAiState()));
-    let body;
+    let body, report;
     if (!entry || entry.status === 'loading') body = '<p class="ai-panel-title">AI에게 물어보고 있어요…</p>';
     else if (entry.status === 'error') body = `<p class="ai-panel-title">AI 의견을 받지 못했어요</p><p class="ai-panel-reason">${escapeHtml(entry.error)}</p><button type="button" class="button secondary" data-ai-retry>다시 묻기</button>`;
     else if (!entry.guess) body = '<p class="ai-panel-title">AI가 이 물건을 분류하지 못했어요</p>';
@@ -968,10 +970,12 @@ export function bindItemInput() {
       } else {
         body = `${detail}
           ${known ? '<p class="ai-note">등록된 기준 결과를 참고해 주세요.</p>' : ''}`;
+        if (!shownResult?.aiAssisted) report = { method: aiLine(guess), aiGuess: guess };
       }
     }
     panel.classList.toggle('is-loading', !entry || entry.status === 'loading');
-    panel.innerHTML = `<h3>🤖 AI 의견${known ? ' <small>(참고)</small>' : ''}</h3>${body}`;
+    panel.innerHTML = `<h3>🤖 AI 의견${known ? ' <small>(참고)</small>' : ''}</h3>${body}${report ? aiFeedbackMarkup() : ''}`;
+    if (report) bindAiFeedback(panel, () => ({ input: { itemName: name, region: shownResult?.region }, result: report }));
   }
   aiButton.addEventListener('click', () => {
     const name = nameInput.value.trim();

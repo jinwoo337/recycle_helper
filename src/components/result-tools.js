@@ -11,6 +11,7 @@ import { escapeHtml } from '../utils/html.js';
 import { addDisposalBatchItem, addMealToBatch } from '../services/disposal-batch.js';
 import { bindDisposalSchedule } from './disposal-schedule.js';
 import { bindRegionalComparison } from './regional-comparison.js';
+import { bindAiFeedback } from './ai-feedback.js';
 
 const feedbackIssues = {
   destination: '수거처·배출 장소',
@@ -46,6 +47,7 @@ export function resultToolsMarkup(input, result) {
 export function bindResultTools(root, input, result, { onNewItem, onRelatedItem, tools = memberTools } = {}) {
   const disposeChecklist = bindDisposalChecklist(root);
   const displayed = resultForDisplay(input, result);
+  if (displayed.aiAssisted) bindAiFeedback(root, () => ({ input: inputForDisplay(input, result), result: displayed }), tools);
   if (root.querySelector('[data-verified-collection]')) bindVerifiedCollection(root, displayed);
   bindRegionalComparison(root, inputForDisplay(input, result), displayed);
   const scheduleChoice = bindDisposalSchedule(root, displayed);

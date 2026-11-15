@@ -17,6 +17,7 @@ import { parseRoute } from './utils/routes.js';
 import { forgotPasswordPage, resetPasswordPage, submitForgotPassword, submitResetPassword } from './pages/password/password.js';
 import { assistancePage, bindAssistance } from './pages/assistance/assistance.js';
 import { batchPage, bindBatch } from './pages/batch/batch.js';
+import { bulkyWastePage, bindBulkyWaste } from './pages/bulky-waste/bulky-waste.js';
 
 const routes = {
   '/': { page: 'main', title: '홈', render: mainPage },
@@ -27,6 +28,7 @@ const routes = {
   '/photo': { page: 'photo', title: '사진으로 인식하기', render: () => assistancePage('photo') },
   '/history': { page: 'history', title: '기록 및 통계', render: historyPage },
   '/batch': { page: 'batch', title: '함께 버릴 물건', render: batchPage },
+  '/bulky-waste': { page: 'bulky-waste', title: '대형폐기물 신고', render: bulkyWastePage },
   '/profile': { page: 'profile', title: '마이페이지', render: profilePage },
   '/game': { page: 'game', title: '게임', render: gamePage },
   '/guide': { page: 'guide', title: '분리배출 방법', render: guidePage },
@@ -56,6 +58,7 @@ function render(moveFocus = false) {
   else if (route.page === 'describe' || route.page === 'photo') disposePage = bindAssistance(route.page === 'photo' ? 'photo' : 'description');
   else if (route.page === 'history') disposePage = bindHistory();
   else if (route.page === 'batch') disposePage = bindBatch();
+  else if (route.page === 'bulky-waste') disposePage = bindBulkyWaste(member);
   else if (route.page === 'profile') bindProfile();
   else if (route.page === 'game') disposePage = bindGame();
   else if (route.page === 'guide') bindGuide();
