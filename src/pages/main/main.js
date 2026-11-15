@@ -15,6 +15,7 @@ import { getCurrentMember } from '../../services/auth.js';
 import { memberTools } from '../../services/member-tools.js';
 import { readDisposalBatch } from '../../services/disposal-batch.js';
 import { inputForDisplay } from '../../domain/disposal/result-display.js';
+import { bindHomeCollectionDays, homeCollectionDaysMarkup } from '../../components/home-collection-days.js';
 
 let homeDraft = { owner: '', itemName: '' };
 const favoriteOrderKey = owner => `recycle-helper.home-favorite-order.v1.${owner}`;
@@ -43,6 +44,7 @@ export function mainPage(member) {
       <div class="home-direct-choices"><button class="history-action" type="button" data-home-unnamed>이름 없이 종류 고르기</button><button class="history-action" type="button" data-home-mark>분리배출 표시로 찾기</button></div></div>
       <div class="example-items" role="group" aria-label="검색 예시" data-home-examples>${exampleItemsMarkup(region)}</div><details class="search-options"><summary>검색 설정</summary><div class="ai-mode-controls">${aiToggleMarkup('home-ai-enabled', { compact: true })}</div></details>${member ? '' : '<p class="input-hint">로그인 없이 찾을 수 있어요.</p>'}</form>
     ${readDisposalBatch().items.length ? '<p><a class="history-action" href="#/batch">함께 버릴 물건 목록 보기 →</a></p>' : ''}
+    <section class="home-collection-days" aria-labelledby="home-collection-title"><h2 id="home-collection-title">우리 동네 배출 요일</h2><div data-home-collection-days>${homeCollectionDaysMarkup(region, member)}</div></section>
     <nav class="home-shortcuts" aria-label="주요 기능 바로가기">
       <a href="#/bulky-waste" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('bulkyWaste')}</span><div><h2>대형폐기물 신고</h2><p>지역별 수수료 조회와 배출 신고</p></div><span aria-hidden="true">↗</span></a>
       <a href="#/history" class="home-shortcut"><span class="shortcut-symbol" aria-hidden="true">${homeIcon('history')}</span><div><h2>나의 기록</h2><p>찾아본 물건과 통계를 한눈에</p></div><span aria-hidden="true">↗</span></a>
@@ -130,6 +132,10 @@ export function bindMain() {
     regionToggle.setAttribute('aria-expanded', 'true');
     regionEditor.focus();
   });
+  const renderCollectionDays = bindHomeCollectionDays(root.querySelector('[data-home-collection-days]'), () => region, member, () => {
+    if (regionForm.hidden) regionToggle.click();
+    else regionEditor.focus();
+  });
   regionForm.querySelector('[data-home-region-cancel]').addEventListener('click', closeRegion);
   regionForm.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); closeRegion(); } });
   regionForm.addEventListener('submit', event => {
@@ -141,6 +147,7 @@ export function bindMain() {
     regionLabelNode.textContent = `판별 지역 · ${regionLabel(region)}`;
     regionToggle.textContent = region ? '지역 변경' : '지역 선택';
     examples.innerHTML = exampleItemsMarkup(region);
+    renderCollectionDays();
     closeRegion();
   });
   let active = true;

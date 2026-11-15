@@ -218,9 +218,7 @@ summary:focus-visible { outline:3px solid #bd831c; outline-offset:3px; }
 .numbered-steps > li { display:flex; align-items:flex-start; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; line-height:1.6; }
 .action-steps.numbered-steps > .result-first-step { background:#f3f7ef; }
 .numbered-steps > li + li { margin-top:8px; }
-.numbered-steps .step-number { flex:none; display:grid; place-items:center; width:26px; height:26px; margin-top:1px; border-radius:50%; background:var(--green); color:#fff; font-size:13px; font-weight:700; line-height:1; }
 .part-steps.numbered-steps > li { padding:8px 10px; }
-.part-steps.numbered-steps .step-number { width:22px; height:22px; font-size:12px; }
 .part-steps.numbered-steps .step-text { font-size:14px; }
 .collection-help { margin:0 0 22px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:#f1f7fb; }
 .collection-help h3 { margin:0 0 6px; font-size:16px; }
