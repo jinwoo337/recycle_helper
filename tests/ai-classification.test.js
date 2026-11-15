@@ -1,0 +1,330 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { judgeDisposal } from '../src/domain/disposal/rules.js';
+import { validateAiGuess, aiResponseSchema } from '../src/domain/disposal/ai-classification.js';
+import { requestAiGuess } from '../src/services/ai-classify.js';
+import handler, { classifyWithGemini, classifyWithRetry, pickModels, chooseModels, readSharedGuess, saveSharedGuess } from '../api/classify.js';
+import { cleanAiAliases } from '../src/domain/disposal/ai-classification.js';
+
+test('AI 별칭은 공백만 제거하고 영문 s와 유니코드 표기는 훼손하지 않는다', () => {
+  assert.deepEqual(cleanAiAliases([' usb 충전기 ', 'usb충전기', 'ＳＳＤ 케이스', '원 래 물 건', ' '], '원래물건'), ['usb충전기', 'SSD케이스']);
+});
+
+const guess = (route, extra = {}) => ({ itemName: '실리콘주걱', material: '기타', type: '', route, confidence: 'high', reason: '실리콘 제품은 재활용 대상이 아니에요.', ...extra });
+
+test('AI 추정값은 허용 목록 안의 값만 받고, 확신이 낮으면 배출 방법을 정하지 않는다', () => {
+  assert.equal(validateAiGuess(null, '주걱'), null);
+  assert.equal(validateAiGuess(guess('general'), '다른물건'), null, '이름이 다르면 사용하지 않음');
+  assert.equal(validateAiGuess(guess('burn'), '실리콘주걱'), null, '목록 밖의 경로');
+  assert.equal(validateAiGuess(guess('general', { material: '우라늄' }), '실리콘주걱').material, '기타');
+  assert.equal(validateAiGuess(guess('general', { confidence: 'low' }), '실리콘주걱').route, 'unknown');
+  assert.equal(validateAiGuess(guess('hazardous', { confidence: 'low' }), '실리콘주걱').route, 'hazardous', '위험 가능성은 확신과 무관하게 유지');
+  assert.equal(validateAiGuess(guess('recyclable', { material: '플라스틱', type: '' }), '실리콘주걱').route, 'unknown', '종류 없는 재활용 추정');
+  assert.equal(validateAiGuess(guess('general', { reason: 'x'.repeat(500) }), '실리콘주걱').reason.length, 160);
+  assert.ok(aiResponseSchema().properties.material.enum.includes('플라스틱'));
+});
+
+test('AI 경로별 판별: 종량제·대형·위험·불확실', () => {
+  const base = { itemName: '실리콘주걱', material: '기타' };
+  const general = judgeDisposal({ ...base, aiGuess: guess('general') });
+  assert.equal(general.status, 'check'); assert.ok(general.aiAssisted); assert.match(general.method, /종량제.*확인/);
+  assert.doesNotMatch(general.steps.join(' '), /담아 배출해 주세요/);
+  assert.ok(general.reasons.some(reason => reason.includes('AI')));
+  assert.equal(judgeDisposal({ ...base, aiGuess: guess('general', { confidence: 'medium' }) }).status, 'check');
+  assert.ok(judgeDisposal({ ...base, aiGuess: guess('large') }).method.includes('대형폐기물'));
+  const hazard = judgeDisposal({ ...base, aiGuess: guess('hazardous') });
+  assert.equal(hazard.status, 'check'); assert.ok(hazard.reasons[0].includes('별도 수거'));
+  assert.equal(judgeDisposal({ ...base, aiGuess: guess('unknown') }).method, '추가 확인 필요');
+});
+
+test('AI가 재활용 대상으로 분류해도 상태 질문과 규칙을 그대로 거친다', () => {
+  const ai = guess('recyclable', { itemName: '요거트컵', material: '플라스틱', type: 'container' });
+  const input = { itemName: '요거트컵', material: '플라스틱', type: 'container', aiGuess: ai };
+  assert.equal(judgeDisposal(input).status, 'check', '오염 여부를 모르면 확정하지 않음');
+  const cleanResult = judgeDisposal({ ...input, contaminated: 'no', combined: 'no' });
+  assert.equal(cleanResult.status, 'recycle'); assert.ok(cleanResult.aiAssisted); assert.ok(cleanResult.method.includes('플라스틱'));
+  const dirty = judgeDisposal({ ...input, contaminated: 'yes', washed: 'yes', removable: 'no', combined: 'no' });
+  assert.equal(dirty.status, 'general');
+  const changed = judgeDisposal({ ...input, material: '유리', type: 'bottle', contaminated: 'no', combined: 'no' });
+  assert.equal(changed.status, 'check', '사용자가 고른 재질이 AI 추정과 다르면 확인 필요');
+});
+
+test('AI 추정은 등록 품목·위험 이름 규칙을 덮어쓰지 않는다', () => {
+  const known = judgeDisposal({ itemName: '우유팩', material: '종이', type: 'carton', contaminated: 'no', combined: 'no', aiGuess: guess('general', { itemName: '우유팩' }) });
+  assert.equal(known.status, 'recycle'); assert.equal(known.aiAssisted, undefined);
+  const battery = judgeDisposal({ itemName: '보조배터리케이스', material: '플라스틱', type: 'container', contaminated: 'no', combined: 'no',
+    aiGuess: guess('recyclable', { itemName: '보조배터리케이스', material: '플라스틱', type: 'container' }) });
+  assert.equal(battery.status, 'check'); assert.equal(battery.aiAssisted, undefined);
+  assert.equal(judgeDisposal({ itemName: '실리콘주걱', material: '기타' }).status, 'check', 'AI 없으면 기존 미등록 안내');
+});
+
+test('Gemini 호출: 키는 헤더로만 보내고 응답을 검증한다', async () => {
+  let request;
+  const fetcher = async (url, options) => {
+    request = { url, options };
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '기타', type: '', route: 'general', confidence: 'high', reason: '일반 생활용품' }) }] } }] }) };
+  };
+  const result = await classifyWithGemini('실리콘 주걱', { apiKey: 'test-key', fetcher, model: 'test-model' });
+  assert.equal(result.route, 'general'); assert.equal(result.itemName, '실리콘 주걱');
+  assert.ok(!request.url.includes('test-key')); assert.equal(request.options.headers['x-goog-api-key'], 'test-key');
+  assert.ok(request.url.includes('test-model'));
+  const body = JSON.parse(request.options.body);
+  assert.equal(body.generationConfig.responseMimeType, 'application/json');
+  const broken = async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '정답은 플라스틱' }] } }] }) });
+  assert.equal(await classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher: broken }), null);
+  await assert.rejects(classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher: async () => ({ ok: false, status: 500 }) }));
+});
+
+test('동시 요청: 빠른 모델이 늦으면 예비 모델을 함께 부르고 먼저 온 답을 쓴다', async () => {
+  const answer = route => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '기타', type: 'none', route, confidence: 'high', reason: '' }) }] } }] }) });
+  const busy = { ok: false, status: 503, json: async () => ({ error: { message: 'high demand' } }) };
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const models = { primary: 'lite-model', fallback: 'big-model' };
+  const run = async (handlers, extra = {}) => {
+    const urls = [];
+    const fetcher = async (url, init) => {
+      urls.push(url);
+      const handle = handlers[url.includes('lite-model') ? 'lite' : 'big'];
+      return handle(init.signal);
+    };
+    return { urls, result: classifyWithRetry('실리콘 주걱', { apiKey: 'k', fetcher, models, hedgeMs: 30, ...extra }) };
+  };
+
+  const fast = await run({ lite: async () => answer('general'), big: async () => answer('large') });
+  const fastResult = await fast.result;
+  assert.equal(fastResult.route, 'general'); assert.equal(fastResult.type, '', "'none'은 빈 값으로 바뀜");
+  await sleep(50); assert.equal(fast.urls.length, 1, '빠르면 예비 모델을 부르지 않음');
+
+  let aborted = false;
+  const slowLite = async signal => { await new Promise(resolve => { const t = setTimeout(resolve, 300); signal.addEventListener('abort', () => { aborted = true; clearTimeout(t); resolve(); }); }); return answer('general'); };
+  const slow = await run({ lite: slowLite, big: async () => answer('large') });
+  assert.equal((await slow.result).route, 'large', '늦으면 예비 모델 답을 씀');
+  assert.equal(slow.urls.length, 2); assert.ok(aborted, '남은 요청은 취소');
+
+  const failFast = await run({ lite: async () => busy, big: async () => answer('large') }, { hedgeMs: 5_000 });
+  assert.equal((await failFast.result).route, 'large', '기본 모델이 실패하면 기다리지 않고 바로 예비 모델');
+
+  const both = await run({ lite: async () => busy, big: async () => ({ ok: false, status: 400, json: async () => ({}) }) });
+  await assert.rejects(both.result, error => error.status === 503, '둘 다 실패하면 과부하 오류를 우선');
+
+  const alone = await run({ lite: async () => busy }, { models: { primary: 'lite-model', fallback: '' } });
+  await assert.rejects(alone.result, error => error.status === 503);
+  assert.equal(alone.urls.length, 1);
+});
+
+test('빠른 응답: 생각 단계를 minimal → low → 없음 순으로 낮춰 기억한다', async () => {
+  const bodies = [];
+  const answer = { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '기타', type: 'none', route: 'general', confidence: 'high', reason: '' }) }] } }] }) };
+  const rejectThinking = { ok: false, status: 400, json: async () => ({ error: { message: 'thinking_level is not supported for this model.' } }) };
+  const responses = [rejectThinking, rejectThinking, answer, answer];
+  const fetcher = async (url, options) => { bodies.push(JSON.parse(options.body)); return responses.shift(); };
+  assert.equal((await classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher, model: 'old-model' })).route, 'general');
+  assert.equal(bodies[0].generationConfig.thinkingConfig.thinkingLevel, 'minimal');
+  assert.equal(bodies[1].generationConfig.thinkingConfig.thinkingLevel, 'low');
+  assert.equal(bodies[2].generationConfig.thinkingConfig, undefined, '모두 거절되면 생각 설정 없이');
+  await classifyWithGemini('실리콘 주걱', { apiKey: 'k', fetcher, model: 'old-model' });
+  assert.equal(bodies[3].generationConfig.thinkingConfig, undefined, '다음부터도 바로 통하는 설정을 씀');
+});
+
+test('모델 자동 선택: 가장 가벼운 flash-lite를 기본으로, flash를 예비로 고르고 키는 헤더로만 보낸다', async () => {
+  const model = (name, methods = ['generateContent']) => ({ name: `models/${name}`, supportedGenerationMethods: methods });
+  const list = [model('gemini-3.8-flash'), model('gemini-3.8-flash-lite-preview'), model('gemini-3.5-flash-lite'), model('gemini-3.8-flash-lite'),
+    model('gemini-3.8-flash-image'), model('gemini-3.8-pro'), model('text-embedding-4', ['embedContent']), model('gemini-3.8-flash-tts')];
+  assert.deepEqual(pickModels(list), { lite: 'gemini-3.8-flash-lite', flash: 'gemini-3.8-flash' });
+  assert.deepEqual(pickModels([model('gemini-3.8-flash')]), { lite: '', flash: 'gemini-3.8-flash' });
+  let request;
+  const picked = await chooseModels({ apiKey: 'secret', now: () => 1e15, fetcher: async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ models: list }) }; } });
+  assert.deepEqual(picked, { primary: 'gemini-3.8-flash-lite', fallback: 'gemini-3.8-flash' });
+  assert.ok(!request.url.includes('secret')); assert.equal(request.options.headers['x-goog-api-key'], 'secret');
+});
+
+test('브라우저 서비스: 같은 이름의 요청은 하나로 합치고, 실패하면 다시 요청한다', async () => {
+  let calls = 0;
+  const ok = async () => { calls++; return { ok: true, json: async () => ({ guess: { itemName: '물건G', material: '기타', type: '', route: 'general', confidence: 'high', reason: '' } }) }; };
+  const [first, second] = await Promise.all([requestAiGuess('물건G', ok), requestAiGuess('물건G', ok)]);
+  assert.equal(calls, 1); assert.equal(first, second);
+  let failures = 0;
+  const flaky = async () => { failures++; return { ok: false, status: 502, json: async () => ({}) }; };
+  await assert.rejects(requestAiGuess('물건H', flaky));
+  await assert.rejects(requestAiGuess('물건H', flaky));
+  assert.equal(failures, 2, '실패한 요청은 기억하지 않음');
+});
+
+test('AI 위험 경로만으로 전자제품 처리를 단정하지 않고 직접 고른 종류로 전용 안내한다', () => {
+  // 이름 속 낱말로 종류를 알 수 없는 이름에서 AI 위험 경로만으로는 전자제품 처리를 단정하지 않습니다.
+  const result = judgeDisposal({ itemName: '정체모를기계X', material: '기타', aiGuess: guess('hazardous', { itemName: '정체모를기계X' }) });
+  assert.equal(result.status, 'check'); assert.match(result.method, /물건 종류 확인/);
+  assert.ok(!result.steps.some(step => /1599-0903|폐건전지|전자제품/.test(step)));
+  assert.equal(judgeDisposal({ itemName: '무선마우스X', aiGuess: guess('hazardous', { itemName: '무선마우스X' }) }).handling, 'electronic', '낱말로 알 수 있으면 AI보다 우선');
+  const selected = judgeDisposal({ itemName: '무선마우스X', category: 'electronic' });
+  assert.match(selected.method, /소형 폐가전/);
+  assert.ok(selected.steps.some(step => /전용 수거함|회수 서비스/.test(step)));
+  assert.equal(selected.aiAssisted, undefined);
+});
+
+test('서버 함수: mode=opinion이면 등록 품목도 AI 의견을 받는다', async () => {
+  const previous = { key: process.env.GEMINI_API_KEY, fetch: globalThis.fetch };
+  const urls = [];
+  process.env.GEMINI_API_KEY = 'test-key';
+  globalThis.fetch = async url => { urls.push(url); return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ material: '종이', type: 'carton', route: 'recyclable', confidence: 'high', reason: '종이팩이에요.' }) }] } }] }) }; };
+  try {
+    const call = async query => { const res = fakeResponse(); await handler({ method: 'GET', query, headers: {} }, res); return res; };
+    const plain = await call({ name: '우유팩' });
+    assert.equal(JSON.parse(plain.body).reason, 'known_item'); assert.equal(urls.length, 0, '기본은 등록 품목에 AI를 부르지 않음');
+    const generated = () => urls.filter(url => url.includes(':generateContent')).length;
+    const opinion = await call({ name: '우유팩', mode: 'opinion' });
+    assert.equal(opinion.statusCode, 200); assert.equal(JSON.parse(opinion.body).guess.route, 'recyclable');
+    assert.equal(generated(), 1);
+  } finally {
+    globalThis.fetch = previous.fetch;
+    if (previous.key === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = previous.key;
+  }
+});
+
+test('브라우저 서비스: 등록 품목 의견 요청은 mode=opinion을 붙이고 따로 기억한다', async () => {
+  const urls = [];
+  const fetcher = async url => { urls.push(url); return { ok: true, json: async () => ({ guess: { itemName: '물건I', material: '기타', type: '', route: 'general', confidence: 'high', reason: '' } }) }; };
+  await requestAiGuess('물건I', fetcher);
+  await requestAiGuess('물건I', fetcher, { opinion: true });
+  assert.equal(urls.length, 2); assert.ok(!urls[0].includes('mode=')); assert.equal(new URL(urls[1], 'https://example.com').searchParams.get('mode'),'opinion');
+  assert.ok(new URL(urls[1], 'https://example.com').searchParams.get('v'),'이전 CDN의 잘못된 의견을 다시 받지 않도록 요청 버전을 구분');
+});
+
+function fakeResponse() {
+  const res = { headers: {}, statusCode: 200, body: '' };
+  res.setHeader = (name, value) => { res.headers[name] = value; };
+  res.status = code => { res.statusCode = code; return res; };
+  res.send = body => { res.body = body; };
+  return res;
+}
+
+test('서버 함수: 잘못된 요청·등록 품목·키 미설정', async () => {
+  const call = async (method, name) => { const res = fakeResponse(); await handler({ method, query: { name }, headers: {} }, res); return res; };
+  assert.equal((await call('PUT', '주걱')).statusCode, 405);
+  assert.equal((await call('POST', '주걱')).statusCode, 400, '신고 본문이 없는 POST는 거절');
+  assert.equal((await call('GET', '')).statusCode, 400);
+  assert.equal((await call('GET', 'x'.repeat(41))).statusCode, 400);
+  const known = await call('GET', '우유팩');
+  assert.equal(known.statusCode, 200); assert.equal(JSON.parse(known.body).guess, null);
+  const previous = { key: process.env.GEMINI_API_KEY, fetch: globalThis.fetch }; delete process.env.GEMINI_API_KEY;
+  globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) }); // 공용 저장소 없음
+  try { assert.equal((await call('GET', '실리콘주걱')).statusCode, 503); }
+  finally { globalThis.fetch = previous.fetch; if (previous.key !== undefined) process.env.GEMINI_API_KEY = previous.key; }
+});
+
+test('브라우저 서비스: 오류 안내와 응답 검증', async () => {
+  await assert.rejects(requestAiGuess(''), /40자/);
+  await assert.rejects(requestAiGuess('물건A', async () => ({ ok: false, status: 503, json: async () => ({ error: 'not_configured' }) })), /설정되지 않았어요/);
+  await assert.rejects(requestAiGuess('물건F', async () => ({ ok: false, status: 503, json: async () => ({ error: 'busy' }) })), /사용자가 많아/);
+  await assert.rejects(requestAiGuess('물건B', async () => ({ ok: false, status: 404 })), /배포된 사이트/);
+  await assert.rejects(requestAiGuess('물건C', async () => { throw new Error('offline'); }), /연결하지 못했어요/);
+  const ok = await requestAiGuess('물건D', async url => {
+    assert.ok(url.startsWith('/api/classify?name='));
+    return { ok: true, json: async () => ({ guess: { itemName: '물건D', material: '기타', type: '', route: 'general', confidence: 'high', reason: '' } }) };
+  });
+  assert.equal(ok.route, 'general');
+  const forged = await requestAiGuess('물건E', async () => ({ ok: true, json: async () => ({ guess: { itemName: '다른이름', material: '기타', type: '', route: 'general', confidence: 'high' } }) }));
+  assert.equal(forged, null);
+});
+
+test('공용 AI 저장소: 다른 이름까지 저장하고, 다음 요청은 AI 없이 바로 답한다', async () => {
+  const table = new Map();
+  const fetcher = async (url, init = {}) => {
+    if (init.method === 'POST') {
+      assert.equal(init.headers.apikey, 'service-secret'); assert.ok(!url.includes('service-secret'));
+      for (const row of JSON.parse(init.body)) if (!table.has(row.name_key)) table.set(row.name_key, row);
+      return { ok: true, status: 201, json: async () => ({}) };
+    }
+    assert.ok(!JSON.stringify(init.headers).includes('service-secret'), '읽기에는 서버 키를 쓰지 않음');
+    const key = decodeURIComponent(url.match(/name_key=eq.([^&]*)/)[1]);
+    return { ok: true, json: async () => (table.has(key) ? [table.get(key)] : []) };
+  };
+  const answer = { itemName: '실리콘집게', material: '기타', type: '', route: 'general', confidence: 'high', reason: '실리콘은 종량제봉투로 버려요.', source: 'gemini', model: 'lite',
+    aliases: ['실리콘 집게', '주방집게', '우유팩', '건전지', '조리용집게'] };
+  assert.equal(await saveSharedGuess('실리콘집게', answer, { fetcher, serviceKey: 'service-secret' }), true);
+  assert.deepEqual([...table.keys()].sort(), ['실리콘집게', '조리용집게', '주방집게'].sort(), '등록 품목·다른 종류로 인식되는 별칭은 저장하지 않음');
+  assert.equal(table.get('주방집게').canonical_key, '실리콘집게');
+  const hit = await readSharedGuess('주방 집게', { fetcher });
+  assert.equal(hit.route, 'general'); assert.equal(hit.itemName, '주방 집게');
+  assert.equal(await readSharedGuess('없는물건', { fetcher }), null);
+  assert.equal(await saveSharedGuess('추측물건', { ...answer, itemName: '추측물건', confidence: 'low' }, { fetcher, serviceKey: 'service-secret' }), false, '확신 낮은 답은 저장 안 함');
+  assert.equal(await saveSharedGuess('실리콘집게2', answer, { fetcher, serviceKey: '' }), false, '서버 키가 없으면 건너뜀');
+  assert.deepEqual(cleanAiAliases(['약', ' 알 약 ', '알약', 'x'.repeat(20), '<b>', 1], '알약'), ['약']);
+});
+
+test('서버 함수: 공용 저장소에 있으면 Gemini를 부르지 않고 바로 답한다', async () => {
+  const previous = { key: process.env.GEMINI_API_KEY, fetch: globalThis.fetch };
+  const urls = [];
+  process.env.GEMINI_API_KEY = 'test-key';
+  globalThis.fetch = async url => { urls.push(url); return { ok: true, json: async () => [{ material: '기타', item_type: '', route: 'general', confidence: 'high', reason: '공용 답' }] }; };
+  try {
+    const res = fakeResponse();
+    await handler({ method: 'GET', query: { name: '공용저장물건' }, headers: {} }, res);
+    const body = JSON.parse(res.body);
+    assert.equal(res.statusCode, 200); assert.equal(body.cached, 'shared'); assert.equal(body.guess.reason, '공용 답');
+    assert.ok(urls.every(url => !url.includes('generativelanguage')), 'Gemini 호출 없음');
+  } finally {
+    globalThis.fetch = previous.fetch;
+    if (previous.key === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = previous.key;
+  }
+});
+
+test('공용 종류 제안은 응답 검증을 거쳐 같은 이름에서만 재사용된다', async () => {
+  const itemName = '삼각형 포장 용기';
+  let rows;
+  const fetcher = async (_url, request) => {
+    if (request.method === 'POST') {
+      rows = JSON.parse(request.body);
+      return { ok: true, status: 201 };
+    }
+    return { ok: true, json: async () => rows };
+  };
+  const answer = {
+    itemName, material: '플라스틱', type: 'container', route: 'recyclable', confidence: 'high',
+    category: 'packaging', aliases: ['비슷한 이름'],
+  };
+  assert.equal(await saveSharedGuess(itemName, answer, { fetcher, serviceKey: 'test-key' }), true);
+  assert.deepEqual(rows.map(({ display_name, category }) => [display_name, category]), [[itemName, 'packaging']]);
+  assert.equal((await readSharedGuess(itemName, { fetcher })).category, 'packaging');
+});
+
+test('종류 확인 요청은 분류할 수 없는 공용 답을 넘기고 구체적인 AI 제안을 돌려준다', async () => {
+  const previousKey = process.env.GEMINI_API_KEY;
+  const previousServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const previousFetch = globalThis.fetch;
+  const itemName = '브랜드 전용 조립 부속품';
+  let modelCalls = 0;
+  process.env.GEMINI_API_KEY = 'test-key';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key';
+  globalThis.fetch = async (url, init = {}) => {
+    if (url.includes(':generateContent')) {
+      modelCalls++;
+      assert.ok(JSON.parse(init.body).generationConfig.responseSchema.required.includes('category'));
+      const modelAnswer = {
+        material: '플라스틱', type: 'container', route: 'recyclable',
+        category: 'packaging', confidence: 'high', reason: '플라스틱 포장 용기', aliases: [],
+      };
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(modelAnswer) }] } }] }) };
+    }
+    if (url.includes('/v1beta/models?')) return { ok: true, json: async () => ({ models: [] }) };
+    if (init.method === 'POST') return { ok: true };
+    return { ok: true, json: async () => [{ material: '기타', item_type: '', route: 'general', confidence: 'high' }] };
+  };
+  try {
+    const request = { method: 'GET', query: { name: itemName, mode: 'identify' }, headers: {} };
+    const first = fakeResponse();
+    await handler(request, first);
+    assert.equal(first.statusCode, 200);
+    assert.equal(JSON.parse(first.body).guess.category, 'packaging');
+    const second = fakeResponse();
+    await handler(request, second);
+    assert.equal(JSON.parse(second.body).guess.category, 'packaging');
+    assert.equal(modelCalls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousKey;
+    if (previousServiceKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = previousServiceKey;
+  }
+});

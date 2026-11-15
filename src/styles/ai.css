@@ -1,0 +1,47 @@
+.ai-badge{font-size:14px;background:#eef3fb;border:1px solid #c6d4ea;color:#2f4a6b;border-radius:8px;padding:10px 12px}
+/* AI 안내 켜기/끄기 스위치: 켜짐은 초록 테두리·배경과 ON, 꺼짐은 회색과 OFF로 한눈에 구분합니다. */
+.ai-toggle{display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 12px;border:2px solid #d5dbd2;border-radius:12px;background:#f6f7f5;cursor:pointer;transition:background .15s,border-color .15s}
+.ai-toggle.is-on{border-color:#2f6b4f;background:#eaf5ee}
+.ai-toggle input{position:absolute;opacity:0;width:1px;height:1px;min-height:0;padding:0;margin:0;clip-path:inset(50%)}
+.ai-toggle-track{display:block;flex:none;position:relative;width:62px;height:30px;border-radius:15px;background:#9aa39a;transition:background .15s}
+.ai-toggle-track::after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.ai-toggle-label{position:absolute;top:0;line-height:30px;font-size:11px;font-weight:800;color:#fff;letter-spacing:.02em}
+.ai-toggle-label.on{left:9px;opacity:0}.ai-toggle-label.off{right:8px}
+.ai-toggle input:checked+.ai-toggle-track{background:#2f6b4f}
+.ai-toggle input:checked+.ai-toggle-track::after{transform:translateX(32px)}
+.ai-toggle input:checked+.ai-toggle-track .on{opacity:1}.ai-toggle input:checked+.ai-toggle-track .off{opacity:0}
+.ai-toggle input:focus-visible+.ai-toggle-track{outline:3px solid #2f6b4f;outline-offset:2px}
+.ai-toggle-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ai-toggle-text strong{font-size:15px}
+.ai-toggle-text small{font-size:13px;color:#5c6b5c;line-height:1.45}
+.ai-toggle-state{display:inline-block;margin-left:4px;padding:1px 9px;border-radius:999px;background:#6b736b;color:#fff;font-size:12px;vertical-align:1px}
+.ai-toggle.is-on .ai-toggle-state{background:#2f6b4f}
+.ai-toggle.is-compact{display:inline-flex;max-width:100%;margin-top:10px;padding:8px 12px}
+/* AI 의견 상자: 입력란 아래와 결과 카드 안에서 같은 모양 */
+.ai-panel{margin-top:12px;padding:16px 18px;border:1px solid #c6d4ea;border-left:5px solid #4a6fa5;border-radius:10px;background:#f4f7fc;color:#1f2d3d}
+.ai-panel[hidden]{display:none}
+.ai-panel h3{margin:0 0 8px;font-size:17px}
+.ai-panel p{margin:0 0 8px}
+.ai-panel p:last-child{margin-bottom:0}
+.ai-panel .ai-panel-title{font-size:17px;font-weight:700;line-height:1.5}
+.ai-panel .ai-panel-reason{font-size:16px;line-height:1.65}
+.ai-panel .ai-panel-reason:empty{display:none}
+.ai-panel .button{min-height:44px;padding:10px 16px;margin-top:4px}
+.ai-panel .button[hidden]{display:none}
+.ai-panel.is-loading{border-left-color:#9aa9bd;color:#4a5868}
+.ai-confidence{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:#dfe8f5;font-size:13px;font-weight:600;vertical-align:middle}
+.ai-note{font-size:14px;color:#4a5868}
+.ai-warn{font-size:15px;padding:8px 10px;border-radius:8px;background:#fff4dc;color:#7a4b00}
+.ai-opinion{margin:14px 0 18px}
+/* 이름 속 낱말로 물건 종류를 알아봤을 때의 안내 */
+.keyword-note{margin:10px 0;padding:10px 12px;border-radius:8px;background:#eef6ec;border:1px solid #cfe0c9;font-size:15px;line-height:1.6}
+.keyword-note .history-action{margin-left:6px}
+/* 기준 결과와 AI 의견이 다를 때: 따를 결과를 먼저, AI 의견은 접어 둡니다 */
+.ai-resolve{font-size:16px;padding:10px 12px;border-radius:8px;background:#e7f3ea;color:#1f4d36;margin:0 0 8px}
+.ai-detail{margin-top:6px}
+.ai-detail summary{cursor:pointer;font-size:14px;color:#4a5868;padding:4px 0}
+.ai-panel h3 small{font-size:13px;font-weight:500;color:#5c6b5c}
+.ai-report-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.ai-report{min-height:36px;padding:6px 12px;border:1px solid #d9c3c3;border-radius:999px;background:#fff;color:#8a2f2f;font:inherit;font-size:13px;cursor:pointer}
+.ai-report:hover{background:#fff1f1}.ai-report:disabled{opacity:.6;cursor:default}
+.ai-report-hint{font-size:12px;color:#6b7785}.ai-report-error{font-size:12px;color:#a33}
