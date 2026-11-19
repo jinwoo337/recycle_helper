@@ -16,7 +16,7 @@ export function bulkyWastePage(member) {
   return `<section class="container bulky-waste-page">
     <header class="guide-heading">
       <h1>대형폐기물 신고</h1>
-      <p>배출 지역을 선택하고 품목마다 크기·규격별 수수료를 확인하세요.</p>
+      <p>전국 시·군·구의 대형폐기물 신고 방법과 사이트를 안내해요. 배출 지역을 선택해 주세요.</p>
     </header>
     <section class="bulky-waste-card" aria-labelledby="bulky-region-title">
       <div class="bulky-waste-region">
@@ -98,6 +98,7 @@ export function bindBulkyWaste(member) {
     regionLabelNode.textContent = locality.label;
     action.hidden = false;
     action.innerHTML = externalLink(locality.action.url, locality.action.label, 'button primary');
+    action.insertAdjacentHTML('beforeend', `<h3>${escapeHtml(locality.label)} 신고 방법</h3><ol>${locality.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol><p class="input-hint">${escapeHtml(locality.note)}</p>`);
     if (!locality.hasReportGuide) {
       action.insertAdjacentHTML('beforeend', '<p class="input-hint">지자체 누리집에서 ‘대형폐기물’을 검색해 신고 방법을 확인해 주세요.</p>');
     }

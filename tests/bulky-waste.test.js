@@ -31,6 +31,6 @@ test('지자체 자체 수수료표와 수수료 미등록 지역을 구분한�
   assert.deepEqual(filterBulkyWasteFees(gimpoFees.rows, '대리석 식탁 6인 미만'), [['대리석 식탁', '6인 미만', 10000]]);
   const eunpyeong = bulkyWasteLocality({ province: '서울특별시', district: '은평구' });
   assert.equal(await loadBulkyWasteFees(eunpyeong.key), null);
-  assert.equal(eunpyeong.action.url, 'https://www.ep.go.kr');
+  assert.equal(eunpyeong.action.url, 'https://ai-waste.ep.go.kr/');
   assert.equal(bulkyWasteLocality(null), null);
 });

@@ -9,6 +9,7 @@ export function collectionActionMarkup(input, result, action = collectionAction(
     ${action.extraUrl ? `<a class="button secondary" href="${escapeHtml(action.extraUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(action.extraLabel)} ↗</a>` : ''}
     ${action.phone ? `<a class="button secondary" href="tel:${escapeHtml(action.phone)}">${escapeHtml(action.office)} ${escapeHtml(action.phone)}</a>` : ''}
     <p class="input-hint">${action.scope ? `<strong>${escapeHtml(action.scope)}</strong> · ` : ''}${escapeHtml(action.note)}</p>
+    ${action.steps ? `<ol class="bulky-report-steps">${action.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>` : ''}
     ${checkedAt ? `<p class="input-hint">공식 자료 확인일: ${escapeHtml(checkedAt)}</p>` : ''}
     ${action.housing ? `<div class="collection-housing"><p>어떤 주택에 거주하나요?</p>${action.housing.map(([label, note]) => `<details name="collection-housing"><summary>${escapeHtml(label)}</summary><p>${escapeHtml(note)}</p></details>`).join('')}</div>` : ''}
   </div>`;

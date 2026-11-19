@@ -10,6 +10,7 @@ import { stepListMarkup } from '../../components/step-list.js';
 import { bindVerifiedCollection, collectionPointMarkup } from '../../components/collection-help.js';
 import { collectionActionMarkup } from '../../components/collection-action.js';
 import { disposalReasonMarkup } from '../../components/disposal-reason.js';
+import { reuseAdviceMarkup } from '../../components/reuse-advice.js';
 import { bindRegionalComparison, regionalComparisonMarkup } from '../../components/regional-comparison.js';
 import { bindDisposalSchedule, disposalScheduleMarkup } from '../../components/disposal-schedule.js';
 import { inputSearchVersion, queueInput, startInputSearch, takeQueuedInput, UNNAMED_ITEM } from '../../services/input-draft.js';
@@ -199,6 +200,7 @@ export function assistanceResultMarkup(answer, region, { answers = [], pendingAn
     ${confirmIdentity ? disposalReasonMarkup(null, '물건이 맞는지 확인하면 해당 품목의 배출 기준을 적용할 수 있어요.')
       : guide?.ruleVersion ? disposalReasonMarkup(guide)
         : disposalReasonMarkup(null, '물건의 용도나 상태에 따라 배출 방법이 달라요. 위에서 확인할 수 있는 정보를 골라 주세요.')}
+    ${!confirmIdentity && guide?.ruleVersion ? reuseAdviceMarkup({ ...itemPresetInput(answer.itemName), handlingCondition: guide.condition }, guide) : ''}
     ${checklist ? checklistMarkup() : ''}
     ${guide?.handling && steps.length ? collectionPointMarkup({ ...guide, itemName: answer.itemName }, { official: false }) : ''}
     ${guide?.ruleVersion && !confirmIdentity ? regionalComparisonMarkup(guide) : ''}
@@ -218,7 +220,7 @@ export function assistancePage(mode = 'description') {
     <form class="item-card assist-form" data-assist-form novalidate>
       ${photo ? `<section class="assist-photo" aria-labelledby="assist-photo-title"><h2 id="assist-photo-title">물건 사진</h2><p class="input-hint">물건 전체나 분리배출 표시가 잘 보이는 사진을 선택해 주세요.</p>
         <div class="assist-photo-buttons"><label class="button secondary assist-file-label">사진 촬영<input type="file" name="camera" accept="${PHOTO_ACCEPT}" capture="environment" aria-label="물건 사진 촬영" aria-describedby="assist-photo-message"></label><label class="button secondary assist-file-label">사진 선택<input type="file" name="gallery" accept="${PHOTO_ACCEPT}" aria-label="저장된 사진 선택" aria-describedby="assist-photo-message"></label><button type="button" class="history-action" data-assist-describe>설명으로 찾기</button></div>
-        <p class="input-hint">JPG·PNG·WebP·HEIC · 12MB 이하</p>
+        <p class="input-hint">JPG·PNG·WebP·HEIC·HEIF · 12MB 이하</p>
         <figure class="assist-preview" data-assist-preview hidden><img data-assist-image alt="분석할 물건 사진 미리보기"><figcaption><span data-assist-photo-status></span><button type="button" class="history-action" data-assist-remove>사진 지우기</button></figcaption></figure>
         <p class="assist-photo-message" id="assist-photo-message" data-assist-photo-message role="status" aria-live="polite"></p></section>` : ''}
       ${photo ? `<details class="assist-extra"><summary>사진에 보이지 않는 정보 추가 (선택)</summary>${descriptionField}</details>` : descriptionField}

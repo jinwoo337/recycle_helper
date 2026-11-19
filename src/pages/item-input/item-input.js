@@ -35,6 +35,7 @@ import { collectionPointMarkup } from '../../components/collection-help.js';
 import { collectionActionMarkup } from '../../components/collection-action.js';
 import { collectionAction } from '../../domain/disposal/collection-action.js';
 import { disposalReasonMarkup } from '../../components/disposal-reason.js';
+import { reuseAdviceMarkup } from '../../components/reuse-advice.js';
 import { stepListMarkup } from '../../components/step-list.js';
 import { inputModesMarkup, bindInputModes } from '../../components/input-modes.js';
 import { verifiedNameGuide } from '../../domain/disposal/verified-name-guide.js';
@@ -340,6 +341,7 @@ export function resultMarkup(input, result, createdAt, { editRegion = false, inl
     ${parts.length ? `<h3>본체와 부속품 배출 방법</h3><div class="result-parts">${parts.map(part => `<article class="${part.status === 'check' ? 'result-part-needs-check' : 'result-part-confirmed'}"><h4>${escapeHtml(part.label)} · ${escapeHtml(part.material)}</h4><p class="part-method">${escapeHtml(part.method)}</p>${part.steps.length ? stepListMarkup(part.steps, 'part-steps', { checklist: true }) : ''}</article>`).join('')}</div>` : ''}
     </div>
     ${disposalScheduleMarkup(result)}
+    ${reuseAdviceMarkup(input, result)}
     ${disposalReasonMarkup(result)}
     ${steps.length || parts.some(part => part.steps.length) ? checklistMarkup({ target: 'disposal-instructions' }) : ''}
     ${collectionPointMarkup({ ...result, itemName: input.itemName }, { official: false })}

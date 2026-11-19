@@ -3,6 +3,7 @@ import { MEDICINE_SOURCES } from './medicine-guide.js';
 import { cityGuide } from './city-guides.js';
 import { METRO_GUIDES } from './metro-guides.js';
 import { DAEJEON_GUIDES } from './daejeon-guides.js';
+import { bulkyWasteLocality } from './bulky-waste.js';
 import { REGIONAL_SOURCES, regionLabel } from './regions.js';
 
 const batteries = ['battery', 'rechargeable', 'damaged-battery'];
@@ -28,6 +29,15 @@ export function collectionAction(input, result) {
   const scope = region ? regionLabel(region) : '';
   const isBattery = batteries.includes(handling);
   const brokenGlass = input.material === '유리' && input.type === 'broken';
+  if (handling === 'large' || result.confirmedReport) {
+    const locality = bulkyWasteLocality(region);
+    if (!locality) return { url: '#/bulky-waste', label: '지역 선택하고 대형폐기물 신고 안내 보기',
+      note: '배출할 시·군·구를 선택하면 해당 지역의 신고 방법과 사이트를 안내해요.' };
+    return { ...locality.action, label: `${locality.label} · ${locality.action.label}`, scope: locality.label,
+      primary: true, note: locality.note, steps: locality.steps,
+      extraUrl: locality.feePage || (locality.sourceUrl !== locality.action.url ? locality.sourceUrl : undefined),
+      extraLabel: locality.feePage ? '지자체 공식 수수료표' : '지자체 공식 신고 안내' };
+  }
   if (region && result.parts?.[0]?.label === '본체와 결합 재질' && input.separable === 'no') {
     const official = districtRecyclePage(region);
     const home = DISTRICT_HOMEPAGES[region.province]?.[region.district];

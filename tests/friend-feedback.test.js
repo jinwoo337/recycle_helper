@@ -15,12 +15,13 @@ test('지원하는 서울 25개 구·대전 5개 구 모두 구청 누리집 주
   for (const d of SEOUL_DISTRICTS) assert.match(DISTRICT_HOMEPAGES['서울특별시'][d], /^https:\/\/www\./, d);
   for (const d of DAEJEON_DISTRICTS) assert.match(DISTRICT_HOMEPAGES['대전광역시'][d], /^https:\/\/www\./, d);
 });
-test('아이폰 HEIC 사진을 받는다', () => {
-  assert.ok(isHeicFile({ type: 'image/heic', name: 'a.heic' }));
-  assert.ok(isHeicFile({ type: '', name: 'IMG_0001.HEIC' }));
-  assert.ok(!isHeicFile({ type: 'image/jpeg', name: 'a.jpg' }));
-  assert.ok(!isHeicFile({ type: 'text/plain', name: 'a.heic' }));
-  assert.match(PHOTO_ACCEPT, /image\/heic/);
+test('사진 선택은 기존 JPG·PNG·WebP와 HEIC·HEIF를 함께 지원한다', () => {
+  for (const type of ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', '.heic', '.heif']) assert.ok(PHOTO_ACCEPT.split(',').includes(type));
+  for (const type of ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence', '', 'application/octet-stream']) {
+    for (const name of ['IMG_0001.HEIC', 'IMG_0001.HEIF']) {
+      assert.equal(isHeicFile({ type, name, size: 1024 }), true);
+    }
+  }
 });
 test('판별 지역은 기본으로 브라우저(localStorage)에 기억해 다음 접속에도 유지한다', () => {
   const entries = new Map();

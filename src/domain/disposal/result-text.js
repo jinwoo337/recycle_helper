@@ -1,4 +1,5 @@
 import { categoryLabel } from './item-categories.js';
+import { reuseAdvice } from './reuse.js';
 import { conditionDetails, disposalReasons, inputForDisplay, resultForDisplay, resultHandlingQuestion, resultNeedsCheck, resultStepsForDisplay } from './result-display.js';
 import { resultRegionLabel } from './regions.js';
 import { collectionAction } from './collection-action.js';
@@ -29,6 +30,8 @@ export function resultToText(input, result, { neighborhood } = {}) {
     ...(input.components || []).map((part, index) => `${part.label || `부속품 ${index + 1}`}\n${details(part)}`),
   ].filter(Boolean).join('\n\n');
   const action = collectionAction(input, result);
+  const reuse = reuseAdvice(input, result);
+  const reuseText = reuse ? `\n\n버리기 전에 재사용해 보세요\n깨끗하고 파손 없이 사용할 수 있는 경우에만 시도해 주세요.\n${numbered(reuse.tips)}` : '';
   const sources = [...new Set([...(result.sourceUrls || []), action?.url, action?.extraUrl].filter(Boolean))];
   const heading = [
     input.itemName,
@@ -44,8 +47,8 @@ export function resultToText(input, result, { neighborhood } = {}) {
     '공식 출처', ...sources,
   ].join('\n');
   const contact = action ? `\n\n수거처·문의\n${[
-    action.scope, action.note, action.phone && `${action.office} ${action.phone}`,
+    action.scope, action.note, ...(action.steps || []), action.phone && `${action.office} ${action.phone}`,
     ...(action.housing || []).map(([label, note]) => `${label} · ${note}`),
   ].filter(Boolean).join('\n')}` : '';
-  return `${prefix}${heading}${preparation}${partInstructions}${timing}${explanation}${contact}${conditions ? `\n\n입력한 조건\n${conditions}` : ''}\n\n${evidence}`;
+  return `${prefix}${heading}${preparation}${partInstructions}${timing}${explanation}${contact}${reuseText}${conditions ? `\n\n입력한 조건\n${conditions}` : ''}\n\n${evidence}`;
 }
